@@ -58,6 +58,10 @@ class BridgeControlClient {
     return this.request("shutdown_when_idle");
   }
 
+  shutdownOwnedWhenIdle(serverIdentity) {
+    return this.request("shutdown_owned_when_idle", JSON.stringify(serverIdentity));
+  }
+
   listInstances() {
     return this.request("list");
   }
@@ -77,6 +81,7 @@ class BridgeControlClient {
       this.pendingRequests.set(requestId, { resolve, reject, timeoutHandle });
       const fields = ["CONTROL", "1", requestId, operation];
       if (operation === "call") fields.push(encodeField(toolName), encodeField(JSON.stringify(toolArguments)));
+      else if (operation === "shutdown_owned_when_idle") fields.push(encodeField(toolName));
       this.socket.write(`${fields.join("\t")}\n`);
     });
   }

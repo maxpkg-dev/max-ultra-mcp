@@ -35,7 +35,7 @@ global MaxUltraMcpActiveClient
 
         button btnReconnect "Reconnect" pos: [12,456] width: 120 height: 30
         button btnStop "Stop / Exit" pos: [140,456] width: 120 height: 30
-        button btnStart "Start Max Ultra" pos: [268,456] width: 120 height: 30
+        button btnStart "Connect only" pos: [268,456] width: 120 height: 30
         button btnHide "Hide panel" pos: [548,456] width: 120 height: 30
 
         on MaxUltraMcpStatusDialog open do (
@@ -50,7 +50,7 @@ global MaxUltraMcpActiveClient
         on MaxUltraMcpStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.resizePanelControls panelSize
         on btnReconnect pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
-        on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.startBridge()
+        on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnHide pressed do if (bridgeClient != undefined) do bridgeClient.hidePanel()
     )
     struct MaxUltraMcpBridgeClient (
@@ -83,6 +83,9 @@ global MaxUltraMcpActiveClient
         connectionState = #stopped,
         connectionError = "",
         isStopped = true,
+        pendingConnectOnly = false,
+        hasConnectedThisSession = false,
+        ownedServerIdentity = "",
         pendingRequestLines = #(),
         cancelledRequestIds = #(),
         activityEntries = #(),
@@ -448,10 +451,24 @@ global MaxUltraMcpActiveClient
             if (suppressPanelShutdown or isDisposed) do return true
             isDisposed = true
             isStopped = true
+            pendingConnectOnly = false
             connectionState = #stopped
             try (
-                if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 9) do transportWorkerArguments.Item[8] = true
-                if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()
+                local shutdownIdentity = ownedServerIdentity
+                if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 12 and transportWorkerArguments.Item[11] != "") do shutdownIdentity = transportWorkerArguments.Item[11]
+                if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 12) do (
+                    -- Always leave the active worker a shutdown request. If this close races
+                    -- server startup, that worker fills Item[11] with the launched identity
+                    -- before its finally path performs the ownership-verified request.
+                    transportWorkerArguments.Item[8] = true
+                    if (shutdownIdentity != "") do transportWorkerArguments.Item[11] = shutdownIdentity
+                    if (transportWorker != undefined and transportWorker.IsBusy) then (
+                        transportWorker.CancelAsync()
+                    ) else if (shutdownIdentity != "") do (
+                        transportWorkerArguments.Item[9] = true
+                        transportWorker.RunWorkerAsync transportWorkerArguments
+                    )
+                )
             ) catch (
                 format "[3D Ground | Max Ultra MCP] SHUTDOWN REQUEST ERROR | %\n" (getCurrentException() as string)
             )
@@ -892,6 +909,7 @@ global MaxUltraMcpActiveClient
             local eventMessage = if (wireFields.count >= 3) then decodeWireField(wireFields[3]) else ""
             case eventName of (
                 "connected": (
+                    hasConnectedThisSession = true
                     connectionState = #connected
                     connectionError = ""
                     addActivity "success" ("Connected to " + hostAddress + ":" + (hostPort as string))
@@ -920,7 +938,10 @@ global MaxUltraMcpActiveClient
                     addActivity "info" ("Verified Max Ultra MCP server; requesting clean shutdown (" + eventMessage + ")")
                 )
                 "server_stopped": addActivity "info" "Previous Max Ultra MCP server stopped and released the port"
-                "server_started": addActivity "success" "Fresh Max Ultra MCP server is healthy"
+                "server_started": (
+                    ownedServerIdentity = eventMessage
+                    addActivity "success" "Fresh Max Ultra MCP server is healthy and owned by this bootstrap session"
+                )
                 "server_shutdown_armed": addActivity "success" "Verified server will stop after the last connected Max disconnects"
                 "server_shutdown_skipped": addActivity "error" eventMessage
                 "restart_complete": restartServerOnNextConnect = false
@@ -929,7 +950,21 @@ global MaxUltraMcpActiveClient
                     connectionError = if (eventMessage != "") then eventMessage else "Transport error"
                     addActivity "error" connectionError
                 )
-                "disconnected": if (not isStopped) do connectionState = #reconnecting
+                "disconnected": if (not isStopped) do (
+                    if (pendingConnectOnly) then (
+                        connectionState = #reconnecting
+                    ) else (
+                        isStopped = true
+                        connectionState = #error
+                        if (hasConnectedThisSession) then (
+                            connectionError = "Server connection ended. Run 01_START_MAX_ULTRA_MCP_FIRST.ms to start it again."
+                            addActivity "warning" connectionError
+                        ) else if (connectionError == "") do (
+                            connectionError = "Initial server connection ended before this Max registered. Run 01_START_MAX_ULTRA_MCP_FIRST.ms to retry."
+                            addActivity "error" connectionError
+                        )
+                    )
+                )
                 default: ()
             )
             refreshUserInterface()
@@ -937,6 +972,7 @@ global MaxUltraMcpActiveClient
         ),
         fn stopTransportState reason: "Stopped" = (
             isStopped = true
+            pendingConnectOnly = false
             connectionState = #stopped
             connectionError = ""
             try (
@@ -976,7 +1012,7 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn workerControlRequest workerHost workerPort operationName timeoutMilliseconds = (
+        fn workerControlRequest workerHost workerPort operationName timeoutMilliseconds requestPayload: "" = (
             local controlReply = MaxUltraMcpControlReply()
             local controlClient = undefined
             local controlStream = undefined
@@ -995,7 +1031,9 @@ global MaxUltraMcpActiveClient
                 controlReader = dotNetObject "System.IO.StreamReader" controlStream utf8Encoding
                 controlWriter = dotNetObject "System.IO.StreamWriter" controlStream utf8Encoding
                 controlWriter.AutoFlush = true
-                controlWriter.WriteLine ("CONTROL\t1\tbootstrap-control\t" + operationName)
+                local requestLine = "CONTROL\t1\tbootstrap-control\t" + operationName
+                if (requestPayload != "") do requestLine += "\t" + encodeWireField(requestPayload)
+                controlWriter.WriteLine requestLine
                 local responseLine = controlReader.ReadLine()
                 if (responseLine == undefined) do throw "Endpoint closed without a control response"
                 local responseFields = filterString responseLine "\t"
@@ -1004,7 +1042,7 @@ global MaxUltraMcpActiveClient
                 local convertClass = dotNetClass "System.Convert"
                 controlReply.responsePayload = encodingClass.UTF8.GetString (convertClass.FromBase64String responseFields[4])
                 if (responseFields[3] == "ok") then (
-                    if (operationName == "probe" or operationName == "shutdown") do (
+                    if (operationName == "probe" or operationName == "shutdown" or operationName == "shutdown_owned_when_idle") do (
                         if ((findString controlReply.responsePayload "\"server\":\"max-ultra-mcp\"") == undefined) do throw "Endpoint identity is not Max Ultra MCP"
                     )
                     controlReply.controlState = #verified
@@ -1025,6 +1063,22 @@ global MaxUltraMcpActiveClient
             try (if (controlStream != undefined) do controlStream.Close()) catch ()
             try (if (controlClient != undefined) do controlClient.Close()) catch ()
             return controlReply
+        ),
+
+        fn workerRequestOwnedIdleShutdown workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds = (
+            if (expectedIdentity == undefined or expectedIdentity == "") do (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "This bootstrap session did not launch the current server; it was left running"
+                return false
+            )
+            local idleShutdownReply = workerControlRequest workerHost workerPort "shutdown_owned_when_idle" timeoutMilliseconds requestPayload: expectedIdentity
+            local shutdownVerified = idleShutdownReply.controlState == #verified and (findString idleShutdownReply.responsePayload "\"armed\":true") != undefined and (findString idleShutdownReply.responsePayload "\"ownerMatched\":true") != undefined
+            if (shutdownVerified) then (
+                workerEncodeEvent workerQueue "server_shutdown_armed" idleShutdownReply.responsePayload
+                return true
+            ) else (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "Server ownership could not be verified for shutdown; no process was terminated"
+                return false
+            )
         ),
 
         fn workerProbeEndpoint workerHost workerPort timeoutMilliseconds = (
@@ -1088,6 +1142,9 @@ global MaxUltraMcpActiveClient
             local workerLauncherPath = workerArguments.Item[5]
             local workerWorkingDirectory = workerArguments.Item[6]
             local workerMutexName = workerArguments.Item[7]
+            local workerShutdownOnly = workerArguments.Count >= 10 and workerArguments.Item[9]
+            local workerAllowServerLaunch = workerArguments.Count >= 11 and workerArguments.Item[10]
+            local workerOwnedIdentity = if (workerArguments.Count >= 12) then workerArguments.Item[11] else ""
             local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000)
             local probeTimeoutMilliseconds = 500
             local lifecycleMutex = undefined
@@ -1097,6 +1154,15 @@ global MaxUltraMcpActiveClient
             local workerStream = undefined
             local workerReader = undefined
             local workerWriter = undefined
+            if (workerShutdownOnly) do (
+                try (
+                    workerRequestOwnedIdleShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
+                ) catch (
+                    workerEncodeEvent workerInboundQueue "server_shutdown_skipped" (getCurrentException() as string)
+                )
+                workerInboundQueue.Enqueue "EVENT\tdisconnected\t-"
+                return true
+            )
             try (
                 local probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
                 local needsFallbackPort = probeReply.controlState == #occupied or (workerRestartServer and probeReply.controlState == #legacy)
@@ -1137,6 +1203,7 @@ global MaxUltraMcpActiveClient
 
                 local serverUsable = probeReply.controlState == #healthy or probeReply.controlState == #legacy
                 if (not serverUsable) then (
+                    if (not workerAllowServerLaunch) do throw "Server is not running. Run 01_START_MAX_ULTRA_MCP_FIRST.ms to launch it explicitly."
                     if (not workerHostIsLoopback workerHost) do throw "Automatic server launch is allowed only for a configured loopback endpoint"
                     if (not ownsLifecycleMutex) do (
                         lifecycleMutex = dotNetObject "System.Threading.Mutex" false workerMutexName
@@ -1146,6 +1213,7 @@ global MaxUltraMcpActiveClient
                         probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
                         if (probeReply.controlState == #occupied) do throw "The chosen loopback endpoint became occupied by an unverified service; no process was terminated"
                         if (probeReply.controlState == #closed) do (
+                            if (workerSender.CancellationPending) do throw "Server startup cancelled"
                             workerEncodeEvent workerInboundQueue "server_launching" (workerLauncherPath + "|automatic minimized console")
                             workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort
                             launchedServer = true
@@ -1167,8 +1235,11 @@ global MaxUltraMcpActiveClient
 
                 if (probeReply.controlState == #legacy) then (
                     workerEncodeEvent workerInboundQueue "legacy_server" ""
+                ) else if (launchedServer) then (
+                    workerOwnedIdentity = probeReply.responsePayload
+                    workerEncodeEvent workerInboundQueue "server_started" probeReply.responsePayload
                 ) else (
-                    workerEncodeEvent workerInboundQueue (if launchedServer then "server_started" else "server_ready") ""
+                    workerEncodeEvent workerInboundQueue "server_ready" ""
                 )
                 if (workerRestartServer) do workerEncodeEvent workerInboundQueue "restart_complete" ""
                 if (ownsLifecycleMutex) do (
@@ -1205,14 +1276,7 @@ global MaxUltraMcpActiveClient
             if (ownsLifecycleMutex) do try (lifecycleMutex.ReleaseMutex()) catch ()
             try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
             try (
-                if (workerArguments.Count >= 9 and workerArguments.Item[8]) do (
-                    local idleShutdownReply = workerControlRequest workerHost workerPort "shutdown_when_idle" probeTimeoutMilliseconds
-                    if (idleShutdownReply.controlState == #verified and (findString idleShutdownReply.responsePayload "\"armed\":true") != undefined) then (
-                        workerEncodeEvent workerInboundQueue "server_shutdown_armed" idleShutdownReply.responsePayload
-                    ) else (
-                        workerEncodeEvent workerInboundQueue "server_shutdown_skipped" "Server identity could not be verified for shutdown-when-idle; no process was terminated"
-                    )
-                )
+                if (workerArguments.Count >= 12 and workerArguments.Item[8]) do workerRequestOwnedIdleShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
             ) catch (
                 workerEncodeEvent workerInboundQueue "server_shutdown_skipped" (getCurrentException() as string)
             )
@@ -1239,7 +1303,7 @@ global MaxUltraMcpActiveClient
             return helloLine
         ),
 
-        fn startTransport = (
+        fn startTransport allowServerLaunch: true = (
             if (isStopped) do return false
             if (transportWorker != undefined) do (
                 try (if (transportWorker.IsBusy) do return false) catch ()
@@ -1261,6 +1325,9 @@ global MaxUltraMcpActiveClient
             workerArguments.Add serverWorkingDirectory
             workerArguments.Add lifecycleMutexName
             workerArguments.Add false
+            workerArguments.Add false
+            workerArguments.Add allowServerLaunch
+            workerArguments.Add ownedServerIdentity
             transportWorkerArguments = workerArguments
             outboundQueue.Enqueue (buildHelloLine())
             sendSceneStatus()
@@ -1311,13 +1378,22 @@ global MaxUltraMcpActiveClient
         fn reconnectBridge = (
             initializeIdentity()
             isStopped = false
+            pendingConnectOnly = true
             connectionState = #reconnecting
             connectionError = ""
             try (
-                if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()
+                if (transportWorker != undefined and transportWorker.IsBusy) then (
+                    transportWorker.CancelAsync()
+                ) else (
+                    pendingConnectOnly = false
+                    startTransport allowServerLaunch: false
+                )
             ) catch (
+                pendingConnectOnly = false
+                connectionState = #error
+                connectionError = getCurrentException() as string
             )
-            addActivity "info" "Reconnect requested"
+            addActivity "info" "Connect-only retry requested; a stopped server will not be launched"
             refreshUserInterface()
             return true
         ),
@@ -1337,7 +1413,10 @@ global MaxUltraMcpActiveClient
                 handledRequests += 1
             )
             if (not isStopped and mod tickCount 10 == 0) do sendSceneStatus()
-            if (not isStopped and (transportWorker == undefined or not transportWorker.IsBusy) and mod tickCount 20 == 1) do startTransport()
+            if (pendingConnectOnly and not isStopped and (transportWorker == undefined or not transportWorker.IsBusy)) do (
+                pendingConnectOnly = false
+                startTransport allowServerLaunch: false
+            )
             if (mod tickCount 4 == 0) do refreshUserInterface()
             return true
         ),
@@ -1354,6 +1433,9 @@ global MaxUltraMcpActiveClient
             )
             if (not isStopped and transportWorker != undefined and transportWorker.IsBusy) do return true
             isStopped = false
+            pendingConnectOnly = false
+            hasConnectedThisSession = false
+            ownedServerIdentity = ""
             connectionState = #starting
             connectionError = ""
             showPanel()
@@ -1363,7 +1445,7 @@ global MaxUltraMcpActiveClient
                 addActivity "info" "First-step file started: ensuring local server is healthy"
             )
             if (serverLauncherPath == "") do addActivity "warning" "scripts\\start-server.bat not found below this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
-            startTransport()
+            startTransport allowServerLaunch: true
             return true
         )
     )

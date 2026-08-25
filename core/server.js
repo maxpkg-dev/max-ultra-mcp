@@ -223,6 +223,12 @@ class MaxBridge {
       } else if (operation === "shutdown_when_idle") {
         this.shutdownWhenIdle = true;
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, armed: true, connected: this.instances.size };
+      } else if (operation === "shutdown_owned_when_idle") {
+        const expectedIdentity = decodeField(fields[4]);
+        const currentIdentity = JSON.stringify({ server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, pid: process.pid, startedAt: this.startedAt });
+        if (!expectedIdentity || expectedIdentity !== currentIdentity) throw new Error("Server ownership identity does not match the current Max Ultra MCP process");
+        this.shutdownWhenIdle = true;
+        responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, armed: true, ownerMatched: true, connected: this.instances.size };
       } else if (operation === "list") {
         responsePayload = await this.callTool("max_list_instances");
       } else if (operation === "call") {
@@ -238,7 +244,7 @@ class MaxBridge {
       }
       sendResponse("ok", JSON.stringify(responsePayload));
       if (shutdownAfterResponse) setTimeout(() => this.shutdownHandler(), 50);
-      else if (operation === "shutdown_when_idle") setTimeout(() => this.scheduleIdleShutdownIfNeeded(), 50);
+      else if (operation === "shutdown_when_idle" || operation === "shutdown_owned_when_idle") setTimeout(() => this.scheduleIdleShutdownIfNeeded(), 50);
     } catch (error) {
       sendResponse("error", error.message);
     }
