@@ -24,9 +24,10 @@ global MaxUltraMcpActiveClient
         failureMessage = ""
     )
 
-    rollout MaxUltraMcpStatusDialog "3D Ground - Max Ultra MCP | First Step" width: 680 height: 500 (
-        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 656 height: 20
+    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP | First Step" width: 680 height: 500 (
+        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 560 height: 20
         dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
+        button btnHide "Hide panel" pos: [596,8] width: 72 height: 22
 
         dotNetControl pnlLogOutline "System.Windows.Forms.Panel" pos: [4,62] width: 672 height: 386
         dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [5,63] width: 670 height: 384
@@ -34,7 +35,7 @@ global MaxUltraMcpActiveClient
         button btnReconnect "Reconnect" pos: [12,456] width: 120 height: 30
         button btnStop "Stop / Exit" pos: [140,456] width: 120 height: 30
         button btnStart "Connect only" pos: [268,456] width: 120 height: 30
-        button btnHide "Hide panel" pos: [548,456] width: 120 height: 30
+        button btnSettings "Settings" pos: [548,456] width: 120 height: 30
 
         on MaxUltraMcpStatusDialog open do (
             if (bridgeClient != undefined) do (
@@ -50,6 +51,15 @@ global MaxUltraMcpActiveClient
         on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
         on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnHide pressed do if (bridgeClient != undefined) do bridgeClient.hidePanel()
+        on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
+    )
+
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 360 height: 82 (
+        groupBox grpAutostart "Autostart" pos: [12,10] width: 336 height: 58
+        checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
+
+        on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
+        on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
     )
     struct MaxUltraMcpBridgeClient (
         hostAddress = "127.0.0.1",
@@ -68,6 +78,7 @@ global MaxUltraMcpActiveClient
         uiStateFilePath = "",
         lifecycleMutexName = @"Local\3DGround.MaxUltraMCP.ServerLifecycle",
         statusDialog,
+        settingsDialog,
         transportWorker,
         inboundQueue,
         outboundQueue,
@@ -83,6 +94,7 @@ global MaxUltraMcpActiveClient
         restoreBubbleDragging = false,
         restoreBubbleDragOffset,
         restoreBubbleCloseAllowed = false,
+        settingsRefreshInProgress = false,
         transportWorkerArguments,
         suppressPanelShutdown = false,
         panelCloseInProgress = false,
@@ -180,7 +192,7 @@ global MaxUltraMcpActiveClient
             if (shutdownHelperStarted) do return true
             shutdownHelperStarted = true
             if (serverShutdownHelperPath == undefined or serverShutdownHelperPath == "" or not (doesFileExist serverShutdownHelperPath)) do (
-                format "[3D Ground | Max Ultra MCP] SHUTDOWN HELPER SKIPPED | scripts\\stop-owned-server.bat was not found\n"
+                format "[3DGROUND | Max Ultra MCP] SHUTDOWN HELPER SKIPPED | scripts\\stop-owned-server.bat was not found\n"
                 return false
             )
             try (
@@ -197,7 +209,7 @@ global MaxUltraMcpActiveClient
                 helperProcess.Dispose()
                 return true
             ) catch (
-                format "[3D Ground | Max Ultra MCP] SHUTDOWN HELPER ERROR | %\n" (getCurrentException() as string)
+                format "[3DGROUND | Max Ultra MCP] SHUTDOWN HELPER ERROR | %\n" (getCurrentException() as string)
                 return false
             )
         ),
@@ -355,7 +367,7 @@ global MaxUltraMcpActiveClient
             local panelWidth = amax 540 panelSize.x
             local panelHeight = amax 420 panelSize.y
             local contentWidth = panelWidth - 24
-            statusDialog.lblStatus.width = contentWidth
+            statusDialog.lblStatus.width = panelWidth - 108
             statusDialog.lblContext.width = contentWidth
             local logHeight = amax 260 (panelHeight - 114)
             statusDialog.pnlLogOutline.width = panelWidth - 8
@@ -366,7 +378,8 @@ global MaxUltraMcpActiveClient
             statusDialog.btnReconnect.pos.y = buttonY
             statusDialog.btnStop.pos.y = buttonY
             statusDialog.btnStart.pos.y = buttonY
-            statusDialog.btnHide.pos = [panelWidth - 132, buttonY]
+            statusDialog.btnSettings.pos = [panelWidth - 132, buttonY]
+            statusDialog.btnHide.pos = [panelWidth - 84, 8]
             return true
         ),
 
@@ -480,6 +493,174 @@ global MaxUltraMcpActiveClient
                 )
             ) catch ()
             return loadPanelGeometry()
+        ),
+
+        fn settingsDialogIsOpen = (
+            if (settingsDialog == undefined) do return false
+            try (
+                return settingsDialog.open
+            ) catch (
+                return false
+            )
+        ),
+
+        fn autostartScriptFilePath = (
+            local startupDirectory = ensureSlash (getDir #userStartupScripts)
+            if (startupDirectory == "") do return ""
+            return startupDirectory + "3DGROUND-Max-Ultra-MCP-Autostart.ms"
+        ),
+
+        fn maxScriptStringLiteral sourceContent = (
+            local backslashCharacter = bit.intAsChar 92
+            local quoteCharacter = bit.intAsChar 34
+            local escapedContent = sourceContent as string
+            escapedContent = substituteString escapedContent backslashCharacter (backslashCharacter + backslashCharacter)
+            escapedContent = substituteString escapedContent quoteCharacter (backslashCharacter + quoteCharacter)
+            escapedContent = substituteString escapedContent (bit.intAsChar 13) (backslashCharacter + "r")
+            escapedContent = substituteString escapedContent (bit.intAsChar 10) (backslashCharacter + "n")
+            return quoteCharacter + escapedContent + quoteCharacter
+        ),
+
+        fn persistAutostartSetting isEnabled = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "settings" "autostart" (if (isEnabled) then "true" else "false")
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn loadAutostartSetting = (
+            local autostartFileExists = doesFileExist (autostartScriptFilePath())
+            local storedSetting = ""
+            try (
+                if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do (
+                    storedSetting = toLower (getINISetting uiStateFilePath "settings" "autostart")
+                )
+            ) catch (storedSetting = "")
+            if (storedSetting == "") do (
+                persistAutostartSetting autostartFileExists
+                return autostartFileExists
+            )
+            if (storedSetting == "true" and not autostartFileExists) do (
+                persistAutostartSetting false
+                return false
+            )
+            if (storedSetting == "false" and autostartFileExists) do (
+                persistAutostartSetting true
+                return true
+            )
+            if (storedSetting != "true" and storedSetting != "false") do (
+                persistAutostartSetting autostartFileExists
+                return autostartFileExists
+            )
+            return storedSetting == "true" and autostartFileExists
+        ),
+
+        fn writeAutostartScript = (
+            if (bootstrapFilePath == undefined or bootstrapFilePath == "" or not (doesFileExist bootstrapFilePath)) do return false
+            local autostartFilePath = autostartScriptFilePath()
+            if (autostartFilePath == "" or uiStateFilePath == undefined or uiStateFilePath == "") do return false
+            local startupDirectory = getFilenamePath autostartFilePath
+            local bootstrapLiteral = maxScriptStringLiteral bootstrapFilePath
+            local uiStateLiteral = maxScriptStringLiteral uiStateFilePath
+            local settingsSectionLiteral = maxScriptStringLiteral "settings"
+            local autostartKeyLiteral = maxScriptStringLiteral "autostart"
+            local falseLiteral = maxScriptStringLiteral "false"
+            local errorPrefixLiteral = maxScriptStringLiteral "[3DGROUND | Max Ultra MCP] AUTOSTART ERROR | "
+            local cleanupExpression = "try (deleteFile " + (maxScriptStringLiteral autostartFilePath) + ") catch ()"
+            local cleanupLiteral = maxScriptStringLiteral cleanupExpression
+            local sourceLines = #(
+                "-- Launches 3DGROUND - Max Ultra MCP from the saved bootstrap path.",
+                "-- Copyright (c) 2026 Lukianenko Vasyl",
+                "-- Project website: https://3dground.net",
+                "-- Developed by Lukianenko Vasyl",
+                "",
+                "(",
+                "    local maxUltraMcpBootstrapPath = " + bootstrapLiteral,
+                "    if (doesFileExist maxUltraMcpBootstrapPath) then (",
+                "        try (",
+                "            fileIn maxUltraMcpBootstrapPath quiet: true",
+                "        ) catch (",
+                "            print (" + errorPrefixLiteral + " + (getCurrentException() as string))",
+                "        )",
+                "    ) else (",
+                "        try (setINISetting " + uiStateLiteral + " " + settingsSectionLiteral + " " + autostartKeyLiteral + " " + falseLiteral + ") catch ()",
+                "        callbacks.removeScripts id: #MaxUltraMcpAutostartCleanup",
+                "        callbacks.addScript #postSystemStartup " + cleanupLiteral + " id: #MaxUltraMcpAutostartCleanup persistent: false",
+                "    )",
+                ")"
+            )
+            local autostartStream = undefined
+            try (
+                if (not (doesDirectoryExist startupDirectory)) do makeDir startupDirectory
+                autostartStream = createFile autostartFilePath
+                if (autostartStream == undefined) do throw "Could not create the Max Ultra MCP autostart script"
+                for sourceLineIndex in 1 to sourceLines.count do format (sourceLines[sourceLineIndex] + "\n") to: autostartStream
+                close autostartStream
+                autostartStream = undefined
+                return true
+            ) catch (
+                try (if (autostartStream != undefined) do close autostartStream) catch ()
+                try (if (doesFileExist autostartFilePath) do deleteFile autostartFilePath) catch ()
+                return false
+            )
+        ),
+
+        fn setAutostartEnabled isEnabled = (
+            local autostartFilePath = autostartScriptFilePath()
+            if (isEnabled) then (
+                if (not (writeAutostartScript())) do return false
+                if (persistAutostartSetting true) do return true
+                try (deleteFile autostartFilePath) catch ()
+                return false
+            ) else (
+                if (doesFileExist autostartFilePath) do (
+                    try (if (not (deleteFile autostartFilePath)) do return false) catch (return false)
+                )
+                if (persistAutostartSetting false) do return true
+                try (writeAutostartScript()) catch ()
+                return false
+            )
+        ),
+
+        fn disposeSettingsDialog = (
+            settingsRefreshInProgress = true
+            try (if (settingsDialogIsOpen()) do destroyDialog settingsDialog) catch ()
+            settingsRefreshInProgress = false
+            return true
+        ),
+
+        fn refreshSettingsDialog = (
+            if (not (settingsDialogIsOpen())) do return false
+            settingsRefreshInProgress = true
+            try (settingsDialog.chkAutostart.checked = loadAutostartSetting()) catch ()
+            settingsRefreshInProgress = false
+            return true
+        ),
+
+        fn handleAutostartSettingChanged isEnabled = (
+            if (settingsRefreshInProgress) do return true
+            if (setAutostartEnabled isEnabled) do return true
+            settingsRefreshInProgress = true
+            try (if (settingsDialogIsOpen()) do settingsDialog.chkAutostart.checked = not isEnabled) catch ()
+            settingsRefreshInProgress = false
+            messageBox "Could not update the Max Ultra MCP autostart file or INI setting." title: "Max Ultra MCP Settings"
+            return false
+        ),
+
+        fn showSettingsDialog = (
+            if (isDisposed) do return false
+            if (settingsDialogIsOpen()) do return true
+            try (
+                createDialog settingsDialog width: 360 height: 82 style: #(#style_titlebar, #style_sysmenu)
+                return settingsDialogIsOpen()
+            ) catch (
+                format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)
+                return false
+            )
         ),
 
         fn defaultRestoreBubblePosition = (
@@ -626,7 +807,7 @@ global MaxUltraMcpActiveClient
                 try (
                     createDialog statusDialog width: restoreSize.x height: restoreSize.y pos: restorePosition style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
                 ) catch (
-                    format "[3D Ground | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
+                    format "[3DGROUND | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
                 )
             )
             if (not panelIsOpen()) do return false
@@ -703,7 +884,7 @@ global MaxUltraMcpActiveClient
                 restoreBubbleForm.Show()
                 return true
             ) catch (
-                format "[3D Ground | Max Ultra MCP] RESTORE MINI-PANEL ERROR | %\n" (getCurrentException() as string)
+                format "[3DGROUND | Max Ultra MCP] RESTORE MINI-PANEL ERROR | %\n" (getCurrentException() as string)
                 disposeRestoreBubble()
                 return false
             )
@@ -730,9 +911,10 @@ global MaxUltraMcpActiveClient
                     local finalGeometry = capturePanelGeometry formSender
                     persistPanelGeometry finalGeometry[1] finalGeometry[2]
                 ) catch (
-                    try (format "[3D Ground | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
+                    try (format "[3DGROUND | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
                 )
             )
+            disposeSettingsDialog()
             disposeRestoreBubble()
             if (suppressPanelShutdown or wasAlreadyDisposed) do return true
             connectionState = #stopped
@@ -751,7 +933,7 @@ global MaxUltraMcpActiveClient
             try (
                 cleanupResult = performPanelFormClosing formSender eventArgs
             ) catch (
-                try (format "[3D Ground | Max Ultra MCP] FORM CLOSE ERROR | %\n" (getCurrentException() as string)) catch ()
+                try (format "[3DGROUND | Max Ultra MCP] FORM CLOSE ERROR | %\n" (getCurrentException() as string)) catch ()
             )
             return cleanupResult
         ),
@@ -777,7 +959,7 @@ global MaxUltraMcpActiveClient
                 rememberNormalPanelGeometry panelForm
                 return true
             ) catch (
-                format "[3D Ground | Max Ultra MCP] FORM HOOK ERROR | %\n" (getCurrentException() as string)
+                format "[3DGROUND | Max Ultra MCP] FORM HOOK ERROR | %\n" (getCurrentException() as string)
                 return false
             )
         ),
@@ -1593,6 +1775,7 @@ global MaxUltraMcpActiveClient
             isStopped = true
             pendingConnectOnly = false
             stopPollTimer()
+            disposeSettingsDialog()
             disposeRestoreBubble()
             try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
             try (if (transportWorker != undefined) do dotNet.removeEventHandler transportWorker "DoWork" transportDoWork) catch ()
@@ -1618,7 +1801,7 @@ global MaxUltraMcpActiveClient
         fn registerMaxShutdownCallback = (
             try (
                 callbacks.removeScripts id: maxShutdownCallbackId
-                local callbackScript = "try (if MaxUltraMcpActiveClient != undefined do MaxUltraMcpActiveClient.closeForLifecycle reason:\"3ds Max is exiting\") catch (format \"[3D Ground | Max Ultra MCP] MAX EXIT ERROR | %\\n\" (getCurrentException() as string))"
+                local callbackScript = "try (if MaxUltraMcpActiveClient != undefined do MaxUltraMcpActiveClient.closeForLifecycle reason:\"3ds Max is exiting\") catch (format \"[3DGROUND | Max Ultra MCP] MAX EXIT ERROR | %\\n\" (getCurrentException() as string))"
                 callbacks.addScript #preSystemShutdown callbackScript id: maxShutdownCallbackId persistent: false
                 return true
             ) catch (
@@ -1680,7 +1863,7 @@ global MaxUltraMcpActiveClient
                 connectionError = timerFailure
                 stopPollTimer()
                 try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
-                try (format "[3D Ground | Max Ultra MCP] TIMER STOPPED AFTER CALLBACK ERROR | %\n" timerFailure) catch ()
+                try (format "[3DGROUND | Max Ultra MCP] TIMER STOPPED AFTER CALLBACK ERROR | %\n" timerFailure) catch ()
             )
             return true
         ),
@@ -1711,14 +1894,14 @@ global MaxUltraMcpActiveClient
                 isStopped = true
                 stopPollTimer()
                 try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
-                try (format "[3D Ground | Max Ultra MCP] TIMER START ERROR | %\n" timerStartFailure) catch ()
+                try (format "[3DGROUND | Max Ultra MCP] TIMER START ERROR | %\n" timerStartFailure) catch ()
                 return false
             )
             return true
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog
+    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog settingsDialog: MaxUltraMcpSettingsDialog
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient

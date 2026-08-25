@@ -21,7 +21,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Write-HelperStatus([string]$Level, [string]$Message) {
-    [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] $Level | $Message")
+    [Console]::Error.WriteLine("[3DGROUND | Max Ultra MCP] $Level | $Message")
 }
 
 function Get-ProcessRecord([int]$ProcessId) {

@@ -4,7 +4,7 @@ These rules apply to every change in this repository. They are adapted from the 
 
 ## Project contract
 
-- Keep the product identity consistently **3D Ground - Max Ultra MCP**. Do not reintroduce legacy bridge identities or environment-variable prefixes.
+- Keep the product identity consistently **3DGROUND - Max Ultra MCP**. Do not reintroduce legacy bridge identities or environment-variable prefixes.
 - Support Autodesk 3ds Max 2022 and 2027.
 - Keep networking and transport work off the Max main thread. Marshal all 3ds Max UI, scene, viewport, and API work through the bounded main-thread queue.
 - Never manipulate or save a real user scene from automated tests.

@@ -127,7 +127,7 @@ class MaxBridge {
     this.shutdownScheduled = false;
     this.tcpServer = net.createServer((socket) => this.acceptConnection(socket));
     this.tcpServer.on("error", (error) => {
-      process.stderr.write(`[3D Ground | Max Ultra MCP] ERROR | TCP listener: ${error.message}\n`);
+      process.stderr.write(`[3DGROUND | Max Ultra MCP] ERROR | TCP listener: ${error.message}\n`);
     });
   }
 
@@ -139,7 +139,7 @@ class MaxBridge {
         this.tcpServer.off("error", rejectStart);
         const serverAddress = this.tcpServer.address();
         this.port = serverAddress.port;
-        process.stderr.write(`[3D Ground | Max Ultra MCP] RUNNING | ${this.host}:${this.port} | connected=0\n`);
+        process.stderr.write(`[3DGROUND | Max Ultra MCP] RUNNING | ${this.host}:${this.port} | connected=0\n`);
         resolve(serverAddress);
       });
     });
@@ -190,7 +190,7 @@ class MaxBridge {
     this.rejectPendingForInstance(connectionInfo.instanceId, "3ds Max disconnected");
     this.instances.delete(connectionInfo.instanceId);
     if (this.selectedInstanceId === connectionInfo.instanceId) this.selectedInstanceId = "";
-    process.stderr.write(`[3D Ground | Max Ultra MCP] DISCONNECTED | ${connectionInfo.instanceId} | connected=${this.instances.size}\n`);
+    process.stderr.write(`[3DGROUND | Max Ultra MCP] DISCONNECTED | ${connectionInfo.instanceId} | connected=${this.instances.size}\n`);
     this.scheduleIdleShutdownIfNeeded();
   }
 
@@ -328,7 +328,7 @@ class MaxBridge {
     connectionInfo.instanceId = instanceId;
     this.instances.set(instanceId, instanceInfo);
     this.appendLog(instanceId, "info", `Registered 3ds Max ${instanceInfo.maxVersion}, pid ${instanceInfo.pid}`);
-    process.stderr.write(`[3D Ground | Max Ultra MCP] CONNECTED | Max ${instanceInfo.maxVersion} | pid=${instanceInfo.pid} | connected=${this.instances.size}\n`);
+    process.stderr.write(`[3DGROUND | Max Ultra MCP] CONNECTED | Max ${instanceInfo.maxVersion} | pid=${instanceInfo.pid} | connected=${this.instances.size}\n`);
   }
 
   resolveRequest(fields) {
@@ -634,7 +634,7 @@ async function main() {
     writeLaunchOwnership(bridge);
     process.once("exit", removeLaunchOwnership);
   } catch (error) {
-    process.stderr.write("[3D Ground | Max Ultra MCP] WARNING | Ownership record was not written: " + error.message + "\n");
+    process.stderr.write("[3DGROUND | Max Ultra MCP] WARNING | Ownership record was not written: " + error.message + "\n");
   }
   const inputReader = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   inputReader.on("line", (inputLine) => {
@@ -656,7 +656,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch((error) => {
-    process.stderr.write(`[3D Ground | Max Ultra MCP] FATAL | ${error.stack || error.message}\n`);
+    process.stderr.write(`[3DGROUND | Max Ultra MCP] FATAL | ${error.stack || error.message}\n`);
     process.exitCode = 1;
   });
 }

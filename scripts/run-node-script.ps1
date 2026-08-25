@@ -8,7 +8,7 @@ param(
 )
 
 if ([string]::IsNullOrWhiteSpace($ScriptPath)) {
-    [Console]::Error.WriteLine('[3D Ground | Max Ultra MCP] ERROR | A Node.js script path is required.')
+    [Console]::Error.WriteLine('[3DGROUND | Max Ultra MCP] ERROR | A Node.js script path is required.')
     exit 1
 }
 
@@ -22,18 +22,18 @@ try {
     }
 }
 catch {
-    [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] ERROR | Invalid Node.js script path: $ScriptPath")
+    [Console]::Error.WriteLine("[3DGROUND | Max Ultra MCP] ERROR | Invalid Node.js script path: $ScriptPath")
     exit 1
 }
 
 if (-not (Test-Path -LiteralPath $resolvedScriptPath -PathType Leaf)) {
-    [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] ERROR | Node.js script was not found: $resolvedScriptPath")
+    [Console]::Error.WriteLine("[3DGROUND | Max Ultra MCP] ERROR | Node.js script was not found: $resolvedScriptPath")
     exit 1
 }
 
 $supportedExtensions = @('.js', '.cjs', '.mjs')
 if ($supportedExtensions -notcontains [System.IO.Path]::GetExtension($resolvedScriptPath).ToLowerInvariant()) {
-    [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] ERROR | Expected a .js, .cjs, or .mjs script: $resolvedScriptPath")
+    [Console]::Error.WriteLine("[3DGROUND | Max Ultra MCP] ERROR | Expected a .js, .cjs, or .mjs script: $resolvedScriptPath")
     exit 1
 }
 
@@ -67,7 +67,7 @@ foreach ($candidatePath in ($nodeCandidates | Select-Object -Unique)) {
 }
 
 if (-not $nodeExecutable) {
-    [Console]::Error.WriteLine('[3D Ground | Max Ultra MCP] ERROR | Node.js 18 or newer was not found.')
+    [Console]::Error.WriteLine('[3DGROUND | Max Ultra MCP] ERROR | Node.js 18 or newer was not found.')
     [Console]::Error.WriteLine('Install Node.js 18+ or run Max Ultra MCP from a Codex installation with its bundled runtime.')
     exit 1
 }
@@ -81,7 +81,7 @@ if ($env:MAX_ULTRA_MCP_OWNER_FILE -and $env:MAX_ULTRA_MCP_OWNER_TOKEN) {
         $env:MAX_ULTRA_MCP_LAUNCHER_STARTED_AT_UTC = $launcherProcess.CreationDate.ToUniversalTime().ToString('o')
     }
     catch {
-        [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] WARNING | Could not capture launcher ownership metadata: $($_.Exception.Message)")
+        [Console]::Error.WriteLine("[3DGROUND | Max Ultra MCP] WARNING | Could not capture launcher ownership metadata: $($_.Exception.Message)")
         $env:MAX_ULTRA_MCP_LAUNCHER_PID = ''
         $env:MAX_ULTRA_MCP_LAUNCHER_STARTED_AT_UTC = ''
     }
@@ -91,7 +91,7 @@ try {
     $nodeExitCode = $LASTEXITCODE
 }
 catch {
-    [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] ERROR | Could not start Node.js: $($_.Exception.Message)")
+    [Console]::Error.WriteLine("[3DGROUND | Max Ultra MCP] ERROR | Could not start Node.js: $($_.Exception.Message)")
     exit 1
 }
 

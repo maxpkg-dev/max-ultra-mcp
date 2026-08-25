@@ -5,10 +5,10 @@
 @echo off
 setlocal EnableExtensions
 
-title 3D Ground - Max Ultra MCP - Create Test Box
+title 3DGROUND - Max Ultra MCP - Create Test Box
 cls
 echo ================================================================
-echo   3D GROUND ^| MAX ULTRA MCP
+echo   3DGROUND ^| MAX ULTRA MCP
 echo   REAL EXAMPLE - CREATE ONE TEST BOX
 echo ================================================================
 echo.
