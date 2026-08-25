@@ -50,4 +50,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-smoke.ps1
 
 The smoke suite uses mock Max clients and never opens, changes, or saves a real scene.
 
+## Examples
+
+Run any `.bat` file in `examples\`. The root of that directory contains only launchers; every launcher has a same-named subfolder with its JavaScript implementation. Each implementation calls `core\bridge-control-client.js` directly, without an intermediate example framework.
+
+The included examples list connected Max instances, check health, read a scene summary or snapshot, create one test Box, and create a three-Box grid. Creation examples do not save the scene and refuse ambiguous routing when several Max instances are connected.
+
 See [the detailed documentation](docs/README.md) for MCP configuration, tools, endpoint recovery, panel behavior, examples, environment variables, and repository layout.

@@ -65,19 +65,24 @@ The compact panel shows two status/context rows above a tall log.
 
 When exactly one Max is connected, short calls route automatically. With several instances, the server returns the live inventory and requires `instance_id` or an explicit `max_select_instance` call.
 
-## Runnable Box example
+## Runnable examples
 
-Run:
+The root of `examples\` contains only BAT launchers. Every launcher has a same-named subfolder containing its JavaScript implementation:
 
-```bat
-examples\example-create-test-box.bat
-```
+| Launcher | Action |
+| --- | --- |
+| `example-list-instances.bat` | List all connected 3ds Max instances |
+| `example-health-check.bat` | Check the selected or only Max instance |
+| `example-scene-summary.bat` | Read a detailed scene summary |
+| `example-scene-snapshot.bat` | Read a compact scene snapshot |
+| `example-create-test-box.bat` | Create one named Box at the origin |
+| `example-create-box-grid.bat` | Create and select a row of three named Boxes |
 
-The visible action in `examples\example-create-box.js` is intentionally short: it creates one clearly named Box at origin and does not save the scene. `examples\run-max-action.js` owns connection, inventory, sole-instance routing, multi-instance refusal, error handling, and cleanup. `core\bridge-control-client.js` owns protocol plumbing.
+For example, `examples\example-create-test-box.bat` launches `examples\example-create-test-box\example-create-test-box.js`. Each JavaScript file imports `core\bridge-control-client.js` directly. There is no `_shared` action layer or example-specific routing framework.
 
-The BAT passes `examples\example-create-box.js` directly to `scripts\run-node-script.ps1`. The shared runner owns Node.js 18+ discovery, script validation, safe argument forwarding, execution errors, and the child exit code; example launchers contain no environment-specific Node path plumbing.
+Each BAT passes its implementation directly to `scripts\run-node-script.ps1`. The shared runner owns Node.js 18+ discovery, script validation, safe argument forwarding, execution errors, and the child exit code; example launchers contain no environment-specific Node path plumbing.
 
-If exactly one Max is connected, the action targets it. If several are connected, the example prints the live inventory and refuses to modify an arbitrary scene.
+Read-only examples can list all instances. Examples that target a scene use the server's normal routing: exactly one connected Max routes automatically, while several instances require a prior explicit `max_select_instance` call. Creation examples check their object names first, never overwrite existing objects, and never save the scene.
 
 ## Agent configuration
 
@@ -122,7 +127,7 @@ Automatic launch/recovery is loopback-only.
 README.md                         concise start page and documentation links
 core/                             server, protocol client, mock, smoke, package metadata
 scripts/                          launchers, shared Node.js runner, and detached owned-server shutdown helper
-examples/                         runnable Box action and reusable action helper
+examples/                         BAT-only launcher root plus same-named implementation folders
 docs/README.md                    detailed documentation
 .agents/                          adapted project coding instructions
 ```

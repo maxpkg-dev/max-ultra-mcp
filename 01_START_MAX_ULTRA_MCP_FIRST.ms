@@ -47,6 +47,7 @@ global MaxUltraMcpActiveClient
         )
 
         on MaxUltraMcpStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.resizePanelControls panelSize
+        on MaxUltraMcpStatusDialog close do if (bridgeClient != undefined) do bridgeClient.handlePanelRolloutClosed()
         on btnReconnect pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
         on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
@@ -938,6 +939,14 @@ global MaxUltraMcpActiveClient
             return cleanupResult
         ),
 
+        fn handlePanelRolloutClosed = (
+            if (suppressPanelShutdown or isDisposed or panelCloseInProgress) do return true
+            local closedPanelForm = panelForm
+            local cleanupResult = handlePanelFormClosing closedPanelForm undefined
+            panelForm = undefined
+            return cleanupResult
+        ),
+
         fn detachPanelFormEvents formSender = (
             if (formSender == undefined) do return true
             try (dotNet.removeEventHandler formSender "FormClosing" handlePanelFormClosing) catch ()
@@ -1017,11 +1026,14 @@ global MaxUltraMcpActiveClient
                         return false
                     )
                     detachPanelFormEvents panelForm
+                    suppressPanelShutdown = true
                     destroyDialog statusDialog
+                    suppressPanelShutdown = false
                     panelForm = undefined
                     if (panelIsOpen()) do throw "The native MCP Server rollout did not close"
                     addActivity "info" "Panel hidden; use the lower-left Expand MCP Server mini-panel to restore it"
                 ) catch (
+                    suppressPanelShutdown = false
                     disposeRestoreBubble()
                     try (if (panelIsOpen()) do attachPanelFormClosing()) catch ()
                     addActivity "error" ("Could not hide panel: " + (getCurrentException() as string))
@@ -1038,7 +1050,7 @@ global MaxUltraMcpActiveClient
             connectionState = #stopped
             refreshUserInterface()
             if (panelIsOpen()) then (
-                if (panelForm != undefined) then panelForm.Close() else destroyDialog statusDialog
+                destroyDialog statusDialog
             ) else (
                 handlePanelFormClosing panelForm undefined
             )

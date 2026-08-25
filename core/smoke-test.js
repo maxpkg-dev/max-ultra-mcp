@@ -16,8 +16,12 @@ const { spawn } = require("node:child_process");
 const { MaxBridge, handleRpcMessage, mcpTools } = require("./server");
 const { MockMaxClient } = require("./mock-max-client");
 const { BridgeControlClient } = require("./bridge-control-client");
-const { AmbiguousMaxInventoryError } = require("../examples/run-max-action");
-const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-box");
+const { GRID_BOX_NAMES, createBoxGridExample } = require("../examples/example-create-box-grid/example-create-box-grid");
+const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-test-box/example-create-test-box");
+const { healthCheckExample } = require("../examples/example-health-check/example-health-check");
+const { listInstancesExample } = require("../examples/example-list-instances/example-list-instances");
+const { sceneSnapshotExample } = require("../examples/example-scene-snapshot/example-scene-snapshot");
+const { sceneSummaryExample } = require("../examples/example-scene-summary/example-scene-summary");
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 async function waitFor(predicate, timeoutMs = 2000) {
@@ -217,13 +221,13 @@ async function runSmokeTest() {
     assert.equal(shutdownResponse.server, "max-ultra-mcp");
     assert.equal(shutdownResponse.shuttingDown, true);
     await waitFor(() => shutdownRequests === 1);
-    const controlInventory = await controlClient.listInstances();
+    const controlInventory = await listInstancesExample({ client: controlClient, output: quietOutput });
     assert.equal(controlInventory.count, 2);
-    await assert.rejects(createTestBox({ client: controlClient, output: quietOutput, throwOnError: true }), (error) => {
-      assert.equal(error instanceof AmbiguousMaxInventoryError, true);
-      assert.equal(error.inventory.count, 2);
-      return true;
-    });
+    await assert.rejects(controlClient.callTool("not_a_real_tool", {}), /Control client cannot call/);
+    await assert.rejects(
+      createTestBox({ client: controlClient, output: quietOutput }),
+      /Multiple 3ds Max instances|max_select_instance/,
+    );
     assert.equal(max2022.executeRequests.length, 0);
     assert.equal(max2027.executeRequests.length, 0);
 
@@ -321,12 +325,26 @@ async function runSmokeTest() {
     const automaticSelection = await bridge.callTool("max_health", {});
     assert.equal(automaticSelection.instance.instanceId, "test-max-2027");
 
-    const boxResponse = await createTestBox({ client: controlClient, output: quietOutput, throwOnError: true });
-    assert.equal(boxResponse.instance.instanceId, "test-max-2027");
+    const exampleHealth = await healthCheckExample({ client: controlClient, output: quietOutput });
+    assert.equal(exampleHealth.health.mainThread, true);
+    const exampleSummary = await sceneSummaryExample({ client: controlClient, output: quietOutput });
+    assert.equal(exampleSummary.scene.objectCount, 3);
+    const exampleSnapshot = await sceneSnapshotExample({ client: controlClient, output: quietOutput });
+    assert.equal(exampleSnapshot.snapshot.scene.objectCount, 3);
+
+    const boxResponse = await createTestBox({ client: controlClient, output: quietOutput });
+    assert.equal(boxResponse.instanceId, "test-max-2027");
     const exampleScript = max2027.executeRequests.at(-1);
     assert.match(exampleScript, new RegExp(`box name:"${TEST_BOX_NAME}"`));
     assert.match(exampleScript, /pos:\[0,0,0\]/);
     assert.doesNotMatch(exampleScript, /save(MaxFile|Nodes|AsVersion)/i);
+
+    const gridResponse = await createBoxGridExample({ client: controlClient, output: quietOutput });
+    assert.equal(gridResponse.instance.instanceId, "test-max-2027");
+    const gridScript = max2027.executeRequests.at(-1);
+    for (const boxName of GRID_BOX_NAMES) assert.ok(gridScript.includes(boxName));
+    assert.match(gridScript, /for boxIndex in 1 to boxNames\.count/);
+    assert.doesNotMatch(gridScript, /save(MaxFile|Nodes|AsVersion)/i);
 
     assert.equal(fs.existsSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms")), true);
     const rootReadme = fs.readFileSync(path.join(PROJECT_ROOT, "README.md"), "utf8");
@@ -347,9 +365,36 @@ async function runSmokeTest() {
     assert.match(nodeRunnerSource, /Test-Path -LiteralPath \$resolvedScriptPath -PathType Leaf/);
     assert.match(nodeRunnerSource, /& \$nodeExecutable \$resolvedScriptPath @scriptArguments/);
     assert.doesNotMatch(nodeRunnerSource, /Invoke-Expression|Start-Process|cmd\.exe/i);
+    const examplesRoot = path.join(PROJECT_ROOT, "examples");
+    const expectedExampleNames = [
+      "example-create-box-grid",
+      "example-create-test-box",
+      "example-health-check",
+      "example-list-instances",
+      "example-scene-snapshot",
+      "example-scene-summary",
+    ];
+    const rootExampleFiles = fs.readdirSync(examplesRoot, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .sort();
+    assert.deepEqual(rootExampleFiles, expectedExampleNames.map((name) => name + ".bat"));
+    assert.equal(fs.existsSync(path.join(examplesRoot, "_shared")), false);
+    for (const exampleName of expectedExampleNames) {
+      const implementationPath = path.join(examplesRoot, exampleName, exampleName + ".js");
+      assert.equal(fs.existsSync(implementationPath), true, exampleName + " must have a matching implementation folder");
+      const implementationSource = fs.readFileSync(implementationPath, "utf8");
+      assert.match(implementationSource, /\.\.\/\.\.\/core\/bridge-control-client/);
+      assert.doesNotMatch(implementationSource, /_shared|run-max-action/);
+      assert.doesNotMatch(implementationSource, /save(MaxFile|Nodes|AsVersion)/i);
+    }
     const thinNodeLaunchers = [
-      ["examples/example-create-test-box.bat", "examples\\example-create-box.js"],
-      ["examples/example-create-box.ps1", "examples\\example-create-box.js"],
+      ["examples/example-create-box-grid.bat", "examples\\example-create-box-grid\\example-create-box-grid.js"],
+      ["examples/example-create-test-box.bat", "examples\\example-create-test-box\\example-create-test-box.js"],
+      ["examples/example-health-check.bat", "examples\\example-health-check\\example-health-check.js"],
+      ["examples/example-list-instances.bat", "examples\\example-list-instances\\example-list-instances.js"],
+      ["examples/example-scene-snapshot.bat", "examples\\example-scene-snapshot\\example-scene-snapshot.js"],
+      ["examples/example-scene-summary.bat", "examples\\example-scene-summary\\example-scene-summary.js"],
       ["scripts/start-server.bat", "core\\server.js"],
       ["scripts/start-server.ps1", "core\\server.js"],
       ["scripts/run-smoke.ps1", "core\\smoke-test.js"],
@@ -394,6 +439,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rtbActivity .* pos: \[5,63\] width: 670 height: 384/);
     assert.match(bootstrapSource, /#style_resizing/);
     assert.match(bootstrapSource, /on MaxUltraMcpStatusDialog resized panelSize/);
+    assert.match(bootstrapSource, /on MaxUltraMcpStatusDialog close do if \(bridgeClient != undefined\) do bridgeClient\.handlePanelRolloutClosed\(\)/);
     assert.match(bootstrapSource, /pnlLogOutline\.width = panelWidth - 8/);
     assert.match(bootstrapSource, /rtbActivity\.width = panelWidth - 10/);
     assert.match(bootstrapSource, /rtbActivity\.height = logHeight - 2/);
@@ -439,6 +485,9 @@ async function runSmokeTest() {
     assert.ok(formClosingBody.indexOf("stopPollTimer()") < formClosingBody.indexOf("persistPanelGeometry"), "Timer must stop before panel cleanup touches external controls");
     assert.ok(formClosingBody.indexOf("persistPanelGeometry") < formClosingBody.indexOf("CancelAsync"), "Final panel geometry must be saved before transport cleanup");
     assert.match(formClosingBody, /detachPanelFormEvents formSender/);
+    assert.match(formClosingBody, /fn handlePanelRolloutClosed/);
+    assert.match(formClosingBody, /if \(suppressPanelShutdown or isDisposed or panelCloseInProgress\) do return true/);
+    assert.match(formClosingBody, /handlePanelFormClosing closedPanelForm undefined/);
     assert.match(bootstrapSource, /removeEventHandler formSender "LocationChanged" handlePanelGeometryChanged/);
     assert.match(bootstrapSource, /removeEventHandler formSender "ResizeEnd" handlePanelGeometryChanged/);
     assert.match(bootstrapSource, /fn normalizePanelGeometry/);
@@ -546,9 +595,13 @@ async function runSmokeTest() {
     assert.match(hidePanelBody, /persistPanelGeometry hiddenPanelPosition hiddenPanelSize/);
     assert.match(hidePanelBody, /showRestoreBubble\(\)/);
     assert.match(hidePanelBody, /detachPanelFormEvents panelForm/);
+    assert.match(hidePanelBody, /suppressPanelShutdown = true[\s\S]*destroyDialog statusDialog[\s\S]*suppressPanelShutdown = false/);
     assert.match(hidePanelBody, /destroyDialog statusDialog/);
     assert.ok(hidePanelBody.indexOf("showRestoreBubble()") < hidePanelBody.indexOf("destroyDialog statusDialog"), "The restore mini-panel must exist before the native rollout is destroyed");
     assert.doesNotMatch(hidePanelBody, /panelForm\.Hide\(\)|CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle|handleViewportScreenshot|disposeForReload/);
+    const closeForLifecycleBody = bootstrapSource.slice(bootstrapSource.indexOf("fn closeForLifecycle"), bootstrapSource.indexOf("fn minimizePanel"));
+    assert.match(closeForLifecycleBody, /if \(panelIsOpen\(\)\) then \([\s\S]*destroyDialog statusDialog/);
+    assert.doesNotMatch(closeForLifecycleBody, /panelForm\.Close\(\)/);
     assert.doesNotMatch(restorePanelBody + restoreClickBody + restoreMiniPanelBody, /CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle/);
     assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
     assert.match(bootstrapSource, /serverShutdownHelperPath/);

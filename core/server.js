@@ -14,6 +14,15 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { randomUUID } = require("node:crypto");
 
+const CONTROL_CALLABLE_TOOLS = new Set([
+  "max_list_instances",
+  "max_health",
+  "max_scene_summary",
+  "max_snapshot",
+  "max_create_box",
+  "max_execute",
+]);
+
 const WIRE_VERSION = "1";
 const DEFAULT_HOST = process.env.MAX_ULTRA_MCP_HOST || "127.0.0.1";
 const DEFAULT_PORT = Number(process.env.MAX_ULTRA_MCP_PORT || 47635);
@@ -286,7 +295,7 @@ class MaxBridge {
         responsePayload = await this.callTool("max_list_instances");
       } else if (operation === "call") {
         const toolName = decodeField(fields[4]);
-        if (!new Set(["max_list_instances", "max_execute"]).has(toolName)) {
+        if (CONTROL_CALLABLE_TOOLS.has(toolName) === false) {
           throw new Error(`Control client cannot call '${toolName}'`);
         }
         const argumentText = decodeField(fields[5]);

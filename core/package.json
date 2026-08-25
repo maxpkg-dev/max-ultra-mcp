@@ -9,7 +9,7 @@
     "test": "node smoke-test.js",
     "mock:2022": "node mock-max-client.js 2022",
     "mock:2027": "node mock-max-client.js 2027",
-    "example:box": "node ../examples/example-create-box.js"
+    "example:box": "node ../examples/example-create-test-box/example-create-test-box.js"
   },
   "engines": {
     "node": ">=18"
