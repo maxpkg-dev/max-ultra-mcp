@@ -18,7 +18,7 @@ echo   It never saves the scene and refuses if multiple Max instances exist.
 echo.
 echo ----------------------------------------------------------------
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0example-create-box.ps1"
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-create-box.js"
 set "EXAMPLE_EXIT_CODE=%ERRORLEVEL%"
 
 echo ----------------------------------------------------------------

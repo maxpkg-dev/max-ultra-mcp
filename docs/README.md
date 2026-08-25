@@ -37,8 +37,8 @@ The compact panel shows two status/context rows above a tall log.
 - Panel and log colors derive from 3ds Max `ColorMan` background/text colors, with safe fallbacks. The log uses a lighter theme surface, a one-pixel flat black boundary, and blue/cyan informational text. Success, warning, error, and debug colors remain distinct.
 - The RichTextBox is read-only, wrapped, capped at 30 entries, and auto-scrolls to the latest entry.
 - Final window `x`/`y` are saved before cleanup in the user-scripts `MaxUltraMCP\panel-ui.ini` file. On the next launch, the full 680×500 bounds must fit a current screen working area or the panel centers safely.
-- **Hide panel** saves position and hides only the panel. The server and Max client remain connected. A small borderless `Max Ultra MCP - Show` bubble appears near the lower-left of that screen's working area; clicking it restores/focuses the panel and disposes the bubble.
-- Window X and **Stop / Exit** first stop and unsubscribe the Max-side timer, disconnect Max, and immediately stop only the exact server launched by this bootstrap session. This intentionally disconnects any other Max clients in the single-user workflow. A pre-existing/manual server is disconnected but left running. The #preSystemShutdown callback applies the same idempotent cleanup during Max exit. Re-run cleanup disposes the prior timer, worker/form handlers, and restore bubble before creating replacements, while server restart remains limited to the explicit first-step flow.
+- **Hide panel** saves the current bounds and hides only the main panel. The server and Max client remain connected. A compact borderless mini-panel appears at the lower-left of the screen containing 3ds Max, with one **Expand MCP Server** action and no minimize, maximize, or close controls. Expanding restores/focuses the main panel at its previous size and position, then removes the mini-panel. Repeated hide requests reuse the same mini-panel instead of creating duplicates, and a failed expansion leaves it available to retry.
+- Window X and **Stop / Exit** first stop and unsubscribe the Max-side timer, disconnect Max, and immediately stop only the exact server launched by this bootstrap session. This intentionally disconnects any other Max clients in the single-user workflow. A pre-existing/manual server is disconnected but left running. The #preSystemShutdown callback applies the same idempotent cleanup during Max exit. Re-run cleanup disposes the prior timer, worker/form handlers, and restore mini-panel before creating replacements, while server restart remains limited to the explicit first-step flow.
 
 ## Concise MCP tools
 
@@ -69,6 +69,8 @@ examples\example-create-test-box.bat
 ```
 
 The visible action in `examples\example-create-box.js` is intentionally short: it creates one clearly named Box at origin and does not save the scene. `examples\run-max-action.js` owns connection, inventory, sole-instance routing, multi-instance refusal, error handling, and cleanup. `core\bridge-control-client.js` owns protocol plumbing.
+
+The BAT passes `examples\example-create-box.js` directly to `scripts\run-node-script.ps1`. The shared runner owns Node.js 18+ discovery, script validation, safe argument forwarding, execution errors, and the child exit code; example launchers contain no environment-specific Node path plumbing.
 
 If exactly one Max is connected, the action targets it. If several are connected, the example prints the live inventory and refuses to modify an arbitrary scene.
 
@@ -114,7 +116,7 @@ Automatic launch/recovery is loopback-only.
 01_START_MAX_ULTRA_MCP_FIRST.ms   one user-facing MaxScript entry point
 README.md                         concise start page and documentation links
 core/                             server, protocol client, mock, smoke, package metadata
-scripts/                          BAT/PowerShell server and smoke launchers
+scripts/                          BAT/PowerShell launchers and shared Node.js 18+ runner
 examples/                         runnable Box action and reusable action helper
 docs/README.md                    detailed documentation
 .agents/                          adapted project coding instructions
@@ -134,4 +136,4 @@ Or with Node 18+:
 node .\core\smoke-test.js
 ```
 
-The suite uses mock Max 2022 and 2027 clients only. It verifies all 13 tools, routing/cancellation, Box safety, panel/UI/screenshot protocol, RichTextBox bounds/autoscroll, FormClosing persistence order, Hide/bubble isolation, theme/status invariants, legacy/fallback recovery, minimized launch, and identity-verified shutdown-on-idle. It does not open 3ds Max, manipulate a real scene, or save a scene.
+The suite uses mock Max 2022 and 2027 clients only. It verifies all 13 tools, routing/cancellation, Box safety, panel/UI/screenshot protocol, RichTextBox bounds/autoscroll, FormClosing persistence order, Hide/restore-mini-panel isolation, theme/status invariants, legacy/fallback recovery, minimized launch, and identity-verified shutdown. It does not open 3ds Max, manipulate a real scene, or save a scene.

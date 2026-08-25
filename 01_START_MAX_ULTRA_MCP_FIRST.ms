@@ -72,8 +72,11 @@ global MaxUltraMcpActiveClient
         outboundQueue,
         pollTimer,
         panelForm,
+        hiddenPanelBounds,
         restoreBubbleForm,
+        restoreBubbleLabel,
         restoreBubbleButton,
+        restoreBubbleCloseAllowed = false,
         transportWorkerArguments,
         suppressPanelShutdown = false,
         panelCloseInProgress = false,
@@ -208,9 +211,9 @@ global MaxUltraMcpActiveClient
         fn lighterThemeSurface = (
             local colorClass = dotNetClass "System.Drawing.Color"
             local themeBackground = themeDrawingColor #background 68 68 68
-            local surfaceRed = themeBackground.R + (((255 - themeBackground.R) * 0.07) as integer)
-            local surfaceGreen = themeBackground.G + (((255 - themeBackground.G) * 0.07) as integer)
-            local surfaceBlue = themeBackground.B + (((255 - themeBackground.B) * 0.07) as integer)
+            local surfaceRed = themeBackground.R + (((255 - themeBackground.R) * 0.08) as integer)
+            local surfaceGreen = themeBackground.G + (((255 - themeBackground.G) * 0.08) as integer)
+            local surfaceBlue = themeBackground.B + (((255 - themeBackground.B) * 0.08) as integer)
             return colorClass.FromArgb surfaceRed surfaceGreen surfaceBlue
         ),
         fn themeIsDark = (
@@ -375,11 +378,15 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeRestoreBubble = (
+            local bubbleLabelToDispose = restoreBubbleLabel
             local bubbleButtonToDispose = restoreBubbleButton
             local bubbleFormToDispose = restoreBubbleForm
+            restoreBubbleLabel = undefined
             restoreBubbleButton = undefined
             restoreBubbleForm = undefined
+            restoreBubbleCloseAllowed = true
             try (if (bubbleButtonToDispose != undefined) do dotNet.removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick) catch ()
+            try (if (bubbleFormToDispose != undefined) do dotNet.removeEventHandler bubbleFormToDispose "FormClosing" handleRestoreBubbleFormClosing) catch ()
             try (
                 if (bubbleFormToDispose != undefined) do (
                     bubbleFormToDispose.Hide()
@@ -387,56 +394,105 @@ global MaxUltraMcpActiveClient
                     bubbleFormToDispose.Dispose()
                 )
             ) catch ()
+            try (if (bubbleLabelToDispose != undefined) do bubbleLabelToDispose.Dispose()) catch ()
+            try (if (bubbleButtonToDispose != undefined) do bubbleButtonToDispose.Dispose()) catch ()
+            restoreBubbleCloseAllowed = false
+            return true
+        ),
+
+        fn handleRestoreBubbleFormClosing formSender eventArgs = (
+            if (not restoreBubbleCloseAllowed and eventArgs != undefined) do eventArgs.Cancel = true
+            return true
+        ),
+
+        fn restoreHiddenPanel = (
+            if (isDisposed or panelForm == undefined) do return false
+            local panelWasShown = false
+            try (
+                panelForm.WindowState = (dotNetClass "System.Windows.Forms.FormWindowState").Normal
+                if (hiddenPanelBounds != undefined) do panelForm.Bounds = hiddenPanelBounds
+                panelForm.Show()
+                panelWasShown = panelForm.Visible
+            ) catch (
+                format "[3D Ground | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
+            )
+            if (not panelWasShown) do return false
+            hiddenPanelBounds = undefined
+            try (panelForm.BringToFront()) catch ()
+            try (panelForm.Activate()) catch ()
+            disposeRestoreBubble()
+            refreshUserInterface()
             return true
         ),
 
         fn handleRestoreBubbleClick bubbleSender eventArgs = (
             if (isDisposed) do return true
-            disposeRestoreBubble()
-            try (
-                if (panelForm != undefined) do (
-                    panelForm.Show()
-                    panelForm.WindowState = (dotNetClass "System.Windows.Forms.FormWindowState").Normal
-                    panelForm.Activate()
-                )
-            ) catch (
-                format "[3D Ground | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
+            if (not (restoreHiddenPanel())) do (
+                try (addActivity "error" "Could not expand the MCP Server panel; the restore mini-panel remains available") catch ()
             )
             return true
         ),
 
         fn showRestoreBubble = (
-            disposeRestoreBubble()
+            if (isDisposed) do return false
+            if (restoreBubbleForm != undefined) do (
+                try (
+                    if (not restoreBubbleForm.IsDisposed) do (
+                        if (not restoreBubbleForm.Visible) do restoreBubbleForm.Show()
+                        restoreBubbleForm.BringToFront()
+                        return true
+                    )
+                ) catch ()
+                disposeRestoreBubble()
+            )
             try (
                 restoreBubbleForm = dotNetObject "System.Windows.Forms.Form"
+                restoreBubbleLabel = dotNetObject "System.Windows.Forms.Label"
                 restoreBubbleButton = dotNetObject "System.Windows.Forms.Button"
                 restoreBubbleForm.FormBorderStyle = (dotNetClass "System.Windows.Forms.FormBorderStyle").None
+                restoreBubbleForm.ControlBox = false
+                restoreBubbleForm.MinimizeBox = false
+                restoreBubbleForm.MaximizeBox = false
+                restoreBubbleForm.ShowIcon = false
                 restoreBubbleForm.ShowInTaskbar = false
                 restoreBubbleForm.TopMost = true
                 restoreBubbleForm.StartPosition = (dotNetClass "System.Windows.Forms.FormStartPosition").Manual
-                restoreBubbleForm.Size = dotNetObject "System.Drawing.Size" 156 36
+                restoreBubbleForm.Size = dotNetObject "System.Drawing.Size" 236 64
                 local screenClass = dotNetClass "System.Windows.Forms.Screen"
-                local targetScreen = if (panelForm != undefined) then screenClass.FromControl panelForm else screenClass.PrimaryScreen
+                local maxWindowHandle = dotNetObject "System.IntPtr" (windows.getMAXHWND())
+                local targetScreen = screenClass.FromHandle maxWindowHandle
                 local workingArea = targetScreen.WorkingArea
                 local bubbleX = workingArea.Left + 12
                 local bubbleY = workingArea.Bottom - restoreBubbleForm.Height - 12
                 restoreBubbleForm.Location = dotNetObject "System.Drawing.Point" bubbleX bubbleY
                 restoreBubbleForm.BackColor = themeDrawingColor #background 68 68 68
-                restoreBubbleButton.Text = "Max Ultra MCP - Show"
-                restoreBubbleButton.AccessibleName = "Restore Max Ultra MCP panel"
-                restoreBubbleButton.Dock = (dotNetClass "System.Windows.Forms.DockStyle").Fill
+                restoreBubbleForm.Text = "Max Ultra MCP"
+                restoreBubbleForm.AccessibleName = "Max Ultra MCP restore mini-panel"
+                restoreBubbleLabel.Text = "Max Ultra MCP"
+                restoreBubbleLabel.Location = dotNetObject "System.Drawing.Point" 8 5
+                restoreBubbleLabel.Size = dotNetObject "System.Drawing.Size" 220 18
+                restoreBubbleLabel.BackColor = restoreBubbleForm.BackColor
+                restoreBubbleLabel.ForeColor = themeDrawingColor #text 220 220 220
+                restoreBubbleLabel.TabStop = false
+                restoreBubbleButton.Text = "Expand MCP Server"
+                restoreBubbleButton.AccessibleName = "Expand MCP Server"
+                restoreBubbleButton.Location = dotNetObject "System.Drawing.Point" 8 27
+                restoreBubbleButton.Size = dotNetObject "System.Drawing.Size" 220 29
                 restoreBubbleButton.FlatStyle = (dotNetClass "System.Windows.Forms.FlatStyle").Flat
-                restoreBubbleButton.FlatAppearance.BorderSize = 0
-                restoreBubbleButton.BackColor = restoreBubbleForm.BackColor
+                restoreBubbleButton.FlatAppearance.BorderSize = 1
+                restoreBubbleButton.FlatAppearance.BorderColor = (dotNetClass "System.Drawing.Color").Black
+                restoreBubbleButton.BackColor = lighterThemeSurface()
                 restoreBubbleButton.ForeColor = statusTextColor()
                 local boldFontStyle = (dotNetClass "System.Drawing.FontStyle").Bold
                 restoreBubbleButton.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0 boldFontStyle
                 dotNet.addEventHandler restoreBubbleButton "Click" handleRestoreBubbleClick
+                dotNet.addEventHandler restoreBubbleForm "FormClosing" handleRestoreBubbleFormClosing
+                restoreBubbleForm.Controls.Add restoreBubbleLabel
                 restoreBubbleForm.Controls.Add restoreBubbleButton
                 restoreBubbleForm.Show()
                 return true
             ) catch (
-                format "[3D Ground | Max Ultra MCP] RESTORE BUBBLE ERROR | %\n" (getCurrentException() as string)
+                format "[3D Ground | Max Ultra MCP] RESTORE MINI-PANEL ERROR | %\n" (getCurrentException() as string)
                 disposeRestoreBubble()
                 return false
             )
@@ -548,11 +604,11 @@ global MaxUltraMcpActiveClient
 
         fn showPanel = (
             if (isDisposed) do return false
-            disposeRestoreBubble()
-            if (not panelIsOpen()) then (
+            if (panelForm != undefined) then (
+                if (not (restoreHiddenPanel())) do return false
+            ) else if (not panelIsOpen()) then (
                 createDialog statusDialog width: 680 height: 500 pos: (loadPanelPosition()) style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
-            ) else (
-                try (if (panelForm != undefined) do panelForm.Show()) catch ()
+                disposeRestoreBubble()
             )
             refreshUserInterface()
             return true
@@ -562,12 +618,18 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (panelIsOpen() and panelForm != undefined) do (
                 try (
-                    local hiddenLocation = panelForm.Location
-                    persistPanelPosition [hiddenLocation.X as integer, hiddenLocation.Y as integer]
+                    hiddenPanelBounds = panelForm.Bounds
+                    if (panelForm.WindowState != (dotNetClass "System.Windows.Forms.FormWindowState").Normal) do hiddenPanelBounds = panelForm.RestoreBounds
+                    persistPanelPosition [hiddenPanelBounds.X as integer, hiddenPanelBounds.Y as integer]
                     panelForm.Hide()
-                    showRestoreBubble()
-                    addActivity "info" "Panel hidden; use the lower-left restore bubble to show it"
+                    if (not (showRestoreBubble())) do (
+                        restoreHiddenPanel()
+                        addActivity "error" "Could not create the restore mini-panel; the MCP Server panel was shown again"
+                        return false
+                    )
+                    addActivity "info" "Panel hidden; use the lower-left Expand MCP Server mini-panel to restore it"
                 ) catch (
+                    try (restoreHiddenPanel()) catch ()
                     addActivity "error" ("Could not hide panel: " + (getCurrentException() as string))
                     return false
                 )
@@ -591,8 +653,7 @@ global MaxUltraMcpActiveClient
 
         fn minimizePanel = (
             if (isDisposed) do return false
-            if (not panelIsOpen()) do showPanel()
-            try (if (panelForm != undefined) do panelForm.Show()) catch ()
+            if (not (showPanel())) do return false
             try (
                 windows.sendMessage statusDialog.hwnd 0x0112 0xF020 0
                 return true
@@ -603,9 +664,7 @@ global MaxUltraMcpActiveClient
 
         fn restorePanel = (
             if (isDisposed) do return false
-            disposeRestoreBubble()
-            if (not panelIsOpen()) do showPanel()
-            try (if (panelForm != undefined) do panelForm.Show()) catch ()
+            if (not (showPanel())) do return false
             try (
                 windows.sendMessage statusDialog.hwnd 0x0112 0xF120 0
             ) catch (

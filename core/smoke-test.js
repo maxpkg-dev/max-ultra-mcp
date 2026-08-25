@@ -279,6 +279,27 @@ async function runSmokeTest() {
     assert.match(rootReadme, /Windows PowerShell 5\.1 .*powershell\.exe/);
     assert.match(rootReadme, /powershell\.exe -NoProfile -Command/);
     assert.match(rootReadme, /pwsh -NoProfile -Command/);
+    assert.match(rootReadme, /scripts\\run-node-script\.ps1/);
+    assert.match(detailedReadme, /shared runner owns Node\.js 18\+ discovery/);
+    const nodeRunnerSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "run-node-script.ps1"), "utf8");
+    assert.match(nodeRunnerSource, /Get-Command node -CommandType Application/);
+    assert.match(nodeRunnerSource, /\$candidateVersion\.Major -ge 18/);
+    assert.match(nodeRunnerSource, /Test-Path -LiteralPath \$resolvedScriptPath -PathType Leaf/);
+    assert.match(nodeRunnerSource, /& \$nodeExecutable \$resolvedScriptPath @scriptArguments/);
+    assert.doesNotMatch(nodeRunnerSource, /Invoke-Expression|Start-Process|cmd\.exe/i);
+    const thinNodeLaunchers = [
+      ["examples/example-create-test-box.bat", "examples\\example-create-box.js"],
+      ["examples/example-create-box.ps1", "examples\\example-create-box.js"],
+      ["scripts/start-server.bat", "core\\server.js"],
+      ["scripts/start-server.ps1", "core\\server.js"],
+      ["scripts/run-smoke.ps1", "core\\smoke-test.js"],
+    ];
+    for (const [relativeLauncherPath, expectedScriptPath] of thinNodeLaunchers) {
+      const launcherSource = fs.readFileSync(path.join(PROJECT_ROOT, ...relativeLauncherPath.split("/")), "utf8");
+      assert.match(launcherSource, /run-node-script\.ps1/);
+      assert.ok(launcherSource.includes(expectedScriptPath), relativeLauncherPath + " must name only its requested Node.js script");
+      assert.doesNotMatch(launcherSource, /Get-Command\s+node|codex-runtimes|process\.versions\.node/);
+    }
     const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
     assert.match(bootstrapSource, /FIRST STEP: Run this file/);
@@ -330,12 +351,13 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /PrimaryScreen\.WorkingArea/);
     assert.match(bootstrapSource, /colorMan\.getColor themeColorKey/);
     assert.match(bootstrapSource, /fn lighterThemeSurface/);
+    const lighterThemeSurfaceBody = bootstrapSource.slice(bootstrapSource.indexOf("fn lighterThemeSurface"), bootstrapSource.indexOf("fn themeIsDark"));
+    assert.equal((lighterThemeSurfaceBody.match(/\* 0\.08\) as integer/g) || []).length, 3);
     assert.match(bootstrapSource, /local panelThemeBackground = themeDrawingColor #background 68 68 68/);
     assert.match(bootstrapSource, /lblStatus\.BackColor = panelThemeBackground/);
     assert.match(bootstrapSource, /lblContext\.BackColor = panelThemeBackground/);
     assert.doesNotMatch(bootstrapSource, /lbl(?:Status|Context)\.BackColor = statusDialog\.rtbActivity\.BackColor/);
     assert.match(bootstrapSource, /rtbActivity\.BackColor = lighterThemeSurface\(\)/);
-    assert.match(bootstrapSource, /\* 0\.\d+\) as integer/);
     assert.match(bootstrapSource, /pnlLogOutline\.BackColor = \(dotNetClass "System\.Drawing\.Color"\)\.Black/);
     assert.match(bootstrapSource, /rtbActivity\.BorderStyle = \(dotNetClass "System\.Windows\.Forms\.BorderStyle"\)\.None/);
     assert.match(bootstrapSource, /FontStyle"\)\.Bold/);
@@ -351,17 +373,44 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /ScrollToCaret\(\)/);
     assert.match(bootstrapSource, /fn showRestoreBubble/);
     assert.match(bootstrapSource, /FormBorderStyle"\)\.None/);
+    assert.match(bootstrapSource, /restoreBubbleForm\.ControlBox = false/);
+    assert.match(bootstrapSource, /restoreBubbleForm\.MinimizeBox = false/);
+    assert.match(bootstrapSource, /restoreBubbleForm\.MaximizeBox = false/);
+    assert.match(bootstrapSource, /restoreBubbleForm\.ShowIcon = false/);
     assert.match(bootstrapSource, /ShowInTaskbar = false/);
+    assert.match(bootstrapSource, /restoreBubbleForm\.Size = dotNetObject "System\.Drawing\.Size" 236 64/);
+    assert.match(bootstrapSource, /screenClass\.FromHandle maxWindowHandle/);
+    assert.match(bootstrapSource, /windows\.getMAXHWND\(\)/);
     assert.match(bootstrapSource, /workingArea\.Bottom - restoreBubbleForm\.Height - 12/);
-    assert.match(bootstrapSource, /restoreBubbleButton\.AccessibleName = "Restore Max Ultra MCP panel"/);
+    assert.match(bootstrapSource, /restoreBubbleLabel\.Text = "Max Ultra MCP"/);
+    assert.match(bootstrapSource, /restoreBubbleButton\.Text = "Expand MCP Server"/);
+    assert.match(bootstrapSource, /restoreBubbleButton\.AccessibleName = "Expand MCP Server"/);
+    assert.doesNotMatch(bootstrapSource, /restoreBubbleButton\.Dock = .*DockStyle.*Fill/);
+    assert.match(bootstrapSource, /dotNet\.addEventHandler restoreBubbleForm "FormClosing" handleRestoreBubbleFormClosing/);
+    assert.match(bootstrapSource, /not restoreBubbleCloseAllowed[\s\S]*eventArgs\.Cancel = true/);
     assert.match(bootstrapSource, /removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick/);
+    assert.match(bootstrapSource, /removeEventHandler bubbleFormToDispose "FormClosing" handleRestoreBubbleFormClosing/);
     assert.match(bootstrapSource, /fn resizePanelControls panelSize = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
     assert.match(bootstrapSource, /fn refreshUserInterface = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
+    const restorePanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn restoreHiddenPanel"), bootstrapSource.indexOf("fn handleRestoreBubbleClick"));
+    const restoreClickBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleRestoreBubbleClick"), bootstrapSource.indexOf("fn showRestoreBubble"));
+    const restoreMiniPanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn showRestoreBubble"), bootstrapSource.indexOf("fn stopPollTimer"));
+    assert.match(restoreMiniPanelBody, /if \(restoreBubbleForm != undefined\)[\s\S]*if \(not restoreBubbleForm\.IsDisposed\)[\s\S]*return true[\s\S]*restoreBubbleForm = dotNetObject "System\.Windows\.Forms\.Form"/);
+    assert.ok(restorePanelBody.indexOf("panelForm.Bounds = hiddenPanelBounds") < restorePanelBody.indexOf("panelForm.Show()"), "Saved panel bounds must be restored before the panel is shown");
+    assert.ok(restorePanelBody.indexOf("if (not panelWasShown) do return false") < restorePanelBody.indexOf("disposeRestoreBubble()"), "The mini-panel must remain available when the main panel cannot be shown");
+    assert.match(restoreClickBody, /restoreHiddenPanel\(\)/);
+    assert.doesNotMatch(restoreClickBody, /disposeRestoreBubble\(\)/);
+    const showPanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn showPanel"), bootstrapSource.indexOf("fn hidePanel"));
+    assert.ok(showPanelBody.indexOf("panelForm != undefined") < showPanelBody.indexOf("not panelIsOpen()"), "A hidden existing panel must be restored instead of recreated");
+    assert.match(showPanelBody, /restoreHiddenPanel\(\)/);
     const hidePanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn hidePanel"), bootstrapSource.indexOf("fn closeForLifecycle"));
-    assert.match(hidePanelBody, /persistPanelPosition/);
+    assert.match(hidePanelBody, /hiddenPanelBounds = panelForm\.Bounds/);
+    assert.match(hidePanelBody, /persistPanelPosition \[hiddenPanelBounds\.X as integer, hiddenPanelBounds\.Y as integer\]/);
     assert.match(hidePanelBody, /panelForm\.Hide\(\)/);
     assert.match(hidePanelBody, /showRestoreBubble\(\)/);
+    assert.match(hidePanelBody, /if \(not \(showRestoreBubble\(\)\)\) do \([\s\S]*restoreHiddenPanel\(\)/);
     assert.doesNotMatch(hidePanelBody, /CancelAsync|shutdown_when_idle|destroyDialog|handleViewportScreenshot|disposeForReload/);
+    assert.doesNotMatch(restorePanelBody + restoreClickBody + restoreMiniPanelBody, /CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle/);
     assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
     assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_owned"/);
     assert.match(bootstrapSource, /ownerMatched/);

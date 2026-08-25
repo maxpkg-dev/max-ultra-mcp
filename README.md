@@ -13,7 +13,7 @@ Run this single file from 3ds Max:
 It verifies the loopback endpoint, starts the project server in a minimized console when needed, and connects the current Max instance. Re-running the file performs a verified clean restart.
 
 - Closing the panel with X or pressing **Stop / Exit** disconnects Max and immediately stops the exact server launched by that bootstrap session. A pre-existing or manually launched server is left running.
-- **Hide panel** keeps the bridge running and shows a small restore bubble.
+- **Hide panel** keeps the bridge running and replaces the main panel with a compact lower-left **Expand MCP Server** mini-panel.
 - If the BAT/server is closed manually, this Max session stops with an actionable error. It does not launch the server again; explicitly run `01_START_MAX_ULTRA_MCP_FIRST.ms` to start a new session.
 - **Reconnect** and **Connect only** never launch a stopped server.
 
@@ -22,6 +22,8 @@ For a visible diagnostic server console, run `scripts\start-server.bat` manually
 ## PowerShell requirement
 
 PowerShell 7 (`pwsh`) is **not required** for normal Max Ultra MCP operation. The supplied BAT and smoke launchers use Windows PowerShell 5.1 (`powershell.exe`), which is included with supported Windows versions. PowerShell 7 is needed only if your own external automation explicitly chooses `pwsh` or depends on a PowerShell 7-only feature.
+
+The public launchers pass one project-relative JavaScript path to `scripts\run-node-script.ps1`. That shared helper owns Node.js 18+ discovery, version and script validation, safe argument forwarding, process execution, and exit-code reporting.
 
 Check Windows PowerShell 5.1:
 
