@@ -208,9 +208,9 @@ global MaxUltraMcpActiveClient
         fn lighterThemeSurface = (
             local colorClass = dotNetClass "System.Drawing.Color"
             local themeBackground = themeDrawingColor #background 68 68 68
-            local surfaceRed = themeBackground.R + (((255 - themeBackground.R) * 0.14) as integer)
-            local surfaceGreen = themeBackground.G + (((255 - themeBackground.G) * 0.14) as integer)
-            local surfaceBlue = themeBackground.B + (((255 - themeBackground.B) * 0.14) as integer)
+            local surfaceRed = themeBackground.R + (((255 - themeBackground.R) * 0.07) as integer)
+            local surfaceGreen = themeBackground.G + (((255 - themeBackground.G) * 0.07) as integer)
+            local surfaceBlue = themeBackground.B + (((255 - themeBackground.B) * 0.07) as integer)
             return colorClass.FromArgb surfaceRed surfaceGreen surfaceBlue
         ),
         fn themeIsDark = (
@@ -247,7 +247,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn configureActivityLog = (
-            if (not panelIsOpen()) do return false
+            if (isDisposed or not panelIsOpen()) do return false
             try (
                 statusDialog.rtbActivity.ReadOnly = true
                 statusDialog.rtbActivity.WordWrap = true
@@ -286,7 +286,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn refreshActivityText = (
-            if (not panelIsOpen()) do return false
+            if (isDisposed or not panelIsOpen()) do return false
             try (
                 statusDialog.rtbActivity.SuspendLayout()
                 statusDialog.rtbActivity.Clear()
@@ -309,7 +309,7 @@ global MaxUltraMcpActiveClient
             return true
         ),
         fn resizePanelControls panelSize = (
-            if (not panelIsOpen()) do return false
+            if (isDisposed or not panelIsOpen()) do return false
             local panelWidth = amax 540 panelSize.x
             local panelHeight = amax 420 panelSize.y
             local contentWidth = panelWidth - 24
@@ -375,19 +375,23 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeRestoreBubble = (
-            try (
-                if (restoreBubbleForm != undefined) do (
-                    restoreBubbleForm.Hide()
-                    restoreBubbleForm.Close()
-                    restoreBubbleForm.Dispose()
-                )
-            ) catch ()
+            local bubbleButtonToDispose = restoreBubbleButton
+            local bubbleFormToDispose = restoreBubbleForm
             restoreBubbleButton = undefined
             restoreBubbleForm = undefined
+            try (if (bubbleButtonToDispose != undefined) do dotNet.removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick) catch ()
+            try (
+                if (bubbleFormToDispose != undefined) do (
+                    bubbleFormToDispose.Hide()
+                    bubbleFormToDispose.Close()
+                    bubbleFormToDispose.Dispose()
+                )
+            ) catch ()
             return true
         ),
 
         fn handleRestoreBubbleClick bubbleSender eventArgs = (
+            if (isDisposed) do return true
             disposeRestoreBubble()
             try (
                 if (panelForm != undefined) do (
@@ -437,29 +441,40 @@ global MaxUltraMcpActiveClient
                 return false
             )
         ),
-        fn handlePanelFormClosing formSender eventArgs = (
+        fn stopPollTimer = (
+            local timerToDispose = pollTimer
+            pollTimer = undefined
+            if (timerToDispose == undefined) do return true
+            try (timerToDispose.Stop()) catch ()
+            try (dotNet.removeEventHandler timerToDispose "Tick" handleTimerTick) catch ()
+            try (timerToDispose.Dispose()) catch ()
+            return true
+        ),
+
+        fn performPanelFormClosing formSender eventArgs = (
+            local wasAlreadyDisposed = isDisposed
+            isDisposed = true
+            isStopped = true
+            pendingConnectOnly = false
             panelCloseInProgress = true
-            disposeRestoreBubble()
+            stopPollTimer()
             if (formSender != undefined) do (
                 try (
                     local finalLocation = formSender.Location
                     persistPanelPosition [finalLocation.X as integer, finalLocation.Y as integer]
                 ) catch (
-                    format "[3D Ground | Max Ultra MCP] POSITION SAVE ERROR | %\n" (getCurrentException() as string)
+                    try (format "[3D Ground | Max Ultra MCP] POSITION SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
                 )
             )
-            if (suppressPanelShutdown or isDisposed) do return true
-            isDisposed = true
-            isStopped = true
-            pendingConnectOnly = false
+            disposeRestoreBubble()
+            if (suppressPanelShutdown or wasAlreadyDisposed) do return true
             connectionState = #stopped
             try (
                 local shutdownIdentity = ownedServerIdentity
                 if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 12 and transportWorkerArguments.Item[11] != "") do shutdownIdentity = transportWorkerArguments.Item[11]
                 if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 12) do (
                     -- Always leave the active worker a shutdown request. If this close races
-                    -- server startup, that worker fills Item[11] with the launched identity
-                    -- before its finally path performs the ownership-verified request.
+                    -- server startup, that worker fills its local identity before cleanup.
                     transportWorkerArguments.Item[8] = true
                     if (shutdownIdentity != "") do transportWorkerArguments.Item[11] = shutdownIdentity
                     if (transportWorker != undefined and transportWorker.IsBusy) then (
@@ -470,18 +485,22 @@ global MaxUltraMcpActiveClient
                     )
                 )
             ) catch (
-                format "[3D Ground | Max Ultra MCP] SHUTDOWN REQUEST ERROR | %\n" (getCurrentException() as string)
+                try (format "[3D Ground | Max Ultra MCP] SHUTDOWN REQUEST ERROR | %\n" (getCurrentException() as string)) catch ()
             )
-            try (
-                if (pollTimer != undefined) do (
-                    pollTimer.Stop()
-                    pollTimer.Dispose()
-                )
-            ) catch ()
-            pollTimer = undefined
             try (callbacks.removeScripts id: maxShutdownCallbackId) catch ()
             MaxUltraMcpActiveClient = undefined
             return true
+        ),
+
+        fn handlePanelFormClosing formSender eventArgs = (
+            try (if (formSender != undefined) do dotNet.removeEventHandler formSender "FormClosing" handlePanelFormClosing) catch ()
+            local cleanupResult = true
+            try (
+                cleanupResult = performPanelFormClosing formSender eventArgs
+            ) catch (
+                try (format "[3D Ground | Max Ultra MCP] FORM CLOSE ERROR | %\n" (getCurrentException() as string)) catch ()
+            )
+            return cleanupResult
         ),
 
         fn attachPanelFormClosing = (
@@ -490,6 +509,7 @@ global MaxUltraMcpActiveClient
                 local dialogHandle = dotNetObject "System.IntPtr" statusDialog.hwnd
                 panelForm = (dotNetClass "System.Windows.Forms.Control").FromHandle dialogHandle
                 if (panelForm == undefined) do return false
+                try (dotNet.removeEventHandler panelForm "FormClosing" handlePanelFormClosing) catch ()
                 dotNet.addEventHandler panelForm "FormClosing" handlePanelFormClosing
                 return true
             ) catch (
@@ -499,7 +519,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn refreshUserInterface = (
-            if (not panelIsOpen()) do return false
+            if (isDisposed or not panelIsOpen()) do return false
             local statusText = "Status: " + connectionStateText()
             if (connectionState == #error and connectionError != "") do statusText += " - " + connectionError
             statusDialog.lblStatus.Text = statusText
@@ -527,6 +547,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn showPanel = (
+            if (isDisposed) do return false
             disposeRestoreBubble()
             if (not panelIsOpen()) then (
                 createDialog statusDialog width: 680 height: 500 pos: (loadPanelPosition()) style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
@@ -538,6 +559,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn hidePanel = (
+            if (isDisposed) do return false
             if (panelIsOpen() and panelForm != undefined) do (
                 try (
                     local hiddenLocation = panelForm.Location
@@ -555,7 +577,8 @@ global MaxUltraMcpActiveClient
 
         fn closeForLifecycle reason: "Stopped" = (
             if (isDisposed) do return true
-            addActivity "warning" (reason + ": arming verified server shutdown when the last Max disconnects")
+            stopPollTimer()
+            addActivity "warning" (reason + ": stopping the exact server launched by this bootstrap session")
             connectionState = #stopped
             refreshUserInterface()
             if (panelIsOpen()) then (
@@ -567,6 +590,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn minimizePanel = (
+            if (isDisposed) do return false
             if (not panelIsOpen()) do showPanel()
             try (if (panelForm != undefined) do panelForm.Show()) catch ()
             try (
@@ -578,6 +602,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn restorePanel = (
+            if (isDisposed) do return false
             disposeRestoreBubble()
             if (not panelIsOpen()) do showPanel()
             try (if (panelForm != undefined) do panelForm.Show()) catch ()
@@ -942,7 +967,8 @@ global MaxUltraMcpActiveClient
                     ownedServerIdentity = eventMessage
                     addActivity "success" "Fresh Max Ultra MCP server is healthy and owned by this bootstrap session"
                 )
-                "server_shutdown_armed": addActivity "success" "Verified server will stop after the last connected Max disconnects"
+                "server_shutdown_requested": addActivity "info" "Authenticated immediate shutdown requested for this bootstrap-owned server"
+                "server_shutdown_forced": addActivity "warning" eventMessage
                 "server_shutdown_skipped": addActivity "error" eventMessage
                 "restart_complete": restartServerOnNextConnect = false
                 "error": (
@@ -1042,7 +1068,7 @@ global MaxUltraMcpActiveClient
                 local convertClass = dotNetClass "System.Convert"
                 controlReply.responsePayload = encodingClass.UTF8.GetString (convertClass.FromBase64String responseFields[4])
                 if (responseFields[3] == "ok") then (
-                    if (operationName == "probe" or operationName == "shutdown" or operationName == "shutdown_owned_when_idle") do (
+                    if (operationName == "probe" or operationName == "shutdown" or operationName == "shutdown_owned" or operationName == "shutdown_owned_when_idle") do (
                         if ((findString controlReply.responsePayload "\"server\":\"max-ultra-mcp\"") == undefined) do throw "Endpoint identity is not Max Ultra MCP"
                     )
                     controlReply.controlState = #verified
@@ -1065,22 +1091,6 @@ global MaxUltraMcpActiveClient
             return controlReply
         ),
 
-        fn workerRequestOwnedIdleShutdown workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds = (
-            if (expectedIdentity == undefined or expectedIdentity == "") do (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "This bootstrap session did not launch the current server; it was left running"
-                return false
-            )
-            local idleShutdownReply = workerControlRequest workerHost workerPort "shutdown_owned_when_idle" timeoutMilliseconds requestPayload: expectedIdentity
-            local shutdownVerified = idleShutdownReply.controlState == #verified and (findString idleShutdownReply.responsePayload "\"armed\":true") != undefined and (findString idleShutdownReply.responsePayload "\"ownerMatched\":true") != undefined
-            if (shutdownVerified) then (
-                workerEncodeEvent workerQueue "server_shutdown_armed" idleShutdownReply.responsePayload
-                return true
-            ) else (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "Server ownership could not be verified for shutdown; no process was terminated"
-                return false
-            )
-        ),
-
         fn workerProbeEndpoint workerHost workerPort timeoutMilliseconds = (
             local probeReply = workerControlRequest workerHost workerPort "probe" timeoutMilliseconds
             if (probeReply.controlState == #verified) do (
@@ -1099,6 +1109,86 @@ global MaxUltraMcpActiveClient
                 )
             )
             return probeReply
+        ),
+
+        fn workerWaitForOwnedServerExit workerHost workerPort expectedIdentity timeoutMilliseconds = (
+            local exitRetryDelays = #(100, 150, 250, 500, 750)
+            local lastProbeReply = undefined
+            for retryDelay in exitRetryDelays do (
+                (dotNetClass "System.Threading.Thread").Sleep retryDelay
+                lastProbeReply = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
+                if (lastProbeReply.controlState == #closed) do return #closed
+                if (lastProbeReply.controlState == #healthy and lastProbeReply.responsePayload != expectedIdentity) do return #changed
+            )
+            if (lastProbeReply != undefined and lastProbeReply.controlState == #healthy and lastProbeReply.responsePayload == expectedIdentity) do return #running
+            return #unverified
+        ),
+
+        fn workerOwnedServerPid expectedIdentity = (
+            try (
+                local pidMatch = (dotNetClass "System.Text.RegularExpressions.Regex").Match expectedIdentity "\"pid\":([0-9]+)"
+                if (not pidMatch.Success) do return 0
+                return pidMatch.Groups.Item[1].Value as integer
+            ) catch (
+                return 0
+            )
+        ),
+
+        fn workerTerminateVerifiedOwnedServer workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds = (
+            local verificationReply = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
+            if (verificationReply.controlState != #healthy or verificationReply.responsePayload != expectedIdentity) do (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "Fallback refused: the live endpoint no longer matches this bootstrap-owned server identity"
+                return false
+            )
+            local ownedServerPid = workerOwnedServerPid expectedIdentity
+            if (ownedServerPid <= 0) do (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "Fallback refused: the verified owned server identity did not contain a valid process id"
+                return false
+            )
+            local ownedServerProcess = undefined
+            local fallbackTriggered = false
+            try (
+                ownedServerProcess = (dotNetClass "System.Diagnostics.Process").GetProcessById ownedServerPid
+                if ((toLower (ownedServerProcess.ProcessName as string)) != "node") do throw "Verified owned server PID is not a Node.js process"
+                local finalVerificationReply = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
+                if (finalVerificationReply.controlState != #healthy or finalVerificationReply.responsePayload != expectedIdentity) do throw "Owned server identity changed before fallback termination"
+                ownedServerProcess.Kill()
+                fallbackTriggered = true
+                workerEncodeEvent workerQueue "server_shutdown_forced" ("Terminated unresponsive verified owned server PID " + (ownedServerPid as string))
+            ) catch (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" ("Fallback refused or failed: " + (getCurrentException() as string))
+            )
+            try (if (ownedServerProcess != undefined) do ownedServerProcess.Dispose()) catch ()
+            if (not fallbackTriggered) do return false
+            local fallbackExitState = workerWaitForOwnedServerExit workerHost workerPort expectedIdentity timeoutMilliseconds
+            if (fallbackExitState == #closed) do return true
+            workerEncodeEvent workerQueue "server_shutdown_skipped" "Verified owned server process did not release the endpoint after fallback termination"
+            return false
+        ),
+
+        fn workerRequestOwnedShutdown workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds = (
+            if (expectedIdentity == undefined or expectedIdentity == "") do (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "This bootstrap session did not launch the current server; it was left running"
+                return false
+            )
+            local shutdownReply = workerControlRequest workerHost workerPort "shutdown_owned" timeoutMilliseconds requestPayload: expectedIdentity
+            if (shutdownReply.controlState == #closed) do return true
+            local shutdownVerified = shutdownReply.controlState == #verified and (findString shutdownReply.responsePayload "\"shuttingDown\":true") != undefined and (findString shutdownReply.responsePayload "\"ownerMatched\":true") != undefined
+            if (not shutdownVerified) do (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "Server ownership could not be verified for immediate shutdown; no process was terminated"
+                return false
+            )
+            workerEncodeEvent workerQueue "server_shutdown_requested" shutdownReply.responsePayload
+            local gracefulExitState = workerWaitForOwnedServerExit workerHost workerPort expectedIdentity timeoutMilliseconds
+            if (gracefulExitState == #closed) do (
+                workerEncodeEvent workerQueue "server_stopped" "Owned server exited after its authenticated shutdown request"
+                return true
+            )
+            if (gracefulExitState != #running) do (
+                workerEncodeEvent workerQueue "server_shutdown_skipped" "Fallback refused: endpoint ownership could not be reverified after graceful shutdown timeout"
+                return false
+            )
+            return workerTerminateVerifiedOwnedServer workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds
         ),
 
         fn workerHostIsLoopback workerHost = (
@@ -1156,7 +1246,7 @@ global MaxUltraMcpActiveClient
             local workerWriter = undefined
             if (workerShutdownOnly) do (
                 try (
-                    workerRequestOwnedIdleShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
+                    workerRequestOwnedShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
                 ) catch (
                     workerEncodeEvent workerInboundQueue "server_shutdown_skipped" (getCurrentException() as string)
                 )
@@ -1276,7 +1366,7 @@ global MaxUltraMcpActiveClient
             if (ownsLifecycleMutex) do try (lifecycleMutex.ReleaseMutex()) catch ()
             try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
             try (
-                if (workerArguments.Count >= 12 and workerArguments.Item[8]) do workerRequestOwnedIdleShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
+                if (workerArguments.Count >= 12 and workerArguments.Item[8]) do workerRequestOwnedShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
             ) catch (
                 workerEncodeEvent workerInboundQueue "server_shutdown_skipped" (getCurrentException() as string)
             )
@@ -1342,23 +1432,32 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeForReload = (
+            if (isDisposed) do (
+                stopPollTimer()
+                return true
+            )
+            isDisposed = true
+            isStopped = true
+            pendingConnectOnly = false
+            stopPollTimer()
             disposeRestoreBubble()
-            stopTransportState reason: "Disposed by first-step file re-run"
-            try (
-                if (pollTimer != undefined) do (
-                    pollTimer.Stop()
-                    pollTimer.Dispose()
-                )
-            ) catch ()
-            pollTimer = undefined
+            try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+            try (if (transportWorker != undefined) do dotNet.removeEventHandler transportWorker "DoWork" transportDoWork) catch ()
+            pendingRequestLines = #()
+            cancelledRequestIds = #()
             try (
                 if (panelIsOpen()) do (
                     suppressPanelShutdown = true
                     if (panelForm != undefined) then panelForm.Close() else destroyDialog statusDialog
                     suppressPanelShutdown = false
                 )
-            ) catch ()
+            ) catch (
+                suppressPanelShutdown = false
+            )
+            try (if (panelForm != undefined) do dotNet.removeEventHandler panelForm "FormClosing" handlePanelFormClosing) catch ()
             panelForm = undefined
+            transportWorker = undefined
+            transportWorkerArguments = undefined
             try (callbacks.removeScripts id: maxShutdownCallbackId) catch ()
             return true
         ),
@@ -1399,25 +1498,37 @@ global MaxUltraMcpActiveClient
         ),
 
         fn handleTimerTick timerSender eventArgs = (
-            tickCount += 1
-            local handledInboundLines = 0
-            while (inboundQueue != undefined and inboundQueue.Count > 0 and handledInboundLines < maximumInboundLinesPerTick) do (
-                handleInboundLine (inboundQueue.Dequeue())
-                handledInboundLines += 1
-            )
-            local handledRequests = 0
-            while (not isStopped and pendingRequestLines.count > 0 and handledRequests < maximumRequestsPerTick) do (
-                local requestLine = pendingRequestLines[1]
-                deleteItem pendingRequestLines 1
-                handleRequestLine requestLine
-                handledRequests += 1
-            )
-            if (not isStopped and mod tickCount 10 == 0) do sendSceneStatus()
-            if (pendingConnectOnly and not isStopped and (transportWorker == undefined or not transportWorker.IsBusy)) do (
+            if (isDisposed or pollTimer == undefined or timerSender != pollTimer) do return true
+            try (
+                tickCount += 1
+                local handledInboundLines = 0
+                while (inboundQueue != undefined and inboundQueue.Count > 0 and handledInboundLines < maximumInboundLinesPerTick) do (
+                    handleInboundLine (inboundQueue.Dequeue())
+                    handledInboundLines += 1
+                )
+                local handledRequests = 0
+                while (not isStopped and pendingRequestLines.count > 0 and handledRequests < maximumRequestsPerTick) do (
+                    local requestLine = pendingRequestLines[1]
+                    deleteItem pendingRequestLines 1
+                    handleRequestLine requestLine
+                    handledRequests += 1
+                )
+                if (not isStopped and mod tickCount 10 == 0) do sendSceneStatus()
+                if (pendingConnectOnly and not isStopped and (transportWorker == undefined or not transportWorker.IsBusy)) do (
+                    pendingConnectOnly = false
+                    startTransport allowServerLaunch: false
+                )
+                if (mod tickCount 4 == 0) do refreshUserInterface()
+            ) catch (
+                local timerFailure = getCurrentException() as string
+                isStopped = true
                 pendingConnectOnly = false
-                startTransport allowServerLaunch: false
+                connectionState = #error
+                connectionError = timerFailure
+                stopPollTimer()
+                try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+                try (format "[3D Ground | Max Ultra MCP] TIMER STOPPED AFTER CALLBACK ERROR | %\n" timerFailure) catch ()
             )
-            if (mod tickCount 4 == 0) do refreshUserInterface()
             return true
         ),
 
@@ -1425,12 +1536,6 @@ global MaxUltraMcpActiveClient
             initializeIdentity()
             isDisposed = false
             registerMaxShutdownCallback()
-            if (pollTimer == undefined) do (
-                pollTimer = dotNetObject "System.Windows.Forms.Timer"
-                pollTimer.Interval = 250
-                dotNet.addEventHandler pollTimer "Tick" handleTimerTick
-                pollTimer.Start()
-            )
             if (not isStopped and transportWorker != undefined and transportWorker.IsBusy) do return true
             isStopped = false
             pendingConnectOnly = false
@@ -1446,6 +1551,20 @@ global MaxUltraMcpActiveClient
             )
             if (serverLauncherPath == "") do addActivity "warning" "scripts\\start-server.bat not found below this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
             startTransport allowServerLaunch: true
+            try (
+                pollTimer = dotNetObject "System.Windows.Forms.Timer"
+                pollTimer.Interval = 250
+                dotNet.addEventHandler pollTimer "Tick" handleTimerTick
+                pollTimer.Start()
+            ) catch (
+                local timerStartFailure = getCurrentException() as string
+                isDisposed = true
+                isStopped = true
+                stopPollTimer()
+                try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+                try (format "[3D Ground | Max Ultra MCP] TIMER START ERROR | %\n" timerStartFailure) catch ()
+                return false
+            )
             return true
         )
     )

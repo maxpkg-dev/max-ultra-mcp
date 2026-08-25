@@ -4,6 +4,7 @@
 @rem Developed by Lukianenko Vasyl
 @echo off
 setlocal EnableExtensions
+set "BRIDGE_SCRIPT_DIR=%~dp0"
 
 set "BRIDGE_NO_PAUSE=0"
 set "BRIDGE_PORT_OVERRIDE="
@@ -48,7 +49,7 @@ if "%BRIDGE_NO_PAUSE%"=="0" (
     echo ----------------------------------------------------------------
 )
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0start-server.ps1"
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BRIDGE_SCRIPT_DIR%start-server.ps1"
 set "BRIDGE_EXIT_CODE=%ERRORLEVEL%"
 
 if "%BRIDGE_NO_PAUSE%"=="1" exit /b %BRIDGE_EXIT_CODE%

@@ -10,6 +10,8 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const net = require("node:net");
+const { spawn } = require("node:child_process");
 const { MaxBridge, handleRpcMessage, mcpTools } = require("./server");
 const { MockMaxClient } = require("./mock-max-client");
 const { BridgeControlClient } = require("./bridge-control-client");
@@ -24,6 +26,65 @@ async function waitFor(predicate, timeoutMs = 2000) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Timed out waiting for bridge state");
+}
+
+async function reserveLoopbackPort() {
+  const reservation = net.createServer();
+  await new Promise((resolve, reject) => {
+    reservation.once("error", reject);
+    reservation.listen(0, "127.0.0.1", resolve);
+  });
+  const port = reservation.address().port;
+  await new Promise((resolve, reject) => reservation.close((error) => (error ? reject(error) : resolve())));
+  return port;
+}
+
+async function runBatOwnedShutdownTest() {
+  if (process.platform !== "win32") return;
+  const port = await reserveLoopbackPort();
+  const launcherPath = path.join(PROJECT_ROOT, "scripts", "start-server.bat");
+  const commandLine = 'call "' + launcherPath + '" --no-pause --port ' + String(port);
+  const child = spawn("cmd.exe", ["/d", "/c", commandLine], {
+    cwd: PROJECT_ROOT,
+    windowsHide: true,
+    windowsVerbatimArguments: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  child.stdout.on("data", (chunk) => { output += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { output += chunk.toString(); });
+  let controlClient;
+  try {
+    const deadline = Date.now() + 20000;
+    let probeResponse;
+    let lastConnectError;
+    while (Date.now() < deadline && !probeResponse) {
+      controlClient = new BridgeControlClient({ port, timeoutMs: 500 });
+      try {
+        await controlClient.connect();
+        probeResponse = await controlClient.probe();
+      } catch (error) {
+        lastConnectError = error;
+        controlClient.close();
+        controlClient = undefined;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+    assert.ok(probeResponse, "BAT-launched server did not become healthy (" + (lastConnectError && lastConnectError.message) + "): " + output);
+    const shutdownResponse = await controlClient.shutdownOwnedServer(probeResponse);
+    assert.equal(shutdownResponse.ownerMatched, true);
+    assert.equal(shutdownResponse.shuttingDown, true);
+    controlClient.close();
+    controlClient = undefined;
+    const exitCode = child.exitCode !== null ? child.exitCode : await Promise.race([
+      new Promise((resolve) => child.once("exit", resolve)),
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000)),
+    ]);
+    assert.equal(exitCode, 0, "Authenticated shutdown did not exit the BAT chain: " + output);
+  } finally {
+    if (controlClient) controlClient.close();
+    if (child.exitCode === null) child.kill();
+  }
 }
 
 function assertBalancedMaxScript(source) {
@@ -254,9 +315,12 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /dotNet\.addEventHandler panelForm "FormClosing" handlePanelFormClosing/);
     assert.match(bootstrapSource, /local finalLocation = formSender\.Location/);
     assert.match(bootstrapSource, /persistPanelPosition \[finalLocation\.X as integer, finalLocation\.Y as integer\]/);
-    const formClosingBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handlePanelFormClosing"), bootstrapSource.indexOf("fn attachPanelFormClosing"));
-    assert.match(formClosingBody, /pollTimer\.Stop\(\)[\s\S]*pollTimer\.Dispose\(\)/);
+    const stopTimerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn stopPollTimer"), bootstrapSource.indexOf("fn performPanelFormClosing"));
+    const formClosingBody = bootstrapSource.slice(bootstrapSource.indexOf("fn performPanelFormClosing"), bootstrapSource.indexOf("fn attachPanelFormClosing"));
+    assert.match(stopTimerBody, /pollTimer = undefined[\s\S]*timerToDispose\.Stop\(\)[\s\S]*removeEventHandler timerToDispose "Tick" handleTimerTick[\s\S]*timerToDispose\.Dispose\(\)/);
+    assert.ok(formClosingBody.indexOf("stopPollTimer()") < formClosingBody.indexOf("persistPanelPosition"), "Timer must stop before panel cleanup touches external controls");
     assert.ok(formClosingBody.indexOf("persistPanelPosition") < formClosingBody.indexOf("CancelAsync"), "Final panel position must be saved before transport cleanup");
+    assert.match(formClosingBody, /removeEventHandler formSender "FormClosing" handlePanelFormClosing/);
     assert.match(bootstrapSource, /panelPositionIsVisible/);
     assert.match(bootstrapSource, /System\.Windows\.Forms\.Screen/);
     assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "x"/);
@@ -271,7 +335,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /lblContext\.BackColor = panelThemeBackground/);
     assert.doesNotMatch(bootstrapSource, /lbl(?:Status|Context)\.BackColor = statusDialog\.rtbActivity\.BackColor/);
     assert.match(bootstrapSource, /rtbActivity\.BackColor = lighterThemeSurface\(\)/);
-    assert.match(bootstrapSource, /\* 0\.14\) as integer/);
+    assert.match(bootstrapSource, /\* 0\.\d+\) as integer/);
     assert.match(bootstrapSource, /pnlLogOutline\.BackColor = \(dotNetClass "System\.Drawing\.Color"\)\.Black/);
     assert.match(bootstrapSource, /rtbActivity\.BorderStyle = \(dotNetClass "System\.Windows\.Forms\.BorderStyle"\)\.None/);
     assert.match(bootstrapSource, /FontStyle"\)\.Bold/);
@@ -290,13 +354,16 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /ShowInTaskbar = false/);
     assert.match(bootstrapSource, /workingArea\.Bottom - restoreBubbleForm\.Height - 12/);
     assert.match(bootstrapSource, /restoreBubbleButton\.AccessibleName = "Restore Max Ultra MCP panel"/);
+    assert.match(bootstrapSource, /removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick/);
+    assert.match(bootstrapSource, /fn resizePanelControls panelSize = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
+    assert.match(bootstrapSource, /fn refreshUserInterface = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
     const hidePanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn hidePanel"), bootstrapSource.indexOf("fn closeForLifecycle"));
     assert.match(hidePanelBody, /persistPanelPosition/);
     assert.match(hidePanelBody, /panelForm\.Hide\(\)/);
     assert.match(hidePanelBody, /showRestoreBubble\(\)/);
     assert.doesNotMatch(hidePanelBody, /CancelAsync|shutdown_when_idle|destroyDialog|handleViewportScreenshot|disposeForReload/);
     assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
-    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_owned_when_idle"/);
+    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_owned"/);
     assert.match(bootstrapSource, /ownerMatched/);
     assert.match(bootstrapSource, /startTransport allowServerLaunch: true/);
     assert.match(bootstrapSource, /startTransport allowServerLaunch: false/);
@@ -306,8 +373,17 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /if \(workerSender\.CancellationPending\) do throw "Server startup cancelled"[\s\S]*workerLaunchServer/);
     assert.doesNotMatch(bootstrapSource, /mod tickCount 20[^\n]*startTransport/);
     const timerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleTimerTick"), bootstrapSource.indexOf("fn startBridge"));
+    assert.match(timerBody, /isDisposed or pollTimer == undefined or timerSender != pollTimer/);
+    assert.match(timerBody, /catch \([\s\S]*stopPollTimer\(\)[\s\S]*CancelAsync\(\)/);
     assert.match(timerBody, /pendingConnectOnly/);
     assert.doesNotMatch(timerBody, /workerLaunchServer/);
+    const disposeForReloadBody = bootstrapSource.slice(bootstrapSource.indexOf("fn disposeForReload"), bootstrapSource.indexOf("fn registerMaxShutdownCallback"));
+    assert.match(disposeForReloadBody, /isDisposed = true[\s\S]*isStopped = true[\s\S]*pendingConnectOnly = false[\s\S]*stopPollTimer\(\)/);
+    assert.match(disposeForReloadBody, /removeEventHandler transportWorker "DoWork" transportDoWork/);
+    assert.match(disposeForReloadBody, /removeEventHandler panelForm "FormClosing" handlePanelFormClosing/);
+    const startBridgeBody = bootstrapSource.slice(bootstrapSource.indexOf("fn startBridge"), bootstrapSource.indexOf("bridgeClient = MaxUltraMcpBridgeClient"));
+    assert.ok(startBridgeBody.indexOf("startTransport allowServerLaunch: true") < startBridgeBody.indexOf("dotNet.addEventHandler pollTimer"), "Replacement timer must be created only after startup state and transport are ready");
+    assert.equal((bootstrapSource.match(/dotNet\.addEventHandler pollTimer "Tick" handleTimerTick/g) || []).length, 1);
     assert.match(formClosingBody, /shutdownIdentity/);
     assert.match(formClosingBody, /transportWorkerArguments\.Item\[8\] = true/);
     assert.match(formClosingBody, /if \(shutdownIdentity != ""\) do transportWorkerArguments\.Item\[11\] = shutdownIdentity/);
@@ -315,7 +391,15 @@ async function runSmokeTest() {
     assert.match(formClosingBody, /Item\[8\] = true[\s\S]*CancelAsync\(\)/);
     assert.match(formClosingBody, /transportWorkerArguments\.Item\[9\] = true/);
     assert.match(formClosingBody, /RunWorkerAsync transportWorkerArguments/);
-    assert.match(bootstrapSource, /if \(workerArguments\.Count >= 12 and workerArguments\.Item\[8\]\) do workerRequestOwnedIdleShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity/);
+    assert.match(bootstrapSource, /workerWaitForOwnedServerExit/);
+    assert.match(bootstrapSource, /verificationReply\.responsePayload != expectedIdentity/);
+    assert.match(bootstrapSource, /finalVerificationReply\.responsePayload != expectedIdentity/);
+    assert.match(bootstrapSource, /GetProcessById ownedServerPid/);
+    assert.match(bootstrapSource, /ProcessName as string\)\) != "node"/);
+    assert.match(bootstrapSource, /ownedServerProcess\.Kill\(\)/);
+    assert.match(bootstrapSource, /server_shutdown_forced/);
+    assert.doesNotMatch(bootstrapSource, /workerRequestOwnedIdleShutdown/);
+    assert.match(bootstrapSource, /if \(workerArguments\.Count >= 12 and workerArguments\.Item\[8\]\) do workerRequestOwnedShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity/);
     assert.match(bootstrapSource, /hasConnectedThisSession = true/);
     assert.match(bootstrapSource, /if \(hasConnectedThisSession\) then/);
     assert.match(bootstrapSource, /else if \(connectionError == ""\) do/);
@@ -332,8 +416,15 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /uiHandleBelongsToMax/);
 
     const mismatchedIdentity = { ...probeResponse, startedAt: "not-the-running-server" };
+    await assert.rejects(controlClient.shutdownOwnedServer(mismatchedIdentity), /ownership identity does not match/);
+    assert.equal(shutdownRequests, 1, "Mismatched immediate ownership must never stop a server");
+    const ownedShutdownResponse = await controlClient.shutdownOwnedServer(probeResponse);
+    assert.equal(ownedShutdownResponse.server, "max-ultra-mcp");
+    assert.equal(ownedShutdownResponse.shuttingDown, true);
+    assert.equal(ownedShutdownResponse.ownerMatched, true);
+    await waitFor(() => shutdownRequests === 2);
     await assert.rejects(controlClient.shutdownOwnedWhenIdle(mismatchedIdentity), /ownership identity does not match/);
-    assert.equal(shutdownRequests, 1, "Mismatched ownership must never stop a server");
+    assert.equal(shutdownRequests, 2, "Mismatched idle ownership must never stop a server");
     assert.equal(bridge.shutdownWhenIdle, false, "Mismatched ownership must not arm idle shutdown");
     const ownedIdleShutdownResponse = await controlClient.shutdownOwnedWhenIdle(probeResponse);
     assert.equal(ownedIdleShutdownResponse.server, "max-ultra-mcp");
@@ -344,9 +435,10 @@ async function runSmokeTest() {
     assert.equal(idleShutdownResponse.server, "max-ultra-mcp");
     assert.equal(idleShutdownResponse.armed, true);
     assert.equal(idleShutdownResponse.connected, 1);
-    assert.equal(shutdownRequests, 1, "Arming idle shutdown must not stop a server with a connected Max");
+    assert.equal(shutdownRequests, 2, "Arming idle shutdown must not stop a server with a connected Max");
     max2027.disconnect();
-    await waitFor(() => shutdownRequests === 2);
+    await waitFor(() => shutdownRequests === 3);
+    await runBatOwnedShutdownTest();
 
     process.stdout.write("Max Ultra MCP smoke passed: 13 concise/advanced MCP tools, Max 2022 + 2027 routing, safe Box actions, diagnostics, panel, guarded UI, screenshot, cancellation, and bounded async transport\n");
   } finally {

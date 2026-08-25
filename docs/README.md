@@ -27,7 +27,7 @@ The default endpoint is `127.0.0.1:47635`.
 - A healthy current Max Ultra MCP server is reused on first start.
 - A compatible legacy bridge that lacks `probe` is recognized through its live `CONTROL list` inventory. First start may attach to it.
 - Re-running against a legacy bridge, or encountering a truly unknown occupant, never kills a process. The bootstrap scans only the next 10 loopback ports, selects a free fallback, starts Max Ultra MCP there, and reports `MAX_ULTRA_MCP_PORT=<PORT>` in the panel.
-- Current servers identify themselves through `CONTROL probe`. A bootstrap-owned server uses `shutdown_owned_when_idle` with the exact captured server identity; an identity mismatch is rejected. General control clients retain `shutdown` and `shutdown_when_idle`. Arbitrary Node, PowerShell, or command-shell processes are never terminated.
+- Current servers identify themselves through CONTROL probe. A bootstrap-owned server uses authenticated shutdown_owned with the exact captured server identity; an identity mismatch is rejected. The bootstrap waits boundedly for graceful exit, then permits a fallback only after the endpoint still matches that exact identity, its captured PID resolves to Node.js, and a final identity probe still matches. General control clients retain shutdown and shutdown_when_idle. No pre-existing/manual or unverified process is terminated.
 
 ## Panel behavior
 
@@ -38,7 +38,7 @@ The compact panel shows two status/context rows above a tall log.
 - The RichTextBox is read-only, wrapped, capped at 30 entries, and auto-scrolls to the latest entry.
 - Final window `x`/`y` are saved before cleanup in the user-scripts `MaxUltraMCP\panel-ui.ini` file. On the next launch, the full 680×500 bounds must fit a current screen working area or the panel centers safely.
 - **Hide panel** saves position and hides only the panel. The server and Max client remain connected. A small borderless `Max Ultra MCP - Show` bubble appears near the lower-left of that screen's working area; clicking it restores/focuses the panel and disposes the bubble.
-- Window X and **Stop / Exit** disconnect Max and arm shutdown only for the exact server launched by this bootstrap session; that server exits when the last connected Max disconnects. A pre-existing/manual server is disconnected but left running. The `#preSystemShutdown` callback applies the same idempotent cleanup during Max exit. Re-run cleanup removes any restore bubble and leaves restart to the verified first-step flow.
+- Window X and **Stop / Exit** first stop and unsubscribe the Max-side timer, disconnect Max, and immediately stop only the exact server launched by this bootstrap session. This intentionally disconnects any other Max clients in the single-user workflow. A pre-existing/manual server is disconnected but left running. The #preSystemShutdown callback applies the same idempotent cleanup during Max exit. Re-run cleanup disposes the prior timer, worker/form handlers, and restore bubble before creating replacements, while server restart remains limited to the explicit first-step flow.
 
 ## Concise MCP tools
 

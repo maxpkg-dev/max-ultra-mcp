@@ -12,7 +12,7 @@ Run this single file from 3ds Max:
 
 It verifies the loopback endpoint, starts the project server in a minimized console when needed, and connects the current Max instance. Re-running the file performs a verified clean restart.
 
-- Closing the panel with X or pressing **Stop / Exit** disconnects Max and stops the exact server launched by that bootstrap session when the last Max client disconnects.
+- Closing the panel with X or pressing **Stop / Exit** disconnects Max and immediately stops the exact server launched by that bootstrap session. A pre-existing or manually launched server is left running.
 - **Hide panel** keeps the bridge running and shows a small restore bubble.
 - If the BAT/server is closed manually, this Max session stops with an actionable error. It does not launch the server again; explicitly run `01_START_MAX_ULTRA_MCP_FIRST.ms` to start a new session.
 - **Reconnect** and **Connect only** never launch a stopped server.

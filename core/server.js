@@ -220,6 +220,12 @@ class MaxBridge {
       } else if (operation === "shutdown") {
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, shuttingDown: true };
         shutdownAfterResponse = true;
+      } else if (operation === "shutdown_owned") {
+        const expectedIdentity = decodeField(fields[4]);
+        const currentIdentity = JSON.stringify({ server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, pid: process.pid, startedAt: this.startedAt });
+        if (!expectedIdentity || expectedIdentity !== currentIdentity) throw new Error("Server ownership identity does not match the current Max Ultra MCP process");
+        responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, shuttingDown: true, ownerMatched: true };
+        shutdownAfterResponse = true;
       } else if (operation === "shutdown_when_idle") {
         this.shutdownWhenIdle = true;
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, armed: true, connected: this.instances.size };
