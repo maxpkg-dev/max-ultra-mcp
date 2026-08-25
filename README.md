@@ -1,6 +1,16 @@
 # 3DGROUND - Max Ultra MCP
 
 Max Ultra MCP connects AI agents to already-open Autodesk 3ds Max 2022 and 2027 instances while keeping all Max UI and scene work on the main thread.
+## V1 integration
+
+Release users do not install Node.js. Run `scripts\install-chatgpt-codex.bat`; it installs the portable runtime and registers the STDIO MCP host. Then run `01_START_MAX_ULTRA_MCP_FIRST.ms` in every 3ds Max process that should connect.
+
+The v1 MCP host and singleton bridge are separate processes: ChatGPT/Codex starts `core\server.js --stdio`, while the MaxScript bootstrap starts `core\server.js --daemon`. This allows several agent clients and Max versions to share one bridge without sharing their selected instance.
+
+See [Max Ultra MCP v1](docs/V1.md) for installation, architecture, profiles, all tool families, rendering/UI behavior, ChatGPT/Codex configuration, and the house-plan image example.
+
+Source checkouts without a packaged runtime can use Node.js 22+ for development. Release artifacts bundle official Node.js 24 LTS.
+
 
 ## Start here
 
@@ -26,7 +36,7 @@ For a visible diagnostic server console, run `scripts\start-server.bat` manually
 
 PowerShell 7 (`pwsh`) is **not required** for normal Max Ultra MCP operation. The supplied BAT and smoke launchers use Windows PowerShell 5.1 (`powershell.exe`), which is included with supported Windows versions. PowerShell 7 is needed only if your own external automation explicitly chooses `pwsh` or depends on a PowerShell 7-only feature.
 
-The public launchers pass one project-relative JavaScript path to `scripts\run-node-script.ps1`. That shared helper owns Node.js 18+ discovery, version and script validation, safe argument forwarding, process execution, and exit-code reporting.
+The public launchers pass one project-relative JavaScript path to `scripts\run-node-script.ps1`. The shared helper prefers `runtime\win-x64\node.exe`, then discovers Node.js 22+ only as a development fallback; it also owns version/script validation, safe argument forwarding, process execution, and exit-code reporting.
 
 Check Windows PowerShell 5.1:
 

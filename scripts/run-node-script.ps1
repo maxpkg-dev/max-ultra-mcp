@@ -38,6 +38,7 @@ if ($supportedExtensions -notcontains [System.IO.Path]::GetExtension($resolvedSc
 }
 
 $nodeCandidates = @()
+$nodeCandidates += Join-Path $projectRoot 'runtime\win-x64\node.exe'
 $nodeCommands = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
 foreach ($nodeCommand in $nodeCommands) {
     if ($nodeCommand.Source) {
@@ -56,7 +57,7 @@ foreach ($candidatePath in ($nodeCandidates | Select-Object -Unique)) {
     try {
         $candidateVersionText = & $candidatePath -p 'process.versions.node' 2>$null
         $candidateVersion = [Version]($candidateVersionText | Select-Object -First 1)
-        if ($candidateVersion.Major -ge 18) {
+        if ($candidateVersion.Major -ge 22) {
             $nodeExecutable = $candidatePath
             break
         }
@@ -67,8 +68,8 @@ foreach ($candidatePath in ($nodeCandidates | Select-Object -Unique)) {
 }
 
 if (-not $nodeExecutable) {
-    [Console]::Error.WriteLine('[3DGROUND | Max Ultra MCP] ERROR | Node.js 18 or newer was not found.')
-    [Console]::Error.WriteLine('Install Node.js 18+ or run Max Ultra MCP from a Codex installation with its bundled runtime.')
+    [Console]::Error.WriteLine('[3DGROUND | Max Ultra MCP] ERROR | The bundled Node.js runtime is missing and Node.js 22+ was not found.')
+    [Console]::Error.WriteLine('Run scripts\prepare-portable-node.ps1 while packaging the release; end users should not install Node.js manually.')
     exit 1
 }
 

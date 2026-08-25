@@ -1,0 +1,30 @@
+{
+  "units": "mm",
+  "origin": [0, 0],
+  "wallHeight": 3000,
+  "walls": [
+    { "id": "W_BOTTOM", "start": [0, 0], "end": [10000, 0], "thickness": 300 },
+    { "id": "W_RIGHT", "start": [10000, 0], "end": [10000, 8000], "thickness": 300 },
+    { "id": "W_TOP", "start": [10000, 8000], "end": [0, 8000], "thickness": 300 },
+    { "id": "W_LEFT", "start": [0, 8000], "end": [0, 0], "thickness": 300 },
+    { "id": "W_HALL_LEFT", "start": [4200, 0], "end": [4200, 8000], "thickness": 150 },
+    { "id": "W_HALL_RIGHT", "start": [6100, 0], "end": [6100, 8000], "thickness": 150 },
+    { "id": "W_ROOMS", "start": [6100, 4000], "end": [10000, 4000], "thickness": 150 }
+  ],
+  "openings": [
+    { "id": "WIN_BOTTOM_LEFT", "wallId": "W_BOTTOM", "type": "window", "offsetFromStart": 1200, "width": 1800, "height": 1400, "sillHeight": 900 },
+    { "id": "DOOR_MAIN", "wallId": "W_BOTTOM", "type": "door", "offsetFromStart": 4700, "width": 900, "height": 2100, "sillHeight": 0 },
+    { "id": "WIN_BOTTOM_RIGHT", "wallId": "W_BOTTOM", "type": "window", "offsetFromStart": 7000, "width": 1800, "height": 1400, "sillHeight": 900 },
+    { "id": "WIN_RIGHT", "wallId": "W_RIGHT", "type": "window", "offsetFromStart": 5000, "width": 1200, "height": 1400, "sillHeight": 900 },
+    { "id": "WIN_TOP_RIGHT", "wallId": "W_TOP", "type": "window", "offsetFromStart": 1500, "width": 1200, "height": 1400, "sillHeight": 900 },
+    { "id": "DOOR_TOP", "wallId": "W_TOP", "type": "door", "offsetFromStart": 4300, "width": 900, "height": 2100, "sillHeight": 0 },
+    { "id": "WIN_TOP_LEFT", "wallId": "W_TOP", "type": "window", "offsetFromStart": 6900, "width": 1200, "height": 1400, "sillHeight": 900 },
+    { "id": "DOOR_BATH", "wallId": "W_HALL_RIGHT", "type": "door", "offsetFromStart": 1900, "width": 900, "height": 2100, "sillHeight": 0 },
+    { "id": "DOOR_BED", "wallId": "W_HALL_RIGHT", "type": "door", "offsetFromStart": 4700, "width": 900, "height": 2100, "sillHeight": 0 }
+  ],
+  "floor": {
+    "enabled": true,
+    "thickness": 200,
+    "outline": [[0, 0], [10000, 0], [10000, 8000], [0, 8000]]
+  }
+}

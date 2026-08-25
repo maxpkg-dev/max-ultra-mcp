@@ -13,7 +13,10 @@ const os = require("node:os");
 const path = require("node:path");
 const readline = require("node:readline");
 const { randomUUID } = require("node:crypto");
+const { allToolNames } = require("./tool-catalog");
+const { invokeV1Tool, NOT_HANDLED } = require("./tool-runtime");
 
+const { ensureControlToken, tokenMatches } = require("./local-auth");
 const CONTROL_CALLABLE_TOOLS = new Set([
   "max_list_instances",
   "max_health",
@@ -22,6 +25,7 @@ const CONTROL_CALLABLE_TOOLS = new Set([
   "max_create_box",
   "max_execute",
   "max_viewport_screenshot",
+  ...allToolNames,
 ]);
 
 const WIRE_VERSION = "1";
@@ -129,6 +133,8 @@ class MaxBridge {
     this.port = options.port ?? DEFAULT_PORT;
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.instances = new Map();
+    this.connections = new Set();
+    this.controlToken = options.controlToken || ensureControlToken();
     this.pendingRequests = new Map();
     this.selectedInstanceId = "";
     this.startedAt = new Date().toISOString();
@@ -157,6 +163,8 @@ class MaxBridge {
 
   async stop() {
     for (const instanceInfo of this.instances.values()) instanceInfo.socket.destroy();
+    for (const connectionInfo of this.connections) connectionInfo.socket.destroy();
+    this.connections.clear();
     this.instances.clear();
     for (const pendingRequest of this.pendingRequests.values()) {
       clearTimeout(pendingRequest.timeoutHandle);
@@ -168,14 +176,18 @@ class MaxBridge {
   }
 
   acceptConnection(socket) {
-    const connectionInfo = { socket, buffer: "", instanceId: "", controlClient: false };
+    const connectionInfo = { socket, buffer: "", instanceId: "", controlClient: false, selectedInstanceId: "", jobs: new Map() };
+    this.connections.add(connectionInfo);
     socket.setEncoding("utf8");
     socket.setNoDelay(true);
     socket.on("data", (chunk) => this.readConnectionData(connectionInfo, chunk));
     socket.on("error", (error) => {
       if (connectionInfo.instanceId) this.appendLog(connectionInfo.instanceId, "error", `Socket error: ${error.message}`);
     });
-    socket.on("close", () => this.removeConnection(connectionInfo));
+    socket.on("close", () => {
+      this.connections.delete(connectionInfo);
+      this.removeConnection(connectionInfo);
+    });
   }
 
   readConnectionData(connectionInfo, chunk) {
@@ -270,16 +282,20 @@ class MaxBridge {
       if (fields[1] !== WIRE_VERSION) throw new Error(`Unsupported control protocol version '${fields[1]}'`);
       connectionInfo.controlClient = true;
       const operation = fields[3];
+      const tokenProtected = operation === "call" || operation.startsWith("shutdown");
+      const suppliedToken = decodeField(fields.at(-1));
+      if (tokenProtected && !tokenMatches(this.controlToken, suppliedToken)) throw new Error("Control authentication failed");
+
       let responsePayload;
       let shutdownAfterResponse = false;
       if (operation === "probe") {
-        responsePayload = { server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, pid: process.pid, startedAt: this.startedAt };
+        responsePayload = { server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, authRequired: true, pid: process.pid, startedAt: this.startedAt };
       } else if (operation === "shutdown") {
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, shuttingDown: true };
         shutdownAfterResponse = true;
       } else if (operation === "shutdown_owned") {
         const expectedIdentity = decodeField(fields[4]);
-        const currentIdentity = JSON.stringify({ server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, pid: process.pid, startedAt: this.startedAt });
+        const currentIdentity = JSON.stringify({ server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, authRequired: true, pid: process.pid, startedAt: this.startedAt });
         if (!expectedIdentity || expectedIdentity !== currentIdentity) throw new Error("Server ownership identity does not match the current Max Ultra MCP process");
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, shuttingDown: true, ownerMatched: true };
         shutdownAfterResponse = true;
@@ -288,12 +304,12 @@ class MaxBridge {
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, armed: true, connected: this.instances.size };
       } else if (operation === "shutdown_owned_when_idle") {
         const expectedIdentity = decodeField(fields[4]);
-        const currentIdentity = JSON.stringify({ server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, pid: process.pid, startedAt: this.startedAt });
+        const currentIdentity = JSON.stringify({ server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, authRequired: true, pid: process.pid, startedAt: this.startedAt });
         if (!expectedIdentity || expectedIdentity !== currentIdentity) throw new Error("Server ownership identity does not match the current Max Ultra MCP process");
         this.shutdownWhenIdle = true;
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, armed: true, ownerMatched: true, connected: this.instances.size };
       } else if (operation === "list") {
-        responsePayload = await this.callTool("max_list_instances");
+        responsePayload = await this.callTool("max_list_instances", {}, connectionInfo);
       } else if (operation === "call") {
         const toolName = decodeField(fields[4]);
         if (CONTROL_CALLABLE_TOOLS.has(toolName) === false) {
@@ -301,7 +317,7 @@ class MaxBridge {
         }
         const argumentText = decodeField(fields[5]);
         const toolArguments = argumentText ? JSON.parse(argumentText) : {};
-        responsePayload = await this.callTool(toolName, toolArguments);
+        responsePayload = await this.callTool(toolName, toolArguments, connectionInfo);
       } else {
         throw new Error(`Unknown control operation '${operation}'`);
       }
@@ -393,12 +409,13 @@ class MaxBridge {
       });
   }
 
-  selectInstance(instanceId) {
-    const requestedInstanceId = instanceId || this.selectedInstanceId;
+  selectInstance(instanceId, session = this) {
+    if (typeof session.selectedInstanceId !== "string") session.selectedInstanceId = "";
+    const requestedInstanceId = instanceId || session.selectedInstanceId;
     if (requestedInstanceId) {
       const selectedInstance = this.instances.get(requestedInstanceId);
       if (!selectedInstance) {
-        if (!instanceId) this.selectedInstanceId = "";
+        if (!instanceId) session.selectedInstanceId = "";
         throw new Error(`No connected 3ds Max instance named '${requestedInstanceId}'. Inventory: ${JSON.stringify(this.listInstances())}`);
       }
       return selectedInstance;
@@ -432,23 +449,27 @@ class MaxBridge {
     });
   }
 
-  async callTool(toolName, toolArguments = {}) {
+  async callTool(toolName, toolArguments = {}, session = this) {
+    if (typeof session.selectedInstanceId !== "string") session.selectedInstanceId = "";
     if (toolName === "max_list_instances") {
       const connectedInstances = this.listInstances();
       return {
         count: connectedInstances.length,
-        selectionRequired: connectedInstances.length > 1 && !this.selectedInstanceId,
-        selectedInstanceId: this.selectedInstanceId || null,
+        selectionRequired: connectedInstances.length > 1 && !session.selectedInstanceId,
+        selectedInstanceId: session.selectedInstanceId || null,
         instances: toolArguments.details ? connectedInstances : connectedInstances.map(compactInstance),
       };
     }
     if (toolName === "max_select_instance") {
-      const selectedInstance = this.selectInstance(toolArguments.instance_id);
-      this.selectedInstanceId = selectedInstance.instanceId;
+      const selectedInstance = this.selectInstance(toolArguments.instance_id, session);
+      session.selectedInstanceId = selectedInstance.instanceId;
       return { selected: compactInstance(this.publicInstance(selectedInstance)) };
     }
 
-    const instanceInfo = this.selectInstance(toolArguments.instance_id);
+    const v1Payload = await invokeV1Tool(this, toolName, toolArguments, session);
+    if (v1Payload !== NOT_HANDLED) return v1Payload;
+
+    const instanceInfo = this.selectInstance(toolArguments.instance_id, session);
     const publicInstanceInfo = this.publicInstance(instanceInfo);
     if (toolName === "max_scene_summary") {
       const sceneSummary = await this.request(instanceInfo.instanceId, "scene_summary");
@@ -613,7 +634,7 @@ async function handleRpcMessage(bridge, message, sendResponse = writeRpcMessage)
       rpcResponse.result = {
         protocolVersion: message.params?.protocolVersion || "2024-11-05",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "max-ultra-mcp", version: "0.3.0" },
+        serverInfo: { name: "max-ultra-mcp", version: "1.0.0" },
         instructions: "Use concise semantic tools first: max_list_instances, max_select_instance, max_scene_summary, max_get_info, max_create_box, max_ui_list/invoke, and max_viewport_screenshot. Results are compact by default; use max_get_info for detailed scene statistics. max_execute is the advanced full-control escape hatch. All Max work is queued on the main thread.",
       };
     } else if (message.method === "ping") {
@@ -638,6 +659,11 @@ async function handleRpcMessage(bridge, message, sendResponse = writeRpcMessage)
 }
 
 async function main() {
+  if (process.argv.includes("--stdio")) {
+    await require("./stdio-host").main();
+    return;
+  }
+  const daemonOnly = process.argv.includes("--daemon");
   const bridge = new MaxBridge();
   await bridge.start();
   try {
@@ -646,19 +672,21 @@ async function main() {
   } catch (error) {
     process.stderr.write("[3DGROUND | Max Ultra MCP] WARNING | Ownership record was not written: " + error.message + "\n");
   }
-  const inputReader = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
-  inputReader.on("line", (inputLine) => {
-    if (!inputLine.trim()) return;
-    let rpcMessage;
-    try {
-      rpcMessage = JSON.parse(inputLine);
-    } catch (error) {
-      writeRpcMessage({ jsonrpc: "2.0", id: null, error: { code: -32700, message: `Parse error: ${error.message}` } });
-      return;
-    }
-    void handleRpcMessage(bridge, rpcMessage);
-  });
-  inputReader.on("close", () => void bridge.stop());
+  if (!daemonOnly) {
+    const inputReader = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+    inputReader.on("line", (inputLine) => {
+      if (!inputLine.trim()) return;
+      let rpcMessage;
+      try {
+        rpcMessage = JSON.parse(inputLine);
+      } catch (error) {
+        writeRpcMessage({ jsonrpc: "2.0", id: null, error: { code: -32700, message: `Parse error: ${error.message}` } });
+        return;
+      }
+      void handleRpcMessage(bridge, rpcMessage);
+    });
+    inputReader.on("close", () => void bridge.stop());
+  }
   const shutdown = () => void bridge.stop().finally(() => process.exit(0));
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);

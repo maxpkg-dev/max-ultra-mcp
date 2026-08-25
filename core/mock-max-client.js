@@ -18,8 +18,8 @@ const ONE_PIXEL_PNG = Buffer.from(
 
 class MockMaxClient {
   constructor(options = {}) {
-    this.host = options.host || "127.0.0.1";
-    this.port = options.port ?? 47635;
+    this.host = options.host || process.env.MAX_ULTRA_MCP_HOST || "127.0.0.1";
+    this.port = Number(options.port ?? process.env.MAX_ULTRA_MCP_PORT ?? 47635);
     this.maxVersion = String(options.maxVersion || "2027");
     this.pid = options.pid ?? process.pid;
     this.instanceId = options.instanceId || `mock-max-${this.maxVersion}-${this.pid}`;

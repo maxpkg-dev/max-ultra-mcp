@@ -4,4 +4,9 @@
 # Developed by Lukianenko Vasyl
 
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\smoke-test.js' @args
-exit $LASTEXITCODE
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\v1-smoke-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\cli-integration-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+exit 0

@@ -1,18 +1,21 @@
 {
   "name": "max-ultra-mcp",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "private": true,
   "description": "3DGROUND Max Ultra MCP bridge for already-running 3ds Max instances",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node smoke-test.js",
+    "start": "node server.js --stdio",
+    "daemon": "node server.js --daemon",
+    "stdio": "node server.js --stdio",
+    "test": "node smoke-test.js && node v1-smoke-test.js && node cli-integration-test.js",
+    "test:v1": "node v1-smoke-test.js",
     "mock:2022": "node mock-max-client.js 2022",
     "mock:2027": "node mock-max-client.js 2027",
     "example:box": "node ../examples/example-create-test-box/example-create-test-box.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "license": "UNLICENSED"
 }

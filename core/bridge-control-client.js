@@ -9,13 +9,23 @@
 
 const net = require("node:net");
 const { randomUUID } = require("node:crypto");
-const { decodeField, encodeField } = require("./server");
+function encodeField(value) {
+  const text = String(value ?? "");
+  return text ? Buffer.from(text, "utf8").toString("base64") : "-";
+}
+
+function decodeField(value) {
+  if (!value || value === "-") return "";
+  return Buffer.from(value, "base64").toString("utf8");
+}
+const { readControlToken } = require("./local-auth");
 
 class BridgeControlClient {
   constructor(options = {}) {
     this.host = options.host || process.env.MAX_ULTRA_MCP_HOST || "127.0.0.1";
     this.port = Number(options.port ?? process.env.MAX_ULTRA_MCP_PORT ?? 47635);
     this.timeoutMs = Number(options.timeoutMs ?? process.env.MAX_ULTRA_MCP_TIMEOUT_MS ?? 5000);
+    this.controlToken = options.controlToken || readControlToken();
     this.socket = null;
     this.buffer = "";
     this.pendingRequests = new Map();
@@ -86,6 +96,7 @@ class BridgeControlClient {
       const fields = ["CONTROL", "1", requestId, operation];
       if (operation === "call") fields.push(encodeField(toolName), encodeField(JSON.stringify(toolArguments)));
       else if (operation === "shutdown_owned" || operation === "shutdown_owned_when_idle") fields.push(encodeField(toolName));
+      fields.push(encodeField(this.controlToken));
       this.socket.write(`${fields.join("\t")}\n`);
     });
   }

@@ -90,7 +90,7 @@ if "%BRIDGE_NO_PAUSE%"=="0" (
     echo ----------------------------------------------------------------
 )
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BRIDGE_SCRIPT_DIR%run-node-script.ps1" "core\server.js"
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BRIDGE_SCRIPT_DIR%run-node-script.ps1" "core\server.js" "--daemon"
 set "BRIDGE_EXIT_CODE=%ERRORLEVEL%"
 
 if "%BRIDGE_NO_PAUSE%"=="1" exit /b %BRIDGE_EXIT_CODE%

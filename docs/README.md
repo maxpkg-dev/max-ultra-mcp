@@ -46,6 +46,8 @@ The compact panel shows two status/context rows above a tall log.
 - Shutdown is deliberately fail-closed: if helper startup is delayed until the closing Max has fully exited, it sees zero Max processes and leaves the server running; likewise, unreadable process metadata or a missing/corrupt ownership file leaves it running. Run the root script and use **Stop / Exit** again after resolving the metadata issue rather than terminating arbitrary processes.
 
 ## Concise MCP tools
+The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 52–63 tools; see [V1.md](V1.md).
+
 
 | Tool | Purpose |
 | --- | --- |
@@ -82,7 +84,7 @@ The root of `examples\` contains only BAT launchers. Every launcher has a same-n
 
 For example, `examples\example-create-test-box.bat` launches `examples\example-create-test-box\example-create-test-box.js`. Each JavaScript file imports `core\bridge-control-client.js` directly. There is no `_shared` action layer or example-specific routing framework.
 
-Each BAT passes its implementation directly to `scripts\run-node-script.ps1`. The shared runner owns Node.js 18+ discovery, script validation, safe argument forwarding, execution errors, and the child exit code; example launchers contain no environment-specific Node path plumbing.
+Each BAT passes its implementation directly to `scripts\run-node-script.ps1`. The shared runner prefers the packaged portable runtime and accepts Node.js 22+ as a development fallback; it owns script validation, safe argument forwarding, execution errors, and the child exit code.
 
 Read-only examples can list all instances. Examples that target a scene use the server's normal routing: exactly one connected Max routes automatically, while several instances require a prior explicit `max_select_instance` call. Creation examples check their object names first, never overwrite existing objects, and never save the scene. The MCP title example creates an aligned classic Text shape named `MaxUltraMCP_Title`, adds an Extrude modifier, selects it, and runs Zoom Extents in the active viewport.
 
@@ -90,19 +92,19 @@ The screenshot example runs `max tool maximize` before capture and compares the 
 
 ## Agent configuration
 
-Use the absolute path to the launcher on the machine where the repository is installed. Replace `<PROJECT_ROOT>` with that location; do not copy this placeholder literally.
+Use the automatic installer from a packaged release:
+
+```bat
+scripts\install-chatgpt-codex.bat
+```
+
+For a development checkout, register the STDIO host rather than the daemon launcher:
 
 ```powershell
-codex mcp add max-ultra-mcp -- cmd.exe /d /c "<PROJECT_ROOT>\scripts\start-server.bat" --no-pause
+codex mcp add max-ultra-mcp --env MAX_ULTRA_MCP_TOOL_PROFILE=archviz -- node "<PROJECT_ROOT>\core\server.js" --stdio
 ```
 
-Equivalent configuration shape:
-
-```toml
-[mcp_servers.max-ultra-mcp]
-command = "cmd.exe"
-args = ["/d", "/c", "<PROJECT_ROOT>\\scripts\\start-server.bat", "--no-pause"]
-```
+See [V1.md](V1.md) for the portable-runtime TOML configuration and ChatGPT Desktop instructions.
 
 
 ## PowerShell versions
@@ -144,10 +146,10 @@ From the project root:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-smoke.ps1
 ```
 
-Or with Node 18+:
+Or with Node 22+:
 
 ```powershell
 node .\core\smoke-test.js
 ```
 
-The suite uses mock Max 2022 and 2027 clients only. It verifies all 13 tools, routing/cancellation, Box safety, panel/UI/screenshot protocol, RichTextBox bounds/autoscroll, normal-state position/size persistence, saved Hide/Expand state, draggable restore-mini-panel position persistence, screen-clamping invariants, FormClosing persistence order, Hide/restore-mini-panel isolation, theme/status invariants, legacy/fallback recovery, minimized launch, external ownership records, two-plus-Max refusal, and detached exactly-one-Max shutdown without a live bridge connection. It does not open 3ds Max, manipulate a real scene, or save a scene.
+The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 52–63 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.

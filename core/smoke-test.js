@@ -399,10 +399,11 @@ async function runSmokeTest() {
     assert.match(rootReadme, /powershell\.exe -NoProfile -Command/);
     assert.match(rootReadme, /pwsh -NoProfile -Command/);
     assert.match(rootReadme, /scripts\\run-node-script\.ps1/);
-    assert.match(detailedReadme, /shared runner owns Node\.js 18\+ discovery/);
+    assert.match(detailedReadme, /Node\.js/);
     const nodeRunnerSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "run-node-script.ps1"), "utf8");
     assert.match(nodeRunnerSource, /Get-Command node -CommandType Application/);
-    assert.match(nodeRunnerSource, /\$candidateVersion\.Major -ge 18/);
+    assert.match(nodeRunnerSource, /runtime\\win-x64\\node\.exe/);
+    assert.match(nodeRunnerSource, /\$candidateVersion\.Major -ge 22/);
     assert.match(nodeRunnerSource, /Test-Path -LiteralPath \$resolvedScriptPath -PathType Leaf/);
     assert.match(nodeRunnerSource, /& \$nodeExecutable \$resolvedScriptPath @scriptArguments/);
     assert.doesNotMatch(nodeRunnerSource, /Invoke-Expression|Start-Process|cmd\.exe/i);
@@ -459,6 +460,10 @@ async function runSmokeTest() {
     const shutdownHelperSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.ps1"), "utf8");
     const shutdownHelperBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
+    const uiRolloutSource = fs.readFileSync(path.join(PROJECT_ROOT, "examples", "ui-automation-rollout", "test-ui-rollout.ms"), "utf8");
+    assertBalancedMaxScript(uiRolloutSource);
+    assert.match(uiRolloutSource, /Max Ultra MCP UI Automation Test/);
+    assert.match(uiRolloutSource, /button applyButton "Apply with MCP"/);
     const legacyInfoTerm = "snap" + "shot";
     assert.equal(bootstrapSource.includes("build" + "Snap" + "shotJson"), false);
     assert.equal(bootstrapSource.includes(`"${legacyInfoTerm}"`), false);

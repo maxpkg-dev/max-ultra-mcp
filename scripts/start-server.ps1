@@ -3,5 +3,5 @@
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
 
-& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\server.js' @args
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\server.js' '--daemon' @args
 exit $LASTEXITCODE
