@@ -470,6 +470,29 @@ global MaxUltraMcpActiveClient
             )
         ),
 
+        fn persistPanelHiddenState isHidden = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "panel" "hidden" (if (isHidden) then "true" else "false")
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn loadPanelHiddenState = (
+            local storedHiddenState = ""
+            try (
+                if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do (
+                    storedHiddenState = toLower (getINISetting uiStateFilePath "panel" "hidden")
+                )
+            ) catch (storedHiddenState = "")
+            if (storedHiddenState == "true") do return true
+            if (storedHiddenState != "false") do persistPanelHiddenState false
+            return false
+        ),
+
         fn rememberNormalPanelGeometry formSender = (
             if (not panelIsOpen()) do return false
             try (
@@ -801,6 +824,8 @@ global MaxUltraMcpActiveClient
 
         fn restoreHiddenPanel = (
             if (isDisposed) do return false
+            local wasPersistedHidden = loadPanelHiddenState()
+            if (wasPersistedHidden and not (persistPanelHiddenState false)) do return false
             if (not panelIsOpen()) do (
                 local restoreGeometry = if (hiddenPanelPosition == undefined and hiddenPanelSize == undefined) then loadPanelGeometry() else normalizePanelGeometry hiddenPanelPosition hiddenPanelSize
                 local restorePosition = restoreGeometry[1]
@@ -808,10 +833,14 @@ global MaxUltraMcpActiveClient
                 try (
                     createDialog statusDialog width: restoreSize.x height: restoreSize.y pos: restorePosition style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
                 ) catch (
+                    if (wasPersistedHidden) do persistPanelHiddenState true
                     format "[3DGROUND | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
                 )
             )
-            if (not panelIsOpen()) do return false
+            if (not panelIsOpen()) do (
+                if (wasPersistedHidden) do persistPanelHiddenState true
+                return false
+            )
             hiddenPanelPosition = undefined
             hiddenPanelSize = undefined
             disposeRestoreBubble()
@@ -890,6 +919,20 @@ global MaxUltraMcpActiveClient
                 return false
             )
         ),
+
+        fn refreshRestoreBubbleStatus = (
+            if (isDisposed or restoreBubbleForm == undefined or restoreBubbleButton == undefined) do return false
+            try (
+                if (restoreBubbleForm.IsDisposed or restoreBubbleButton.IsDisposed) do return false
+                restoreBubbleButton.ForeColor = statusTextColor()
+                restoreBubbleButton.AccessibleDescription = "Connection status: " + connectionStateText()
+                restoreBubbleButton.Refresh()
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
         fn stopPollTimer = (
             local timerToDispose = pollTimer
             pollTimer = undefined
@@ -911,6 +954,7 @@ global MaxUltraMcpActiveClient
                 try (
                     local finalGeometry = capturePanelGeometry formSender
                     persistPanelGeometry finalGeometry[1] finalGeometry[2]
+                    persistPanelHiddenState false
                 ) catch (
                     try (format "[3DGROUND | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
                 )
@@ -974,7 +1018,9 @@ global MaxUltraMcpActiveClient
         ),
 
         fn refreshUserInterface = (
-            if (isDisposed or not panelIsOpen()) do return false
+            if (isDisposed) do return false
+            local miniPanelRefreshed = refreshRestoreBubbleStatus()
+            if (not panelIsOpen()) do return miniPanelRefreshed
             local statusText = "Status: " + connectionStateText()
             if (connectionState == #error and connectionError != "") do statusText += " - " + connectionError
             statusDialog.lblStatus.Text = statusText
@@ -1021,7 +1067,12 @@ global MaxUltraMcpActiveClient
                     hiddenPanelPosition = hideGeometry[1]
                     hiddenPanelSize = hideGeometry[2]
                     persistPanelGeometry hiddenPanelPosition hiddenPanelSize
+                    if (not (persistPanelHiddenState true)) do (
+                        addActivity "error" "Could not save the hidden panel state; the MCP Server panel remains open"
+                        return false
+                    )
                     if (not (showRestoreBubble())) do (
+                        persistPanelHiddenState false
                         addActivity "error" "Could not create the restore mini-panel; the MCP Server panel was shown again"
                         return false
                     )
@@ -1034,6 +1085,7 @@ global MaxUltraMcpActiveClient
                     addActivity "info" "Panel hidden; use the lower-left Expand MCP Server mini-panel to restore it"
                 ) catch (
                     suppressPanelShutdown = false
+                    persistPanelHiddenState false
                     disposeRestoreBubble()
                     try (if (panelIsOpen()) do attachPanelFormClosing()) catch ()
                     addActivity "error" ("Could not hide panel: " + (getCurrentException() as string))
@@ -1041,6 +1093,16 @@ global MaxUltraMcpActiveClient
                 )
             )
             return true
+        ),
+
+        fn restoreSavedPanelVisibility = (
+            if (not (loadPanelHiddenState())) do return showPanel()
+            local savedPanelGeometry = loadPanelGeometry()
+            hiddenPanelPosition = savedPanelGeometry[1]
+            hiddenPanelSize = savedPanelGeometry[2]
+            if (showRestoreBubble()) do return true
+            persistPanelHiddenState false
+            return showPanel()
         ),
 
         fn closeForLifecycle reason: "Stopped" = (
@@ -1135,11 +1197,14 @@ global MaxUltraMcpActiveClient
         fn handleViewportScreenshot requestId screenshotPath = (
             local viewportBitmap = undefined
             try (
+                if (screenshotPath == undefined or screenshotPath == "") do throw "The screenshot file path is empty"
                 viewportBitmap = gw.getViewportDib()
                 if (viewportBitmap == undefined) do throw "The active viewport did not provide a bitmap"
                 local bitmapWidth = viewportBitmap.width
                 local bitmapHeight = viewportBitmap.height
-                save viewportBitmap screenshotPath
+                viewportBitmap.filename = screenshotPath
+                save viewportBitmap
+                if (not (doesFileExist screenshotPath)) do throw "3ds Max did not write the viewport PNG"
                 close viewportBitmap
                 viewportBitmap = undefined
                 local responseBody = "{\"action\":\"screenshot\",\"ok\":true,\"filePath\":\"" + jsonEscape(screenshotPath) + "\",\"mimeType\":\"image/png\",\"width\":" + (bitmapWidth as string) + ",\"height\":" + (bitmapHeight as string) + ",\"mainThread\":true}"
@@ -1891,7 +1956,7 @@ global MaxUltraMcpActiveClient
             shutdownHelperStarted = false
             connectionState = #starting
             connectionError = ""
-            showPanel()
+            if (not (restoreSavedPanelVisibility())) do addActivity "error" "Could not restore the saved panel visibility"
             addActivity "info" "First-step file started: ensuring local server is healthy"
             if (serverLauncherPath == "") do addActivity "warning" "scripts\\start-server.bat not found below this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
             startTransport allowServerLaunch: true

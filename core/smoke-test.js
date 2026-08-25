@@ -20,8 +20,15 @@ const { GRID_BOX_NAMES, createBoxGridExample } = require("../examples/example-cr
 const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-test-box/example-create-test-box");
 const { healthCheckExample } = require("../examples/example-health-check/example-health-check");
 const { listInstancesExample } = require("../examples/example-list-instances/example-list-instances");
+const { QUICK_RENDER_MAXSCRIPT, pressRenderButtonExample } = require("../examples/example-press-render-button/example-press-render-button");
 const { sceneSnapshotExample } = require("../examples/example-scene-snapshot/example-scene-snapshot");
 const { sceneSummaryExample } = require("../examples/example-scene-summary/example-scene-summary");
+const {
+  MAXIMIZE_VIEWPORT_MAXSCRIPT,
+  PRODUCT_TEMP_DIRECTORY,
+  captureViewportScreenshotExample,
+  removeScreenshotAfterProcessExit,
+} = require("../examples/example-viewport-screenshot/example-viewport-screenshot");
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 async function waitFor(predicate, timeoutMs = 2000) {
@@ -332,6 +339,43 @@ async function runSmokeTest() {
     const exampleSnapshot = await sceneSnapshotExample({ client: controlClient, output: quietOutput });
     assert.equal(exampleSnapshot.snapshot.scene.objectCount, 3);
 
+    const screenshotOutputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-mcp-example-screenshot-"));
+    try {
+      const exampleScreenshot = await captureViewportScreenshotExample({
+        client: controlClient,
+        output: quietOutput,
+        outputDirectory: screenshotOutputDirectory,
+        openImage: false,
+      });
+      assert.equal(exampleScreenshot.screenshot.mimeType, "image/png");
+      assert.equal(exampleScreenshot.opened, false);
+      assert.equal(exampleScreenshot.cleanupScheduled, false);
+      assert.equal(fs.existsSync(exampleScreenshot.savedFilePath), true);
+      assert.equal(path.dirname(exampleScreenshot.savedFilePath), screenshotOutputDirectory);
+      assert.equal(max2027.executeRequests.at(-1), MAXIMIZE_VIEWPORT_MAXSCRIPT);
+      assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /max tool maximize/);
+      assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /getViewSize\(\)/);
+      assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /toggledViewportSize\.x \* toggledViewportSize\.y/);
+    } finally {
+      fs.rmSync(screenshotOutputDirectory, { recursive: true, force: true });
+    }
+
+    fs.mkdirSync(PRODUCT_TEMP_DIRECTORY, { recursive: true });
+    const cleanupTestDirectory = fs.mkdtempSync(path.join(PRODUCT_TEMP_DIRECTORY, "smoke-cleanup-"));
+    const cleanupTestFile = path.join(cleanupTestDirectory, "viewport-cleanup.png");
+    try {
+      fs.writeFileSync(cleanupTestFile, "temporary screenshot test");
+      assert.equal(await removeScreenshotAfterProcessExit(cleanupTestFile, 2147483647, { pollIntervalMs: 1, maximumDeleteAttempts: 2 }), true);
+      assert.equal(fs.existsSync(cleanupTestFile), false);
+    } finally {
+      fs.rmSync(cleanupTestDirectory, { recursive: true, force: true });
+    }
+
+    const renderButtonResponse = await pressRenderButtonExample({ client: controlClient, output: quietOutput });
+    assert.equal(renderButtonResponse.instance.instanceId, "test-max-2027");
+    assert.equal(max2027.executeRequests.at(-1), QUICK_RENDER_MAXSCRIPT);
+    assert.equal(QUICK_RENDER_MAXSCRIPT, "max quick render");
+
     const boxResponse = await createTestBox({ client: controlClient, output: quietOutput });
     assert.equal(boxResponse.instanceId, "test-max-2027");
     const exampleScript = max2027.executeRequests.at(-1);
@@ -371,8 +415,10 @@ async function runSmokeTest() {
       "example-create-test-box",
       "example-health-check",
       "example-list-instances",
+      "example-press-render-button",
       "example-scene-snapshot",
       "example-scene-summary",
+      "example-viewport-screenshot",
     ];
     const rootExampleFiles = fs.readdirSync(examplesRoot, { withFileTypes: true })
       .filter((entry) => entry.isFile())
@@ -393,8 +439,10 @@ async function runSmokeTest() {
       ["examples/example-create-test-box.bat", "examples\\example-create-test-box\\example-create-test-box.js"],
       ["examples/example-health-check.bat", "examples\\example-health-check\\example-health-check.js"],
       ["examples/example-list-instances.bat", "examples\\example-list-instances\\example-list-instances.js"],
+      ["examples/example-press-render-button.bat", "examples\\example-press-render-button\\example-press-render-button.js"],
       ["examples/example-scene-snapshot.bat", "examples\\example-scene-snapshot\\example-scene-snapshot.js"],
       ["examples/example-scene-summary.bat", "examples\\example-scene-summary\\example-scene-summary.js"],
+      ["examples/example-viewport-screenshot.bat", "examples\\example-viewport-screenshot\\example-viewport-screenshot.js"],
       ["scripts/start-server.bat", "core\\server.js"],
       ["scripts/start-server.ps1", "core\\server.js"],
       ["scripts/run-smoke.ps1", "core\\smoke-test.js"],
@@ -405,6 +453,14 @@ async function runSmokeTest() {
       assert.ok(launcherSource.includes(expectedScriptPath), relativeLauncherPath + " must name only its requested Node.js script");
       assert.doesNotMatch(launcherSource, /Get-Command\s+node|codex-runtimes|process\.versions\.node/);
     }
+    const screenshotLauncherSource = fs.readFileSync(path.join(examplesRoot, "example-viewport-screenshot.bat"), "utf8");
+    assert.match(screenshotLauncherSource, /MAX_ULTRA_MCP_EXAMPLE_BAT_PID/);
+    assert.match(screenshotLauncherSource, /MAX_ULTRA_MCP_EXAMPLE_SCREENSHOT_FILE/);
+    assert.match(screenshotLauncherSource, /del \/f \/q "%MAX_ULTRA_MCP_EXAMPLE_SCREENSHOT_FILE%"/);
+    const screenshotExampleSource = fs.readFileSync(path.join(examplesRoot, "example-viewport-screenshot", "example-viewport-screenshot.js"), "utf8");
+    assert.match(screenshotExampleSource, /--cleanup-after-process/);
+    assert.match(screenshotExampleSource, /startCleanupWatcher\(savedFilePath, options\.cleanupAfterProcessId\)/);
+    assert.match(screenshotExampleSource, /pathIsInsideDirectory\(normalizedFilePath, PRODUCT_TEMP_DIRECTORY\)/);
     const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
     const serverSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "server.js"), "utf8");
     const shutdownHelperSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.ps1"), "utf8");
@@ -503,6 +559,10 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "x"/);
     assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "width"/);
     assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "height"/);
+    assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "hidden"/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "hidden" \(if \(isHidden\) then "true" else "false"\)/);
+    assert.match(bootstrapSource, /if \(storedHiddenState == "true"\) do return true/);
+    assert.match(bootstrapSource, /if \(storedHiddenState != "false"\) do persistPanelHiddenState false/);
     assert.match(bootstrapSource, /if \(not isDisposed and rememberNormalPanelGeometry formSender\)[\s\S]*persistPanelGeometry lastNormalPanelPosition lastNormalPanelSize/);
     assert.match(bootstrapSource, /return normalizePanelGeometry storedPosition storedSize/);
     assert.match(bootstrapSource, /PrimaryScreen\.WorkingArea/);
@@ -571,7 +631,8 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick/);
     assert.match(bootstrapSource, /removeEventHandler bubbleFormToDispose "FormClosing" handleRestoreBubbleFormClosing/);
     assert.match(bootstrapSource, /fn resizePanelControls panelSize = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
-    assert.match(bootstrapSource, /fn refreshUserInterface = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
+    assert.match(bootstrapSource, /fn refreshRestoreBubbleStatus = \([\s\S]*restoreBubbleButton\.ForeColor = statusTextColor\(\)[\s\S]*restoreBubbleButton\.Refresh\(\)/);
+    assert.match(bootstrapSource, /fn refreshUserInterface = \([\s\S]*local miniPanelRefreshed = refreshRestoreBubbleStatus\(\)[\s\S]*if \(not panelIsOpen\(\)\) do return miniPanelRefreshed/);
     const restorePanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn restoreHiddenPanel"), bootstrapSource.indexOf("fn handleRestoreBubbleClick"));
     const restoreClickBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleRestoreBubbleClick"), bootstrapSource.indexOf("fn showRestoreBubble"));
     const restoreMiniPanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn showRestoreBubble"), bootstrapSource.indexOf("fn stopPollTimer"));
@@ -580,6 +641,9 @@ async function runSmokeTest() {
     assert.match(restorePanelBody, /restorePosition = restoreGeometry\[1\]/);
     assert.match(restorePanelBody, /restoreSize = restoreGeometry\[2\]/);
     assert.match(restorePanelBody, /createDialog statusDialog width: restoreSize\.x height: restoreSize\.y pos: restorePosition/);
+    assert.match(restorePanelBody, /local wasPersistedHidden = loadPanelHiddenState\(\)/);
+    assert.ok(restorePanelBody.indexOf("persistPanelHiddenState false") < restorePanelBody.indexOf("createDialog statusDialog"), "Expand must persist the expanded state before replacing the mini-panel");
+    assert.match(restorePanelBody, /if \(wasPersistedHidden\) do persistPanelHiddenState true/);
     assert.ok(restorePanelBody.indexOf("if (not panelIsOpen()) do return false") < restorePanelBody.indexOf("disposeRestoreBubble()"), "The mini-panel must remain available when the native rollout cannot be recreated");
     assert.doesNotMatch(restorePanelBody, /panelForm == undefined|panelForm\.Bounds|panelForm\.Show/);
     assert.doesNotMatch(restorePanelBody, /refreshUserInterface\(\)/);
@@ -593,17 +657,33 @@ async function runSmokeTest() {
     assert.match(hidePanelBody, /hiddenPanelPosition = hideGeometry\[1\]/);
     assert.match(hidePanelBody, /hiddenPanelSize = hideGeometry\[2\]/);
     assert.match(hidePanelBody, /persistPanelGeometry hiddenPanelPosition hiddenPanelSize/);
+    assert.match(hidePanelBody, /if \(not \(persistPanelHiddenState true\)\) do/);
     assert.match(hidePanelBody, /showRestoreBubble\(\)/);
     assert.match(hidePanelBody, /detachPanelFormEvents panelForm/);
     assert.match(hidePanelBody, /suppressPanelShutdown = true[\s\S]*destroyDialog statusDialog[\s\S]*suppressPanelShutdown = false/);
     assert.match(hidePanelBody, /destroyDialog statusDialog/);
     assert.ok(hidePanelBody.indexOf("showRestoreBubble()") < hidePanelBody.indexOf("destroyDialog statusDialog"), "The restore mini-panel must exist before the native rollout is destroyed");
+    assert.ok(hidePanelBody.indexOf("persistPanelHiddenState true") < hidePanelBody.indexOf("destroyDialog statusDialog"), "Hide must be persisted before the native rollout is destroyed");
+    assert.match(hidePanelBody, /if \(not \(showRestoreBubble\(\)\)\) do \([\s\S]*persistPanelHiddenState false/);
+    const savedVisibilityBody = bootstrapSource.slice(bootstrapSource.indexOf("fn restoreSavedPanelVisibility"), bootstrapSource.indexOf("fn closeForLifecycle"));
+    assert.match(savedVisibilityBody, /if \(not \(loadPanelHiddenState\(\)\)\) do return showPanel\(\)/);
+    assert.match(savedVisibilityBody, /local savedPanelGeometry = loadPanelGeometry\(\)/);
+    assert.match(savedVisibilityBody, /if \(showRestoreBubble\(\)\) do return true/);
+    assert.match(savedVisibilityBody, /persistPanelHiddenState false[\s\S]*return showPanel\(\)/);
+    assert.match(bootstrapSource, /if \(not \(restoreSavedPanelVisibility\(\)\)\) do addActivity "error" "Could not restore the saved panel visibility"/);
+    assert.doesNotMatch(bootstrapSource.slice(bootstrapSource.indexOf("fn startBridge"), bootstrapSource.indexOf("bridgeClient =")), /^\s*showPanel\(\)/m);
+    assert.match(formClosingBody, /persistPanelGeometry finalGeometry\[1\] finalGeometry\[2\][\s\S]*persistPanelHiddenState false/);
     assert.doesNotMatch(hidePanelBody, /panelForm\.Hide\(\)|CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle|handleViewportScreenshot|disposeForReload/);
     const closeForLifecycleBody = bootstrapSource.slice(bootstrapSource.indexOf("fn closeForLifecycle"), bootstrapSource.indexOf("fn minimizePanel"));
     assert.match(closeForLifecycleBody, /if \(panelIsOpen\(\)\) then \([\s\S]*destroyDialog statusDialog/);
     assert.doesNotMatch(closeForLifecycleBody, /panelForm\.Close\(\)/);
     assert.doesNotMatch(restorePanelBody + restoreClickBody + restoreMiniPanelBody, /CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle/);
     assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
+    const viewportScreenshotBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleViewportScreenshot"), bootstrapSource.indexOf("fn handleExecuteRequest"));
+    assert.match(viewportScreenshotBody, /viewportBitmap = gw\.getViewportDib\(\)/);
+    assert.match(viewportScreenshotBody, /viewportBitmap\.filename = screenshotPath[\s\S]*save viewportBitmap/);
+    assert.match(viewportScreenshotBody, /if \(not \(doesFileExist screenshotPath\)\) do throw "3ds Max did not write the viewport PNG"/);
+    assert.doesNotMatch(viewportScreenshotBody, /save viewportBitmap screenshotPath/);
     assert.match(bootstrapSource, /serverShutdownHelperPath/);
     assert.match(bootstrapSource, /stop-owned-server\.bat/);
     assert.match(bootstrapSource, /fn launchDetachedShutdownHelper/);

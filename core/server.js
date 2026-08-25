@@ -21,6 +21,7 @@ const CONTROL_CALLABLE_TOOLS = new Set([
   "max_snapshot",
   "max_create_box",
   "max_execute",
+  "max_viewport_screenshot",
 ]);
 
 const WIRE_VERSION = "1";

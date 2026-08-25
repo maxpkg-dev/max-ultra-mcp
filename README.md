@@ -14,7 +14,7 @@ It verifies the loopback endpoint, starts the project server in a minimized cons
 
 - Closing the panel with X or pressing **Stop / Exit** stops Max-side timers and transport, then starts a detached shutdown helper. The helper stops a recorded Max-launched server only when exactly one `3dsmax.exe` process is still live; with zero or two-plus Max processes it leaves the server running.
 - The helper does not use the Max-to-server connection. It validates the port-scoped ownership record, Node PID/start time/script, and BAT PID/start time/command line before terminating anything. Manual, pre-existing, stale, mismatched, or unverifiable servers are left running.
-- **Hide panel** keeps the bridge running and replaces the main panel with a draggable **Expand MCP Server** mini-panel whose position is remembered per Windows user.
+- **Hide panel** keeps the bridge running and replaces the main panel with a draggable **Expand MCP Server** mini-panel. Its position and the hidden/expanded state are remembered per Windows user, so the next script start opens directly as the mini-panel when Hide was the last chosen state.
 - **Settings** opens a compact auto-saving settings window. **Autostart with 3ds Max** immediately updates the per-user INI setting and creates or removes `3DGROUND-Max-Ultra-MCP-Autostart.ms` in the current Max version's user startup-scripts directory. The generated launcher stores the absolute bootstrap path; if that file no longer exists at startup, the launcher disables the INI setting and deletes itself after startup-script loading completes.
 - The main panel remembers its last normal position and user-resized size per Windows user, with safe on-screen recovery after monitor or DPI changes.
 - If the BAT/server is closed manually, this Max session stops with an actionable error. It does not launch the server again; explicitly run `01_START_MAX_ULTRA_MCP_FIRST.ms` to start a new session.
@@ -54,6 +54,6 @@ The smoke suite uses mock Max clients and never opens, changes, or saves a real 
 
 Run any `.bat` file in `examples\`. The root of that directory contains only launchers; every launcher has a same-named subfolder with its JavaScript implementation. Each implementation calls `core\bridge-control-client.js` directly, without an intermediate example framework.
 
-The included examples list connected Max instances, check health, read a scene summary or snapshot, create one test Box, and create a three-Box grid. Creation examples do not save the scene and refuse ambiguous routing when several Max instances are connected.
+The included examples can maximize, capture, and temporarily open the active viewport; start the current production render through the MaxScript equivalent of **Render / F9**; inspect connected Max instances; and perform small scene actions. The screenshot PNG is deleted when its BAT closes. Creation examples do not save the scene, and targeted actions refuse ambiguous routing when several Max instances are connected.
 
 See [the detailed documentation](docs/README.md) for MCP configuration, tools, endpoint recovery, panel behavior, examples, environment variables, and repository layout.
