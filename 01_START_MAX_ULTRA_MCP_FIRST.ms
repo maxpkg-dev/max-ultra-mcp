@@ -80,6 +80,8 @@ global MaxUltraMcpActiveClient
         restoreBubbleForm,
         restoreBubbleLabel,
         restoreBubbleButton,
+        restoreBubbleDragging = false,
+        restoreBubbleDragOffset,
         restoreBubbleCloseAllowed = false,
         transportWorkerArguments,
         suppressPanelShutdown = false,
@@ -480,6 +482,101 @@ global MaxUltraMcpActiveClient
             return loadPanelGeometry()
         ),
 
+        fn defaultRestoreBubblePosition = (
+            local screenClass = dotNetClass "System.Windows.Forms.Screen"
+            local targetScreen = undefined
+            try (
+                local maxWindowHandle = dotNetObject "System.IntPtr" (windows.getMAXHWND())
+                targetScreen = screenClass.FromHandle maxWindowHandle
+            ) catch ()
+            if (targetScreen == undefined) do targetScreen = screenClass.PrimaryScreen
+            local workingArea = targetScreen.WorkingArea
+            return [(workingArea.Left + 12) as integer, (workingArea.Bottom - 64 - 12) as integer]
+        ),
+
+        fn normalizeRestoreBubblePosition bubblePosition = (
+            if (bubblePosition == undefined) do return defaultRestoreBubblePosition()
+            try (
+                local bubbleX = bubblePosition.x as integer
+                local bubbleY = bubblePosition.y as integer
+                local bubbleBounds = dotNetObject "System.Drawing.Rectangle" bubbleX bubbleY 236 64
+                local targetScreen = (dotNetClass "System.Windows.Forms.Screen").FromRectangle bubbleBounds
+                if (targetScreen == undefined) do return defaultRestoreBubblePosition()
+                local workingArea = targetScreen.WorkingArea
+                local maximumX = workingArea.Right - 236
+                local maximumY = workingArea.Bottom - 64
+                local clampedX = amax workingArea.Left (amin maximumX bubbleX)
+                local clampedY = amax workingArea.Top (amin maximumY bubbleY)
+                return [clampedX as integer, clampedY as integer]
+            ) catch (
+                return defaultRestoreBubblePosition()
+            )
+        ),
+
+        fn loadRestoreBubblePosition = (
+            local storedPosition = undefined
+            if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do (
+                try (
+                    local storedX = getINISetting uiStateFilePath "restoreBubble" "x"
+                    local storedY = getINISetting uiStateFilePath "restoreBubble" "y"
+                    if (storedX != "" and storedY != "") do storedPosition = [storedX as integer, storedY as integer]
+                ) catch (storedPosition = undefined)
+            )
+            return normalizeRestoreBubblePosition storedPosition
+        ),
+
+        fn persistRestoreBubblePosition bubblePosition = (
+            if (bubblePosition == undefined or uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                local normalizedPosition = normalizeRestoreBubblePosition bubblePosition
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "restoreBubble" "x" ((normalizedPosition.x as integer) as string)
+                setINISetting uiStateFilePath "restoreBubble" "y" ((normalizedPosition.y as integer) as string)
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn handleRestoreBubbleMouseDown labelSender eventArgs = (
+            if (eventArgs == undefined or eventArgs.Button != (dotNetClass "System.Windows.Forms.MouseButtons").Left) do return true
+            local labelOffsetX = 0
+            local labelOffsetY = 0
+            if (labelSender != undefined) do (
+                labelOffsetX = labelSender.Left as integer
+                labelOffsetY = labelSender.Top as integer
+            )
+            restoreBubbleDragging = true
+            restoreBubbleDragOffset = [labelOffsetX + (eventArgs.X as integer), labelOffsetY + (eventArgs.Y as integer)]
+            try (if (labelSender != undefined) do labelSender.Capture = true) catch ()
+            return true
+        ),
+
+        fn handleRestoreBubbleMouseMove labelSender eventArgs = (
+            if (not restoreBubbleDragging or restoreBubbleForm == undefined or restoreBubbleDragOffset == undefined) do return true
+            try (
+                local cursorPosition = (dotNetClass "System.Windows.Forms.Cursor").Position
+                local requestedPosition = [cursorPosition.X - restoreBubbleDragOffset.x, cursorPosition.Y - restoreBubbleDragOffset.y]
+                local normalizedPosition = normalizeRestoreBubblePosition requestedPosition
+                restoreBubbleForm.Location = dotNetObject "System.Drawing.Point" normalizedPosition.x normalizedPosition.y
+            ) catch ()
+            return true
+        ),
+
+        fn handleRestoreBubbleMouseUp labelSender eventArgs = (
+            if (eventArgs != undefined and eventArgs.Button == (dotNetClass "System.Windows.Forms.MouseButtons").Left) do (
+                restoreBubbleDragging = false
+                restoreBubbleDragOffset = undefined
+                try (if (labelSender != undefined) do labelSender.Capture = false) catch ()
+                try (
+                    if (restoreBubbleForm != undefined and not restoreBubbleForm.IsDisposed) do (
+                        persistRestoreBubblePosition [restoreBubbleForm.Left as integer, restoreBubbleForm.Top as integer]
+                    )
+                ) catch ()
+            )
+            return true
+        ),
+
         fn disposeRestoreBubble = (
             local bubbleLabelToDispose = restoreBubbleLabel
             local bubbleButtonToDispose = restoreBubbleButton
@@ -487,7 +584,12 @@ global MaxUltraMcpActiveClient
             restoreBubbleLabel = undefined
             restoreBubbleButton = undefined
             restoreBubbleForm = undefined
+            restoreBubbleDragging = false
+            restoreBubbleDragOffset = undefined
             restoreBubbleCloseAllowed = true
+            try (if (bubbleLabelToDispose != undefined) do dotNet.removeEventHandler bubbleLabelToDispose "MouseDown" handleRestoreBubbleMouseDown) catch ()
+            try (if (bubbleLabelToDispose != undefined) do dotNet.removeEventHandler bubbleLabelToDispose "MouseMove" handleRestoreBubbleMouseMove) catch ()
+            try (if (bubbleLabelToDispose != undefined) do dotNet.removeEventHandler bubbleLabelToDispose "MouseUp" handleRestoreBubbleMouseUp) catch ()
             try (if (bubbleButtonToDispose != undefined) do dotNet.removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick) catch ()
             try (if (bubbleFormToDispose != undefined) do dotNet.removeEventHandler bubbleFormToDispose "FormClosing" handleRestoreBubbleFormClosing) catch ()
             try (
@@ -509,7 +611,9 @@ global MaxUltraMcpActiveClient
         ),
 
         fn handlePanelGeometryChanged formSender eventArgs = (
-            if (not isDisposed) do rememberNormalPanelGeometry formSender
+            if (not isDisposed and rememberNormalPanelGeometry formSender) do (
+                persistPanelGeometry lastNormalPanelPosition lastNormalPanelSize
+            )
             return true
         ),
 
@@ -565,13 +669,8 @@ global MaxUltraMcpActiveClient
                 restoreBubbleForm.TopMost = true
                 restoreBubbleForm.StartPosition = (dotNetClass "System.Windows.Forms.FormStartPosition").Manual
                 restoreBubbleForm.Size = dotNetObject "System.Drawing.Size" 236 64
-                local screenClass = dotNetClass "System.Windows.Forms.Screen"
-                local maxWindowHandle = dotNetObject "System.IntPtr" (windows.getMAXHWND())
-                local targetScreen = screenClass.FromHandle maxWindowHandle
-                local workingArea = targetScreen.WorkingArea
-                local bubbleX = workingArea.Left + 12
-                local bubbleY = workingArea.Bottom - restoreBubbleForm.Height - 12
-                restoreBubbleForm.Location = dotNetObject "System.Drawing.Point" bubbleX bubbleY
+                local bubblePosition = loadRestoreBubblePosition()
+                restoreBubbleForm.Location = dotNetObject "System.Drawing.Point" bubblePosition.x bubblePosition.y
                 restoreBubbleForm.BackColor = themeDrawingColor #background 68 68 68
                 restoreBubbleForm.Text = "Max Ultra MCP"
                 restoreBubbleForm.AccessibleName = "Max Ultra MCP restore mini-panel"
@@ -581,6 +680,8 @@ global MaxUltraMcpActiveClient
                 restoreBubbleLabel.BackColor = restoreBubbleForm.BackColor
                 restoreBubbleLabel.ForeColor = themeDrawingColor #text 220 220 220
                 restoreBubbleLabel.TabStop = false
+                restoreBubbleLabel.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeAll
+                restoreBubbleLabel.AccessibleDescription = "Drag to move the Max Ultra MCP restore mini-panel"
                 restoreBubbleButton.Text = "Expand MCP Server"
                 restoreBubbleButton.AccessibleName = "Expand MCP Server"
                 restoreBubbleButton.Location = dotNetObject "System.Drawing.Point" 8 27
@@ -592,6 +693,9 @@ global MaxUltraMcpActiveClient
                 restoreBubbleButton.ForeColor = statusTextColor()
                 local boldFontStyle = (dotNetClass "System.Drawing.FontStyle").Bold
                 restoreBubbleButton.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0 boldFontStyle
+                dotNet.addEventHandler restoreBubbleLabel "MouseDown" handleRestoreBubbleMouseDown
+                dotNet.addEventHandler restoreBubbleLabel "MouseMove" handleRestoreBubbleMouseMove
+                dotNet.addEventHandler restoreBubbleLabel "MouseUp" handleRestoreBubbleMouseUp
                 dotNet.addEventHandler restoreBubbleButton "Click" handleRestoreBubbleClick
                 dotNet.addEventHandler restoreBubbleForm "FormClosing" handleRestoreBubbleFormClosing
                 restoreBubbleForm.Controls.Add restoreBubbleLabel
