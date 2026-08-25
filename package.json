@@ -1,0 +1,18 @@
+{
+  "name": "max-ultra-mcp",
+  "version": "0.3.0",
+  "private": true,
+  "description": "3D Ground Max Ultra MCP bridge for already-running 3ds Max instances",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node smoke-test.js",
+    "mock:2022": "node mock-max-client.js 2022",
+    "mock:2027": "node mock-max-client.js 2027",
+    "example:box": "node example-create-box.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
