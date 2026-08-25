@@ -74,6 +74,8 @@ class MaxBridge {
     this.instances = new Map();
     this.pendingRequests = new Map();
     this.selectedInstanceId = "";
+    this.startedAt = new Date().toISOString();
+    this.shutdownHandler = options.shutdownHandler || (() => this.stop().finally(() => process.exit(0)));
     this.tcpServer = net.createServer((socket) => this.acceptConnection(socket));
     this.tcpServer.on("error", (error) => {
       process.stderr.write(`[3D Ground | Max Ultra MCP] ERROR | TCP listener: ${error.message}\n`);
@@ -203,7 +205,13 @@ class MaxBridge {
       connectionInfo.controlClient = true;
       const operation = fields[3];
       let responsePayload;
-      if (operation === "list") {
+      let shutdownAfterResponse = false;
+      if (operation === "probe") {
+        responsePayload = { server: "max-ultra-mcp", wireVersion: WIRE_VERSION, healthy: this.tcpServer.listening, pid: process.pid, startedAt: this.startedAt };
+      } else if (operation === "shutdown") {
+        responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, shuttingDown: true };
+        shutdownAfterResponse = true;
+      } else if (operation === "list") {
         responsePayload = await this.callTool("max_list_instances");
       } else if (operation === "call") {
         const toolName = decodeField(fields[4]);
@@ -217,6 +225,7 @@ class MaxBridge {
         throw new Error(`Unknown control operation '${operation}'`);
       }
       sendResponse("ok", JSON.stringify(responsePayload));
+      if (shutdownAfterResponse) setTimeout(() => this.shutdownHandler(), 50);
     } catch (error) {
       sendResponse("error", error.message);
     }

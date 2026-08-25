@@ -4,17 +4,43 @@ Max Ultra MCP is a standalone, dependency-free local bridge that lets ChatGPT, C
 
 Semantic tools cover common work without MaxScript boilerplate. `max_execute` remains an advanced full-control escape hatch: supplied MaxScript can change scenes, files, render settings, and the Max UI. Keep the listener on its default loopback address, inspect the automatic inventory, and target the intended process. Max Ultra MCP never chooses arbitrarily when several Max instances are connected.
 
-## One-time Codex configuration
+## First step: run one file in 3ds Max
 
-The primary branded launcher is:
+The only manual Max-side action is **Scripting > Run Script** and selecting:
+
+```text
+C:\Projects\Scripts\max-ultra-mcp\01_START_MAX_ULTRA_MCP_FIRST.ms
+```
+
+The file header and panel title identify it as the first step. It handles the local server and connects the current Max automatically:
+
+- On the first run in a Max process, a background worker probes the configured loopback endpoint with an identity-aware Max Ultra MCP control request. If a healthy server is already listening, it attaches without opening another server window.
+- If the port is closed, a named Windows lifecycle mutex prevents concurrent Max processes from launching duplicates. The worker starts the sibling `start-server.bat --no-pause` in a branded console, retries with bounded delays (`150, 250, 500, 750, 1000, 1500, 2000 ms` plus bounded 500 ms probes), then connects.
+- Re-running the first-step file is an intentional clean restart. It disposes the previous in-Max client, timer, worker, and panel; verifies the listener's Max Ultra MCP identity; asks that server to shut itself down; waits boundedly for the port to close; launches a fresh server; and reconnects.
+- Max Ultra MCP never enumerates or kills arbitrary Node, PowerShell, or CMD processes. Shutdown is accepted only through the verified Max Ultra MCP loopback protocol and the server terminates itself. If another service owns the port or identity cannot be proven, restart/launch is refused and the panel shows the error.
+- All connect probes, mutex waits, process launch, sleeps, port-close checks, and startup retries run in the background worker. The 3ds Max UI thread remains available; it only drains bounded events/requests and updates the panel.
+
+Keep the first-step file beside `start-server.bat`. If it must be copied elsewhere, set `MAX_ULTRA_MCP_ROOT` to this project directory so the launcher can be resolved safely. Automatic launch is disabled for non-loopback hosts. A manually started BAT console may remain at its stopped prompt after verified server shutdown; automatically launched consoles use `--no-pause` and close with their server.
+
+Run the same first-step file once in every open Max 2022/2027 process that should connect. The panel reports probing, waiting for another launcher, starting, verified shutdown, port release, fresh-server health, connection, and any bounded timeout/failure.
+
+### Professional color-coded panel log
+
+The 30-entry RichTextBox log is the panel's primary full-width, tall surface; there are no separate connection/scene/activity group boxes. Two concise lines above it show lifecycle status and the combined server, Max/PID, scene, object, selection, and dirty-state context. The action row stays below. The resizable panel expands the log in both width and height while retaining a readable minimum size and accessible name.
+
+When the panel moves, Max Ultra MCP stores only its integer `x/y` coordinates in `%USERPROFILE%`'s 3ds Max user-scripts area under `MaxUltraMCP\panel-ui.ini`. On the next first-step launch it accepts the position only when the complete default panel rectangle fits inside a current monitor working area; otherwise it centers the panel on the primary working area. No scene, server, credential, or other application state is written.
+
+The log uses the same category-driven approach the user liked in Collect Asset, adapted to Max Ultra MCP: success is dark green, normal information is steel blue, warnings are amber, errors are dark red, and debug messages are olive. It uses a light gray surface, Segoe UI, a fixed border, per-entry `SelectionColor`, and resets the selection color after rendering. Every update stays on Max's main thread, retains only the newest 30 entries, and scrolls to the newest line with `ScrollToCaret()`.
+
+## Connect Codex or another MCP host once
+
+The local server launcher is:
 
 ```text
 C:\Projects\Scripts\max-ultra-mcp\start-server.bat
 ```
 
-Double-click it for a persistent 3D Ground / Max Ultra MCP console showing the endpoint, running state, and live connection messages. It invokes PowerShell with `-ExecutionPolicy Bypass` only in that child process and does not modify user or machine policy.
-
-Add Max Ultra MCP to Codex once:
+The first-step MaxScript normally starts it, so users do not need to launch it manually. Add Max Ultra MCP to Codex once:
 
 ```powershell
 codex mcp add max-ultra-mcp -- cmd.exe /d /c C:\Projects\Scripts\max-ultra-mcp\start-server.bat --no-pause
@@ -30,28 +56,7 @@ startup_timeout_sec = 10
 tool_timeout_sec = 600
 ```
 
-Restart Codex after changing MCP configuration. MCP JSON-RPC uses stdout; human-readable Max Ultra MCP status uses stderr.
-
-## Load Max Ultra MCP in each open Max
-
-In every Max 2022 or 2027 process that Codex should see:
-
-1. Choose **Scripting > Run Script**.
-2. Open `C:\Projects\Scripts\max-ultra-mcp\MaxUltraMcpBootstrap.ms`.
-3. Keep the **3D Ground - Max Ultra MCP** panel open or hide it; hiding does not stop the connection.
-4. Repeat in any other open Max version.
-
-The panel shows connected/reconnecting/error/stopped state, endpoint, Max version, PID, instance ID, current scene, scene counts, and a bounded 30-entry WinForms activity/error log. Its RichTextBox wraps long messages and automatically scrolls to the newest entry. Panel buttons reconnect, stop/start transport, and hide the panel. MCP tool `max_panel` can show, hide, minimize, or restore it while Max is running.
-
-Optional per-user startup loading is opt-in. Copy `MaxUltraMcpBootstrap.ms` to the folder returned by `getDir #userStartupScripts` in each Max profile. Typical English-locale paths are:
-
-```text
-%LOCALAPPDATA%\Autodesk\3dsMax\2022 - 64bit\ENU\scripts\Startup\MaxUltraMcpBootstrap.ms
-%LOCALAPPDATA%\Autodesk\3dsMax\2027 - 64bit\ENU\scripts\Startup\MaxUltraMcpBootstrap.ms
-```
-
-Nothing in this repository writes into a Max installation automatically. Remove only your copied bootstrap to disable startup loading.
-
+Restart the MCP host after changing its configuration. MCP JSON-RPC uses stdout; human-readable status uses stderr.
 ## Concise agent tools and targeting
 
 Agents can use Max Ultra MCP without knowing its socket/bootstrap mechanics or generating MaxScript for common actions. Tool results are compact by default; pass `details: true` only when deeper identity, UI, or execution diagnostics are useful.
@@ -125,16 +130,17 @@ cd C:\Projects\Scripts\max-ultra-mcp
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run-smoke.ps1
 ```
 
-The smoke test uses independent mock Max 2022 and 2027 clients. It verifies all 13 semantic/advanced tools, compact-versus-detailed payloads, explicit selection, one-instance routing, queued-request cancellation, diagnostics, Box schema/script safety, the simplified launcher helper, panel/UI actions, the 30-entry auto-scroll log invariants, screenshot cleanup, bounded async transport, and MCP JSON-RPC. It never opens Max or changes a real scene.
+The smoke test uses independent mock Max 2022 and 2027 clients. It verifies all 13 semantic/advanced tools, the identity probe and self-shutdown protocol, compact-versus-detailed payloads, routing/cancellation, Box safety, panel/UI actions, color-category RichTextBox rendering, the 30-entry/auto-scroll invariants, screenshot cleanup, and bounded async transport. Static checks cover the first-step filename, previous-client disposal, named mutex, loopback guard, ProcessStartInfo launch, no `WaitForExit`, bounded backoff, verified shutdown, and one final transport connect. It never opens Max or changes a real scene.
 
 Environment overrides:
 
 - `MAX_ULTRA_MCP_HOST` defaults to `127.0.0.1` and should remain loopback.
 - `MAX_ULTRA_MCP_PORT` defaults to `47635`.
 - `MAX_ULTRA_MCP_TIMEOUT_MS` defaults to `5000` for short tools.
+- `MAX_ULTRA_MCP_ROOT` optionally locates `start-server.bat` when the first-step file is not kept in the project root.
 
-If the port changes, set `hostPort` near the top of each copied bootstrap to the same value.
+The first-step script reads `MAX_ULTRA_MCP_HOST` and `MAX_ULTRA_MCP_PORT`, so server and bootstrap stay aligned. Auto-start remains loopback-only.
 
 ## Remaining real-Max validation
 
-Mock and static tests cannot prove version-specific MaxScript/.NET parsing. In Max 2022 and 2027, load the bootstrap in an empty throwaway scene, verify panel connection/inventory, then run `max_health`, `max_smoke`, panel actions, a viewport screenshot, and harmless `max_execute` such as `maxVersion()`. No destructive real-scene action is part of repository verification.
+Mock and static tests cannot prove version-specific MaxScript/.NET parsing. In Max 2022 and 2027, run `01_START_MAX_ULTRA_MCP_FIRST.ms` from this project in an empty throwaway scene, verify auto-start/connection and one clean re-run restart, then run `max_health`, `max_smoke`, panel actions, a viewport screenshot, and harmless `max_execute` such as `maxVersion()`. No destructive real-scene action is part of repository verification.

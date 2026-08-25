@@ -45,6 +45,14 @@ class BridgeControlClient {
     if (this.socket) this.socket.end();
   }
 
+  probe() {
+    return this.request("probe");
+  }
+
+  shutdownServer() {
+    return this.request("shutdown");
+  }
+
   listInstances() {
     return this.request("list");
   }

@@ -1,54 +1,55 @@
--- Connects one running 3ds Max process to the local Max Ultra MCP bridge.
--- Copyright (c) 2026 Lukianenko Vasyl
--- https://3dground.net
--- Developed by https://3dground.net (3DGROUND)
+-- FIRST STEP: Run this file in 3ds Max to start/restart Max Ultra MCP and connect this Max.
+-- All endpoint probing, server lifecycle work, and retry waits run off the Max UI thread.
+-- Copyright (c) 2026 Lukianenko Vasyl | https://3dground.net
+
+global MaxUltraMcpActiveClient
 
 (
     local bridgeClient
+    local restartServerForReload = false
+    if (MaxUltraMcpActiveClient != undefined) do (
+        restartServerForReload = true
+        try (
+            MaxUltraMcpActiveClient.disposeForReload()
+        ) catch (
+            try (MaxUltraMcpActiveClient.stopBridge reason: "Replaced by first-step file re-run") catch ()
+            try (MaxUltraMcpActiveClient.hidePanel()) catch ()
+        )
+        MaxUltraMcpActiveClient = undefined
+    )
 
+    struct MaxUltraMcpControlResult (
+        state = #closed,
+        payload = "",
+        errorMessage = ""
+    )
 
-    rollout MaxUltraMcpStatusDialog "3D Ground - Max Ultra MCP" width: 520 height: 400 (
-        groupBox grpConnection "Connection" pos: [12,8] width: 496 height: 96
-        label lblStatus "Status: starting" pos: [24,28] width: 470 height: 18
-        label lblEndpoint "Server: 127.0.0.1:47635" pos: [24,50] width: 470 height: 18
-        label lblIdentity "Max: detecting process identity" pos: [24,72] width: 470 height: 18
+    rollout MaxUltraMcpStatusDialog "3D Ground - Max Ultra MCP | First Step" width: 680 height: 500 (
+        label lblStatus "Status: first-step startup" pos: [12,10] width: 656 height: 20
+        label lblContext "Server 127.0.0.1:47635 | Max detecting | Scene Untitled | Objects 0 | Selection 0 | Dirty false" pos: [12,34] width: 656 height: 20
 
-        groupBox grpScene "Current scene" pos: [12,110] width: 496 height: 66
-        label lblScene "Scene: Untitled" pos: [24,132] width: 470 height: 18
-        label lblSceneStats "Objects: 0 | Selection: 0 | Save required: false" pos: [24,152] width: 470 height: 18
+        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [12,62] width: 656 height: 386
 
-        groupBox grpActivity "Recent activity / errors" pos: [12,182] width: 496 height: 158
-        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [22,202] width: 476 height: 126
-
-        button btnReconnect "Reconnect" pos: [12,350] width: 112 height: 30
-        button btnStop "Stop Max Ultra" pos: [132,350] width: 112 height: 30
-        button btnStart "Start Max Ultra" pos: [252,350] width: 112 height: 30
-        button btnHide "Hide panel" pos: [396,350] width: 112 height: 30
+        button btnReconnect "Reconnect" pos: [12,456] width: 120 height: 30
+        button btnStop "Stop Max Ultra" pos: [140,456] width: 120 height: 30
+        button btnStart "Start Max Ultra" pos: [268,456] width: 120 height: 30
+        button btnHide "Hide panel" pos: [548,456] width: 120 height: 30
 
         on MaxUltraMcpStatusDialog open do (
             if (bridgeClient != undefined) do (
                 bridgeClient.configureActivityLog()
+                bridgeClient.resizePanelControls [MaxUltraMcpStatusDialog.width, MaxUltraMcpStatusDialog.height]
                 bridgeClient.refreshUserInterface()
             )
         )
 
-        on btnReconnect pressed do (
-            if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
-        )
-
-        on btnStop pressed do (
-            if (bridgeClient != undefined) do bridgeClient.stopBridge reason: "Stopped from status panel"
-        )
-
-        on btnStart pressed do (
-            if (bridgeClient != undefined) do bridgeClient.startBridge()
-        )
-
-        on btnHide pressed do (
-            if (bridgeClient != undefined) do bridgeClient.hidePanel()
-        )
+        on MaxUltraMcpStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.resizePanelControls panelSize
+        on MaxUltraMcpStatusDialog moved panelPosition do if (bridgeClient != undefined) do bridgeClient.persistPanelPosition panelPosition
+        on btnReconnect pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
+        on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.stopBridge reason: "Stopped from status panel"
+        on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.startBridge()
+        on btnHide pressed do if (bridgeClient != undefined) do bridgeClient.hidePanel()
     )
-
     struct MaxUltraMcpBridgeClient (
         hostAddress = "127.0.0.1",
         hostPort = 47635,
@@ -56,6 +57,12 @@
         processId = 0,
         processStartedAt = "",
         bootstrapFilePath = "",
+        serverLauncherPath = "",
+        serverWorkingDirectory = "",
+        uiStateDirectory = "",
+        uiStateFilePath = "",
+        restartServerOnNextConnect = false,
+        lifecycleMutexName = @"Local\3DGround.MaxUltraMCP.ServerLifecycle",
         statusDialog,
         transportWorker,
         inboundQueue,
@@ -109,6 +116,36 @@
             return normalizedPath + @"\"
         ),
 
+        fn configureEndpointAndLauncher = (
+            local environmentClass = dotNetClass "System.Environment"
+            local configuredHost = environmentClass.GetEnvironmentVariable "MAX_ULTRA_MCP_HOST"
+            local configuredPort = environmentClass.GetEnvironmentVariable "MAX_ULTRA_MCP_PORT"
+            if (configuredHost != undefined and configuredHost != "") do hostAddress = configuredHost
+            if (configuredPort != undefined and configuredPort != "") do (
+                try (hostPort = configuredPort as integer) catch ()
+            )
+
+            serverLauncherPath = ""
+            serverWorkingDirectory = ""
+            uiStateDirectory = (ensureSlash (getDir #userScripts)) + @"MaxUltraMCP\"
+            uiStateFilePath = uiStateDirectory + "panel-ui.ini"
+            local launcherCandidates = #()
+            if (bootstrapFilePath != undefined and bootstrapFilePath != "") do (
+                append launcherCandidates ((ensureSlash (getFilenamePath bootstrapFilePath)) + "start-server.bat")
+            )
+            local configuredRoot = environmentClass.GetEnvironmentVariable "MAX_ULTRA_MCP_ROOT"
+            if (configuredRoot != undefined and configuredRoot != "") do (
+                append launcherCandidates ((ensureSlash configuredRoot) + "start-server.bat")
+            )
+            for launcherCandidate in launcherCandidates while serverLauncherPath == "" do (
+                if (doesFileExist launcherCandidate) do (
+                    serverLauncherPath = launcherCandidate
+                    serverWorkingDirectory = ensureSlash (getFilenamePath launcherCandidate)
+                )
+            )
+            return serverLauncherPath != ""
+        ),
+
         fn currentSceneFilePath = (
             return maxFilePath + maxFileName
         ),
@@ -135,6 +172,7 @@
                 #connecting: return "Connecting"
                 #connected: return "Running / connected"
                 #reconnecting: return "Reconnecting"
+                #restarting: return "Restarting local server"
                 #error: return "Error"
                 default: return "Stopped"
             )
@@ -166,21 +204,112 @@
                 statusDialog.rtbActivity.DetectUrls = false
                 statusDialog.rtbActivity.HideSelection = false
                 statusDialog.rtbActivity.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").Vertical
-                statusDialog.rtbActivity.BackColor = (dotNetClass "System.Drawing.SystemColors").Window
+                local colorClass = dotNetClass "System.Drawing.Color"
+                statusDialog.rtbActivity.ForeColor = colorClass.FromArgb 35 35 35
+                statusDialog.rtbActivity.BackColor = colorClass.FromArgb 238 238 238
+                statusDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").FixedSingle
+                statusDialog.rtbActivity.AccessibleName = "Max Ultra MCP color-coded activity log"
+                statusDialog.rtbActivity.TabStop = true
                 statusDialog.rtbActivity.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0
             ) catch (
             )
             return true
         ),
 
+        fn activityEntryColor activityEntry = (
+            local colorClass = dotNetClass "System.Drawing.Color"
+            local normalizedEntry = toLower (activityEntry as string)
+            if ((findString normalizedEntry " [error] ") != undefined) do return colorClass.FromArgb 180 0 0
+            if ((findString normalizedEntry " [warning] ") != undefined) do return colorClass.FromArgb 145 105 0
+            if ((findString normalizedEntry " [success] ") != undefined) do return colorClass.FromArgb 0 100 0
+            if ((findString normalizedEntry " [debug] ") != undefined) do return colorClass.FromArgb 90 90 0
+            return colorClass.FromArgb 45 70 110
+        ),
+
         fn refreshActivityText = (
             if (not panelIsOpen()) do return false
-            local currentActivityText = activityText()
-            statusDialog.rtbActivity.Text = currentActivityText
-            statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
-            statusDialog.rtbActivity.SelectionLength = 0
-            statusDialog.rtbActivity.ScrollToCaret()
+            try (
+                statusDialog.rtbActivity.SuspendLayout()
+                statusDialog.rtbActivity.Clear()
+                for activityIndex in 1 to activityEntries.count do (
+                    local activityEntry = activityEntries[activityIndex]
+                    statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
+                    statusDialog.rtbActivity.SelectionLength = 0
+                    statusDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
+                    statusDialog.rtbActivity.AppendText activityEntry
+                    if (activityIndex < activityEntries.count) do statusDialog.rtbActivity.AppendText "\r\n"
+                )
+                statusDialog.rtbActivity.SelectionColor = statusDialog.rtbActivity.ForeColor
+                statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
+                statusDialog.rtbActivity.SelectionLength = 0
+                statusDialog.rtbActivity.ScrollToCaret()
+                statusDialog.rtbActivity.ResumeLayout()
+            ) catch (
+                try (statusDialog.rtbActivity.ResumeLayout()) catch ()
+            )
             return true
+        ),
+        fn resizePanelControls panelSize = (
+            if (not panelIsOpen()) do return false
+            local panelWidth = amax 540 panelSize.x
+            local panelHeight = amax 420 panelSize.y
+            local contentWidth = panelWidth - 24
+            statusDialog.lblStatus.width = contentWidth
+            statusDialog.lblContext.width = contentWidth
+            statusDialog.rtbActivity.width = contentWidth
+            statusDialog.rtbActivity.height = amax 260 (panelHeight - 114)
+            local buttonY = panelHeight - 44
+            statusDialog.btnReconnect.pos.y = buttonY
+            statusDialog.btnStop.pos.y = buttonY
+            statusDialog.btnStart.pos.y = buttonY
+            statusDialog.btnHide.pos = [panelWidth - 132, buttonY]
+            return true
+        ),
+
+        fn panelPositionIsVisible panelPosition panelWidth: 680 panelHeight: 500 = (
+            if (panelPosition == undefined) do return false
+            local screens = (dotNetClass "System.Windows.Forms.Screen").AllScreens
+            for screenIndex in 0 to (screens.Length - 1) do (
+                local workingArea = screens.GetValue(screenIndex).WorkingArea
+                if (panelPosition.x >= workingArea.Left and panelPosition.y >= workingArea.Top and (panelPosition.x + panelWidth) <= workingArea.Right and (panelPosition.y + panelHeight) <= workingArea.Bottom) do return true
+            )
+            return false
+        ),
+
+        fn defaultPanelPosition panelWidth: 680 panelHeight: 500 = (
+            local workingArea = (dotNetClass "System.Windows.Forms.Screen").PrimaryScreen.WorkingArea
+            local centeredX = workingArea.Left + (amax 0 ((workingArea.Width - panelWidth) / 2))
+            local centeredY = workingArea.Top + (amax 0 ((workingArea.Height - panelHeight) / 2))
+            return [centeredX as integer, centeredY as integer]
+        ),
+
+        fn loadPanelPosition = (
+            local fallbackPosition = defaultPanelPosition()
+            if (uiStateFilePath == undefined or uiStateFilePath == "" or not (doesFileExist uiStateFilePath)) do return fallbackPosition
+            try (
+                local storedX = getINISetting uiStateFilePath "panel" "x"
+                local storedY = getINISetting uiStateFilePath "panel" "y"
+                if (storedX == "" or storedY == "") do return fallbackPosition
+                local storedPosition = [storedX as integer, storedY as integer]
+                if (panelPositionIsVisible storedPosition) do return storedPosition
+            ) catch ()
+            return fallbackPosition
+        ),
+
+        fn persistPanelPosition panelPosition = (
+            if (panelPosition == undefined or uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                local panelX = panelPosition.x as integer
+                local panelY = panelPosition.y as integer
+                local panelXString = panelX as string
+                local panelYString = panelY as string
+                setINISetting uiStateFilePath "panel" "x" panelXString
+                setINISetting uiStateFilePath "panel" "y" panelYString
+                return true
+            ) catch (
+                return false
+            )
         ),
 
         fn refreshUserInterface = (
@@ -188,10 +317,9 @@
             local statusText = "Status: " + connectionStateText()
             if (connectionState == #error and connectionError != "") do statusText += " - " + connectionError
             statusDialog.lblStatus.text = statusText
-            statusDialog.lblEndpoint.text = "Server: " + hostAddress + ":" + (hostPort as string)
-            statusDialog.lblIdentity.text = "Max " + (currentMaxYear() as string) + " | PID " + (processId as string) + " | " + instanceId
-            statusDialog.lblScene.text = "Scene: " + currentSceneDisplayName()
-            statusDialog.lblSceneStats.text = "Objects: " + (objects.count as string) + " | Selection: " + (selection.count as string) + " | Save required: " + jsonBoolean(isSceneSaveRequired())
+            local contextText = "Server " + hostAddress + ":" + (hostPort as string) + " | Max " + (currentMaxYear() as string) + " PID " + (processId as string)
+            contextText += " | Scene " + currentSceneDisplayName() + " | Objects " + (objects.count as string) + " | Selection " + (selection.count as string) + " | Dirty " + jsonBoolean(isSceneSaveRequired())
+            statusDialog.lblContext.text = contextText
             statusDialog.btnStop.enabled = not isStopped
             statusDialog.btnStart.enabled = isStopped
             refreshActivityText()
@@ -208,7 +336,7 @@
 
         fn showPanel = (
             if (not panelIsOpen()) do (
-                createDialog statusDialog width: 520 height: 400 style: #(#style_titlebar, #style_sysmenu, #style_minimizebox)
+                createDialog statusDialog width: 680 height: 500 pos: (loadPanelPosition()) style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
             )
             refreshUserInterface()
             return true
@@ -438,7 +566,7 @@
 
         fn uiHandleDescendsFrom targetWindowHandle rootWindowHandle = (
             local currentWindowHandle = targetWindowHandle
-            for hierarchyDepth = 1 to 64 while (uiHandleText currentWindowHandle) != "0" do (
+            for hierarchyDepth in 1 to 64 while (uiHandleText currentWindowHandle) != "0" do (
                 if ((uiHandleText currentWindowHandle) == (uiHandleText rootWindowHandle)) do return true
                 try (currentWindowHandle = UIAccessor.GetParentWindow currentWindowHandle) catch (return false)
                 if (currentWindowHandle == undefined) do return false
@@ -556,20 +684,40 @@
 
         fn handleTransportEvent wireFields = (
             local eventName = if (wireFields.count >= 2) then wireFields[2] else "unknown"
-            if (eventName == "connected") then (
-                connectionState = #connected
-                connectionError = ""
-                addActivity "info" ("Connected to " + hostAddress + ":" + (hostPort as string))
-            ) else if (eventName == "error") then (
-                connectionState = #error
-                connectionError = if (wireFields.count >= 3) then decodeWireField(wireFields[3]) else "Transport error"
-                addActivity "error" connectionError
-            ) else if (eventName == "disconnected") then (
-                if (not isStopped) do connectionState = #reconnecting
+            local eventMessage = if (wireFields.count >= 3) then decodeWireField(wireFields[3]) else ""
+            case eventName of (
+                "connected": (
+                    connectionState = #connected
+                    connectionError = ""
+                    addActivity "success" ("Connected to " + hostAddress + ":" + (hostPort as string))
+                )
+                "server_ready": addActivity "info" "Healthy Max Ultra MCP server already running"
+                "server_launching": (
+                    connectionState = #starting
+                    addActivity "info" ("Starting local server: " + eventMessage)
+                )
+                "server_waiting": (
+                    connectionState = #starting
+                    addActivity "warning" "Another Max instance is starting the local server; waiting"
+                )
+                "server_stopping": (
+                    connectionState = #restarting
+                    addActivity "info" ("Verified Max Ultra MCP server; requesting clean shutdown (" + eventMessage + ")")
+                )
+                "server_stopped": addActivity "info" "Previous Max Ultra MCP server stopped and released the port"
+                "server_started": addActivity "success" "Fresh Max Ultra MCP server is healthy"
+                "restart_complete": restartServerOnNextConnect = false
+                "error": (
+                    connectionState = #error
+                    connectionError = if (eventMessage != "") then eventMessage else "Transport error"
+                    addActivity "error" connectionError
+                )
+                "disconnected": if (not isStopped) do connectionState = #reconnecting
+                default: ()
             )
+            refreshUserInterface()
             return true
         ),
-
         fn stopTransportState reason: "Stopped" = (
             isStopped = true
             connectionState = #stopped
@@ -603,17 +751,167 @@
             return false
         ),
 
+        fn workerEncodeEvent workerQueue eventName eventMessage = (
+            local encodingClass = dotNetClass "System.Text.Encoding"
+            local convertClass = dotNetClass "System.Convert"
+            local encodedMessage = if (eventMessage == undefined or eventMessage == "") then "-" else convertClass.ToBase64String (encodingClass.UTF8.GetBytes (eventMessage as string))
+            workerQueue.Enqueue ("EVENT\t" + eventName + "\t" + encodedMessage)
+            return true
+        ),
+
+        fn workerControlRequest workerHost workerPort operationName timeoutMilliseconds = (
+            local result = MaxUltraMcpControlResult()
+            local controlClient = undefined
+            local controlStream = undefined
+            local controlReader = undefined
+            local controlWriter = undefined
+            local connectedToEndpoint = false
+            try (
+                controlClient = dotNetObject "System.Net.Sockets.TcpClient"
+                local connectTask = controlClient.ConnectAsync workerHost workerPort
+                if (not (connectTask.Wait timeoutMilliseconds)) do throw "Endpoint connect timed out"
+                connectedToEndpoint = true
+                controlStream = controlClient.GetStream()
+                controlStream.ReadTimeout = timeoutMilliseconds
+                controlStream.WriteTimeout = timeoutMilliseconds
+                local utf8Encoding = dotNetObject "System.Text.UTF8Encoding" false
+                controlReader = dotNetObject "System.IO.StreamReader" controlStream utf8Encoding
+                controlWriter = dotNetObject "System.IO.StreamWriter" controlStream utf8Encoding
+                controlWriter.AutoFlush = true
+                controlWriter.WriteLine ("CONTROL\t1\tbootstrap-control\t" + operationName)
+                local responseLine = controlReader.ReadLine()
+                if (responseLine == undefined) do throw "Endpoint closed without a control response"
+                local responseFields = filterString responseLine "\t"
+                if (responseFields.count < 4 or responseFields[1] != "CONTROL_RESPONSE" or responseFields[2] != "bootstrap-control" or responseFields[3] != "ok") do throw "Endpoint did not return a valid Max Ultra MCP control response"
+                local encodingClass = dotNetClass "System.Text.Encoding"
+                local convertClass = dotNetClass "System.Convert"
+                result.payload = encodingClass.UTF8.GetString (convertClass.FromBase64String responseFields[4])
+                if ((findString result.payload "\"server\":\"max-ultra-mcp\"") == undefined) do throw "Endpoint identity is not Max Ultra MCP"
+                result.state = #verified
+            ) catch (
+                result.errorMessage = getCurrentException() as string
+                result.state = if (connectedToEndpoint) then #occupied else #closed
+            )
+            try (if (controlWriter != undefined) do controlWriter.Close()) catch ()
+            try (if (controlReader != undefined) do controlReader.Close()) catch ()
+            try (if (controlStream != undefined) do controlStream.Close()) catch ()
+            try (if (controlClient != undefined) do controlClient.Close()) catch ()
+            return result
+        ),
+
+        fn workerProbeEndpoint workerHost workerPort timeoutMilliseconds = (
+            local probeResult = workerControlRequest workerHost workerPort "probe" timeoutMilliseconds
+            if (probeResult.state == #verified) do (
+                probeResult.state = if ((findString probeResult.payload "\"healthy\":true") != undefined) then #healthy else #occupied
+            )
+            return probeResult
+        ),
+
+        fn workerHostIsLoopback workerHost = (
+            local normalizedHost = toLower (workerHost as string)
+            return normalizedHost == "127.0.0.1" or normalizedHost == "localhost" or normalizedHost == "::1"
+        ),
+
+        fn workerLaunchServer workerLauncherPath workerWorkingDirectory = (
+            if (workerLauncherPath == undefined or workerLauncherPath == "") do throw "start-server.bat was not found beside the first-step script; set MAX_ULTRA_MCP_ROOT if the script was copied"
+            local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
+            startInfo.FileName = "cmd.exe"
+            startInfo.Arguments = "/d /c \"\"" + workerLauncherPath + "\" --no-pause\""
+            startInfo.WorkingDirectory = workerWorkingDirectory
+            startInfo.UseShellExecute = true
+            startInfo.CreateNoWindow = false
+            startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Normal
+            local serverProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
+            if (serverProcess == undefined) do throw "Windows did not start the Max Ultra MCP launcher"
+            serverProcess.Dispose()
+            return true
+        ),
+
         fn transportDoWork workerSender eventArgs = (
             local workerArguments = eventArgs.Argument
             local workerHost = workerArguments.Item[0]
             local workerPort = workerArguments.Item[1]
             local workerInboundQueue = workerArguments.Item[2]
             local workerOutboundQueue = workerArguments.Item[3]
+            local workerRestartServer = workerArguments.Item[4]
+            local workerLauncherPath = workerArguments.Item[5]
+            local workerWorkingDirectory = workerArguments.Item[6]
+            local workerMutexName = workerArguments.Item[7]
+            local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000)
+            local probeTimeoutMilliseconds = 500
+            local lifecycleMutex = undefined
+            local ownsLifecycleMutex = false
+            local launchedServer = false
             local workerClient = undefined
             local workerStream = undefined
             local workerReader = undefined
             local workerWriter = undefined
             try (
+                local probeResult = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
+                if (probeResult.state == #occupied) do throw ("Endpoint " + workerHost + ":" + (workerPort as string) + " is occupied but is not a healthy Max Ultra MCP server; refusing to stop or launch any process")
+
+                if (workerRestartServer) then (
+                    lifecycleMutex = dotNetObject "System.Threading.Mutex" false workerMutexName
+                    try (ownsLifecycleMutex = lifecycleMutex.WaitOne 0 false) catch (ownsLifecycleMutex = false)
+                    if (not ownsLifecycleMutex) do throw "Another Max Ultra MCP restart is already in progress; retrying without overlapping it"
+                    probeResult = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
+                    if (probeResult.state == #occupied) do throw "Endpoint identity changed during restart; refusing to terminate it"
+                    if (probeResult.state == #healthy) do (
+                        workerEncodeEvent workerInboundQueue "server_stopping" probeResult.payload
+                        local shutdownResult = workerControlRequest workerHost workerPort "shutdown" probeTimeoutMilliseconds
+                        if (shutdownResult.state != #verified or (findString shutdownResult.payload "\"shuttingDown\":true") == undefined) do throw "Verified server did not acknowledge clean shutdown"
+                        local endpointClosed = false
+                        for retryDelay in retryDelays while not endpointClosed do (
+                            if (workerSender.CancellationPending) do throw "Server restart cancelled"
+                            (dotNetClass "System.Threading.Thread").Sleep retryDelay
+                            probeResult = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
+                            endpointClosed = probeResult.state == #closed
+                        )
+                        if (not endpointClosed) do throw "Verified Max Ultra MCP server did not release the loopback port within the restart timeout"
+                        workerEncodeEvent workerInboundQueue "server_stopped" ""
+                    )
+                )
+
+                if (probeResult.state != #healthy) then (
+                    if (not workerHostIsLoopback workerHost) do throw "Automatic server launch is allowed only for a configured loopback endpoint"
+                    if (not ownsLifecycleMutex) do (
+                        lifecycleMutex = dotNetObject "System.Threading.Mutex" false workerMutexName
+                        try (ownsLifecycleMutex = lifecycleMutex.WaitOne 0 false) catch (ownsLifecycleMutex = false)
+                    )
+                    if (ownsLifecycleMutex) then (
+                        probeResult = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
+                        if (probeResult.state == #occupied) do throw "Loopback endpoint became occupied by an unverified service; refusing to launch"
+                        if (probeResult.state == #closed) do (
+                            workerEncodeEvent workerInboundQueue "server_launching" workerLauncherPath
+                            workerLaunchServer workerLauncherPath workerWorkingDirectory
+                            launchedServer = true
+                        )
+                    ) else (
+                        workerEncodeEvent workerInboundQueue "server_waiting" ""
+                    )
+
+                    local serverHealthy = probeResult.state == #healthy
+                    for retryDelay in retryDelays while not serverHealthy do (
+                        if (workerSender.CancellationPending) do throw "Server startup cancelled"
+                        (dotNetClass "System.Threading.Thread").Sleep retryDelay
+                        probeResult = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
+                        if (probeResult.state == #occupied) do throw "Loopback endpoint was taken by an unverified service during startup"
+                        serverHealthy = probeResult.state == #healthy
+                    )
+                    if (not serverHealthy) do throw "Max Ultra MCP server did not become healthy within the bounded startup timeout"
+                    workerEncodeEvent workerInboundQueue (if launchedServer then "server_started" else "server_ready") ""
+                ) else (
+                    workerEncodeEvent workerInboundQueue "server_ready" ""
+                )
+
+                if (workerRestartServer) do workerEncodeEvent workerInboundQueue "restart_complete" ""
+                if (ownsLifecycleMutex) do (
+                    lifecycleMutex.ReleaseMutex()
+                    ownsLifecycleMutex = false
+                )
+                try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
+                lifecycleMutex = undefined
+
                 workerClient = dotNetObject "System.Net.Sockets.TcpClient"
                 workerClient.Connect workerHost workerPort
                 workerStream = workerClient.GetStream()
@@ -621,7 +919,7 @@
                 workerReader = dotNetObject "System.IO.StreamReader" workerStream utf8Encoding
                 workerWriter = dotNetObject "System.IO.StreamWriter" workerStream utf8Encoding
                 workerWriter.AutoFlush = true
-                workerInboundQueue.Enqueue "EVENT\tconnected"
+                workerInboundQueue.Enqueue "EVENT\tconnected\t-"
                 while (not workerSender.CancellationPending) do (
                     while (workerOutboundQueue.Count > 0) do workerWriter.WriteLine (workerOutboundQueue.Dequeue())
                     if (workerStream.DataAvailable) do (
@@ -632,19 +930,17 @@
                     (dotNetClass "System.Threading.Thread").Sleep 10
                 )
             ) catch (
-                local encodingClass = dotNetClass "System.Text.Encoding"
-                local convertClass = dotNetClass "System.Convert"
-                local encodedError = convertClass.ToBase64String (encodingClass.UTF8.GetBytes (getCurrentException() as string))
-                workerInboundQueue.Enqueue ("EVENT\terror\t" + encodedError)
+                workerEncodeEvent workerInboundQueue "error" (getCurrentException() as string)
             )
             try (if (workerWriter != undefined) do workerWriter.Close()) catch ()
             try (if (workerReader != undefined) do workerReader.Close()) catch ()
             try (if (workerStream != undefined) do workerStream.Close()) catch ()
             try (if (workerClient != undefined) do workerClient.Close()) catch ()
-            workerInboundQueue.Enqueue "EVENT\tdisconnected"
+            if (ownsLifecycleMutex) do try (lifecycleMutex.ReleaseMutex()) catch ()
+            try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
+            workerInboundQueue.Enqueue "EVENT\tdisconnected\t-"
             return true
         ),
-
         fn initializeIdentity = (
             if (processId != 0) do return true
             local processInfo = (dotNetClass "System.Diagnostics.Process").GetCurrentProcess()
@@ -654,6 +950,7 @@
             instanceId = "max-" + (currentMaxYear() as string) + "-pid-" + (processId as string) + "-" + (processStartTime.Ticks as string)
             processInfo.Dispose()
             bootstrapFilePath = getSourceFileName()
+            configureEndpointAndLauncher()
             return true
         ),
 
@@ -681,6 +978,10 @@
             workerArguments.Add hostPort
             workerArguments.Add inboundQueue
             workerArguments.Add outboundQueue
+            workerArguments.Add restartServerOnNextConnect
+            workerArguments.Add serverLauncherPath
+            workerArguments.Add serverWorkingDirectory
+            workerArguments.Add lifecycleMutexName
             outboundQueue.Enqueue (buildHelloLine())
             sendSceneStatus()
             connectionState = #connecting
@@ -691,6 +992,20 @@
 
         fn stopBridge reason: "Stopped" = (
             return stopTransportState reason: reason
+        ),
+
+        fn disposeForReload = (
+            stopTransportState reason: "Disposed by first-step file re-run"
+            try (
+                if (pollTimer != undefined) do (
+                    pollTimer.Stop()
+                    dotNet.removeEventHandler pollTimer "Tick" handleTimerTick
+                    pollTimer.Dispose()
+                )
+            ) catch ()
+            pollTimer = undefined
+            try (if (panelIsOpen()) do destroyDialog statusDialog) catch ()
+            return true
         ),
 
         fn reconnectBridge = (
@@ -740,13 +1055,19 @@
             connectionState = #starting
             connectionError = ""
             showPanel()
-            addActivity "info" "Max Ultra MCP starting"
+            if (restartServerOnNextConnect) then (
+                addActivity "info" "First-step file re-run: clean server restart requested"
+            ) else (
+                addActivity "info" "First-step file started: ensuring local server is healthy"
+            )
+            if (serverLauncherPath == "") do addActivity "warning" "start-server.bat not found beside this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
             startTransport()
             return true
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog
+    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog restartServerOnNextConnect: restartServerForReload
+    MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient
 )

@@ -21,7 +21,7 @@ if "%BRIDGE_NO_PAUSE%"=="0" (
     echo   Endpoint : %BRIDGE_HOST%:%BRIDGE_PORT%
     echo.
     echo   Keep this window open while Codex and 3ds Max use the bridge.
-    echo   Load MaxUltraMcpBootstrap.ms in every Max instance to connect it.
+    echo   Run 01_START_MAX_ULTRA_MCP_FIRST.ms in every Max instance.
     echo   Press Ctrl+C to stop the server.
     echo.
     echo ----------------------------------------------------------------

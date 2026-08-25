@@ -64,7 +64,8 @@ function assertBalancedMaxScript(source) {
 }
 
 async function runSmokeTest() {
-  const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 1000 });
+  let shutdownRequests = 0;
+  const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 1000, shutdownHandler: () => { shutdownRequests += 1; } });
   await bridge.start();
   const max2022 = new MockMaxClient({ port: bridge.port, maxVersion: "2022", pid: 22022, instanceId: "test-max-2022" });
   const max2027 = new MockMaxClient({ port: bridge.port, maxVersion: "2027", pid: 22027, instanceId: "test-max-2027" });
@@ -83,6 +84,15 @@ async function runSmokeTest() {
     assert.throws(() => bridge.selectInstance(), /max_select_instance/);
 
     await controlClient.connect();
+    const probeResponse = await controlClient.probe();
+    assert.equal(probeResponse.server, "max-ultra-mcp");
+    assert.equal(probeResponse.wireVersion, "1");
+    assert.equal(probeResponse.healthy, true);
+    assert.equal(typeof probeResponse.pid, "number");
+    const shutdownResponse = await controlClient.shutdownServer();
+    assert.equal(shutdownResponse.server, "max-ultra-mcp");
+    assert.equal(shutdownResponse.shuttingDown, true);
+    await waitFor(() => shutdownRequests === 1);
     const controlInventory = await controlClient.listInstances();
     assert.equal(controlInventory.count, 2);
     await assert.rejects(createTestBox({ client: controlClient, output: quietOutput, throwOnError: true }), (error) => {
@@ -194,16 +204,55 @@ async function runSmokeTest() {
     assert.match(exampleScript, /pos:\[0,0,0\]/);
     assert.doesNotMatch(exampleScript, /save(MaxFile|Nodes|AsVersion)/i);
 
-    const bootstrapSource = fs.readFileSync(require.resolve("./MaxUltraMcpBootstrap.ms"), "utf8");
+    assert.equal(fs.existsSync(require.resolve("./01_START_MAX_ULTRA_MCP_FIRST.ms")), true);
+    assert.equal(fs.existsSync("./MaxUltraMcpBootstrap.ms"), false);
+    const bootstrapSource = fs.readFileSync(require.resolve("./01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
+    assert.match(bootstrapSource, /FIRST STEP: Run this file/);
     assert.match(bootstrapSource, /CSharpUtilities\.SynchronizingBackgroundWorker/);
+    assert.match(bootstrapSource, /CONTROL\\t1\\tbootstrap-control\\t/);
+    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "probe"/);
+    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown"/);
+    assert.match(bootstrapSource, /"System\.Threading\.Mutex" false workerMutexName/);
+    assert.match(bootstrapSource, /ProcessStartInfo/);
+    assert.match(bootstrapSource, /UseShellExecute = true/);
+    assert.match(bootstrapSource, /--no-pause/);
+    assert.match(bootstrapSource, /ConnectAsync workerHost workerPort/);
+    assert.match(bootstrapSource, /retryDelays = #\(150, 250, 500, 750, 1000, 1500, 2000\)/);
+    assert.match(bootstrapSource, /MAX_ULTRA_MCP_ROOT/);
+    assert.match(bootstrapSource, /MaxUltraMcpActiveClient/);
+    assert.match(bootstrapSource, /disposeForReload/);
+    assert.doesNotMatch(bootstrapSource, /WaitForExit/);
     assert.match(bootstrapSource, /maximumInboundLinesPerTick = 16/);
     assert.match(bootstrapSource, /maximumRequestsPerTick = 1/);
     assert.equal((bootstrapSource.match(/\.Connect workerHost workerPort/g) || []).length, 1);
     assert.match(bootstrapSource, /System\.Windows\.Forms\.RichTextBox/);
+    assert.doesNotMatch(bootstrapSource, /grpActivity|grpConnection|grpScene|lblEndpoint|lblIdentity|lblSceneStats|Recent activity \/ errors/);
+    assert.match(bootstrapSource, /lblStatus .* pos: \[12,10\]/);
+    assert.match(bootstrapSource, /lblContext .* pos: \[12,34\]/);
+    assert.match(bootstrapSource, /rtbActivity .* pos: \[12,62\] width: 656 height: 386/);
+    assert.match(bootstrapSource, /#style_resizing/);
+    assert.match(bootstrapSource, /on MaxUltraMcpStatusDialog resized panelSize/);
+    assert.match(bootstrapSource, /resizePanelControls panelSize/);
+    assert.match(bootstrapSource, /rtbActivity\.width = contentWidth/);
+    assert.match(bootstrapSource, /rtbActivity\.height = amax 260/);
+    assert.match(bootstrapSource, /on MaxUltraMcpStatusDialog moved panelPosition/);
+    assert.match(bootstrapSource, /persistPanelPosition panelPosition/);
+    assert.match(bootstrapSource, /panelPositionIsVisible/);
+    assert.match(bootstrapSource, /System\.Windows\.Forms\.Screen/);
+    assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "x"/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "x"/);
+    assert.match(bootstrapSource, /pos: \(loadPanelPosition\(\)\)/);
+    assert.match(bootstrapSource, /PrimaryScreen\.WorkingArea/);
+    assert.match(bootstrapSource, /AccessibleName = "Max Ultra MCP color-coded activity log"/);
     assert.match(bootstrapSource, /maximumActivityEntries = 30/);
     assert.match(bootstrapSource, /MaxUltraMcpBridgeClient/);
     assert.doesNotMatch(bootstrapSource, /RuntimeMcp|Runtime MCP|MaxPkg-Runtime/);
+    assert.match(bootstrapSource, /SelectionColor = activityEntryColor/);
+    assert.match(bootstrapSource, /FromArgb 180 0 0/);
+    assert.match(bootstrapSource, /FromArgb 145 105 0/);
+    assert.match(bootstrapSource, /FromArgb 0 100 0/);
+    assert.match(bootstrapSource, /AppendText activityEntry/);
     assert.match(bootstrapSource, /ScrollToCaret\(\)/);
     assert.match(bootstrapSource, /UIAccessor\.PressButton/);
     assert.match(bootstrapSource, /uiHandleBelongsToMax/);
