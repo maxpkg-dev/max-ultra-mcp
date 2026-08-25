@@ -1,4 +1,7 @@
-# Locates Node.js 18+ and starts 3D Ground Max Ultra MCP.
+# Locates Node.js 18+ and starts the 3D Ground Max Ultra MCP core server.
+# Copyright (c) 2026 Lukianenko Vasyl
+# Project website: https://3dground.net
+# Developed by Lukianenko Vasyl
 
 $nodeCandidates = @()
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
@@ -31,6 +34,10 @@ if (-not $nodeExecutable) {
     exit 1
 }
 
-$serverPath = Join-Path $PSScriptRoot 'server.js'
+$serverPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\core\server.js'))
+if (-not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
+    [Console]::Error.WriteLine('[3D Ground | Max Ultra MCP] ERROR | core\server.js was not found.')
+    exit 1
+}
 & $nodeExecutable $serverPath
 exit $LASTEXITCODE

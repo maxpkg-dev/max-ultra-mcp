@@ -1,3 +1,7 @@
+@rem Runs the real one-Box Max Ultra MCP example through the shared safe helper.
+@rem Copyright (c) 2026 Lukianenko Vasyl
+@rem Project website: https://3dground.net
+@rem Developed by Lukianenko Vasyl
 @echo off
 setlocal EnableExtensions
 

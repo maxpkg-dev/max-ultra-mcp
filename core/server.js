@@ -1,8 +1,8 @@
 /*
  * Exposes already-running 3ds Max processes through a local MCP server.
  * Copyright (c) 2026 Lukianenko Vasyl
- * https://3dground.net
- * Developed by https://3dground.net (3DGROUND)
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
  */
 
 "use strict";
@@ -76,6 +76,8 @@ class MaxBridge {
     this.selectedInstanceId = "";
     this.startedAt = new Date().toISOString();
     this.shutdownHandler = options.shutdownHandler || (() => this.stop().finally(() => process.exit(0)));
+    this.shutdownWhenIdle = false;
+    this.shutdownScheduled = false;
     this.tcpServer = net.createServer((socket) => this.acceptConnection(socket));
     this.tcpServer.on("error", (error) => {
       process.stderr.write(`[3D Ground | Max Ultra MCP] ERROR | TCP listener: ${error.message}\n`);
@@ -142,6 +144,13 @@ class MaxBridge {
     this.instances.delete(connectionInfo.instanceId);
     if (this.selectedInstanceId === connectionInfo.instanceId) this.selectedInstanceId = "";
     process.stderr.write(`[3D Ground | Max Ultra MCP] DISCONNECTED | ${connectionInfo.instanceId} | connected=${this.instances.size}\n`);
+    this.scheduleIdleShutdownIfNeeded();
+  }
+
+  scheduleIdleShutdownIfNeeded() {
+    if (!this.shutdownWhenIdle || this.instances.size !== 0 || this.shutdownScheduled) return;
+    this.shutdownScheduled = true;
+    setTimeout(() => this.shutdownHandler(), 50);
   }
 
   rejectPendingForInstance(instanceId, errorMessage) {
@@ -211,6 +220,9 @@ class MaxBridge {
       } else if (operation === "shutdown") {
         responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, shuttingDown: true };
         shutdownAfterResponse = true;
+      } else if (operation === "shutdown_when_idle") {
+        this.shutdownWhenIdle = true;
+        responsePayload = { server: "max-ultra-mcp", pid: process.pid, startedAt: this.startedAt, armed: true, connected: this.instances.size };
       } else if (operation === "list") {
         responsePayload = await this.callTool("max_list_instances");
       } else if (operation === "call") {
@@ -226,6 +238,7 @@ class MaxBridge {
       }
       sendResponse("ok", JSON.stringify(responsePayload));
       if (shutdownAfterResponse) setTimeout(() => this.shutdownHandler(), 50);
+      else if (operation === "shutdown_when_idle") setTimeout(() => this.scheduleIdleShutdownIfNeeded(), 50);
     } catch (error) {
       sendResponse("error", error.message);
     }

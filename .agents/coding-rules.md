@@ -1,10 +1,10 @@
-﻿# Max Ultra MCP Coding Rules
+# Max Ultra MCP Coding Rules
 
 These rules apply to every change in this repository. They are adapted from the prior runtime project's conventions for this standalone Max Ultra MCP product.
 
 ## Project contract
 
-- Keep the product identity consistently **3D Ground - Max Ultra MCP**. Do not reintroduce Runtime MCP Bridge, `runtime-max`, `maxpkg`, or `RUNTIME_MAX_BRIDGE_*` names.
+- Keep the product identity consistently **3D Ground - Max Ultra MCP**. Do not reintroduce legacy bridge identities or environment-variable prefixes.
 - Support Autodesk 3ds Max 2022 and 2027.
 - Keep networking and transport work off the Max main thread. Marshal all 3ds Max UI, scene, viewport, and API work through the bounded main-thread queue.
 - Never manipulate or save a real user scene from automated tests.
@@ -68,5 +68,5 @@ Data-only metadata files are exempt when their format does not support comments.
 
 - Run Node syntax checks and the complete mock/smoke suite from the target repository.
 - Verify Max 2022/2027 inventory, routing, cancellation, execution, panel actions, screenshots, UI discovery/invoke, semantic tools, control probe/shutdown, bootstrap restart/recovery, log layout/style, and Box example safety.
-- Run `git diff --check`, scan for stale identity strings, unexpected globals, TODO/FIXME markers, and inspect `git status --short`.
+- Run `git diff --check`, scan for stale identity strings, unexpected globals, unfinished-work markers, and inspect `git status --short`.
 - Do not remove migrated source artifacts until the destination is complete and all required checks pass. Preserve unrelated files and user changes.

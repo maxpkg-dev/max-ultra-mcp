@@ -1,18 +1,21 @@
 /*
- * Verifies Max Ultra MCP discovery, semantic tools, routing, control, UI, and screenshots.
+ * Verifies Max Ultra MCP discovery, lifecycle, semantic tools, routing, UI, and screenshots.
  * Copyright (c) 2026 Lukianenko Vasyl
- * Developed by https://3dground.net (3DGROUND)
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
  */
 
 "use strict";
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
 const { MaxBridge, handleRpcMessage, mcpTools } = require("./server");
 const { MockMaxClient } = require("./mock-max-client");
 const { BridgeControlClient } = require("./bridge-control-client");
-const { AmbiguousMaxInventoryError } = require("./run-max-action");
-const { TEST_BOX_NAME, createTestBox } = require("./example-create-box");
+const { AmbiguousMaxInventoryError } = require("../examples/run-max-action");
+const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-box");
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 async function waitFor(predicate, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
@@ -204,9 +207,8 @@ async function runSmokeTest() {
     assert.match(exampleScript, /pos:\[0,0,0\]/);
     assert.doesNotMatch(exampleScript, /save(MaxFile|Nodes|AsVersion)/i);
 
-    assert.equal(fs.existsSync(require.resolve("./01_START_MAX_ULTRA_MCP_FIRST.ms")), true);
-    assert.equal(fs.existsSync("./MaxUltraMcpBootstrap.ms"), false);
-    const bootstrapSource = fs.readFileSync(require.resolve("./01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
+    assert.equal(fs.existsSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms")), true);
+    const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
     assert.match(bootstrapSource, /FIRST STEP: Run this file/);
     assert.match(bootstrapSource, /CSharpUtilities\.SynchronizingBackgroundWorker/);
@@ -220,6 +222,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /ConnectAsync workerHost workerPort/);
     assert.match(bootstrapSource, /retryDelays = #\(150, 250, 500, 750, 1000, 1500, 2000\)/);
     assert.match(bootstrapSource, /MAX_ULTRA_MCP_ROOT/);
+    assert.match(bootstrapSource, /scripts\\\\start-server\.bat/);
     assert.match(bootstrapSource, /MaxUltraMcpActiveClient/);
     assert.match(bootstrapSource, /disposeForReload/);
     assert.doesNotMatch(bootstrapSource, /WaitForExit/);
@@ -230,32 +233,74 @@ async function runSmokeTest() {
     assert.doesNotMatch(bootstrapSource, /grpActivity|grpConnection|grpScene|lblEndpoint|lblIdentity|lblSceneStats|Recent activity \/ errors/);
     assert.match(bootstrapSource, /lblStatus .* pos: \[12,10\]/);
     assert.match(bootstrapSource, /lblContext .* pos: \[12,34\]/);
-    assert.match(bootstrapSource, /rtbActivity .* pos: \[12,62\] width: 656 height: 386/);
+    assert.match(bootstrapSource, /pnlLogOutline .* pos: \[4,62\] width: 672 height: 386/);
+    assert.match(bootstrapSource, /rtbActivity .* pos: \[5,63\] width: 670 height: 384/);
     assert.match(bootstrapSource, /#style_resizing/);
     assert.match(bootstrapSource, /on MaxUltraMcpStatusDialog resized panelSize/);
-    assert.match(bootstrapSource, /resizePanelControls panelSize/);
-    assert.match(bootstrapSource, /rtbActivity\.width = contentWidth/);
-    assert.match(bootstrapSource, /rtbActivity\.height = amax 260/);
-    assert.match(bootstrapSource, /on MaxUltraMcpStatusDialog moved panelPosition/);
-    assert.match(bootstrapSource, /persistPanelPosition panelPosition/);
+    assert.match(bootstrapSource, /pnlLogOutline\.width = panelWidth - 8/);
+    assert.match(bootstrapSource, /rtbActivity\.width = panelWidth - 10/);
+    assert.match(bootstrapSource, /rtbActivity\.height = logHeight - 2/);
+    assert.doesNotMatch(bootstrapSource, /on MaxUltraMcpStatusDialog moved panelPosition/);
+    assert.match(bootstrapSource, /dotNet\.addEventHandler panelForm "FormClosing" handlePanelFormClosing/);
+    assert.match(bootstrapSource, /local finalLocation = formSender\.Location/);
+    assert.match(bootstrapSource, /persistPanelPosition \[finalLocation\.X as integer, finalLocation\.Y as integer\]/);
+    const formClosingBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handlePanelFormClosing"), bootstrapSource.indexOf("fn attachPanelFormClosing"));
+    assert.ok(formClosingBody.indexOf("persistPanelPosition") < formClosingBody.indexOf("CancelAsync"), "Final panel position must be saved before transport cleanup");
     assert.match(bootstrapSource, /panelPositionIsVisible/);
     assert.match(bootstrapSource, /System\.Windows\.Forms\.Screen/);
     assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "x"/);
-    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "x"/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "x" panelXString/);
+    assert.doesNotMatch(bootstrapSource, /as integer\s+as string/);
     assert.match(bootstrapSource, /pos: \(loadPanelPosition\(\)\)/);
     assert.match(bootstrapSource, /PrimaryScreen\.WorkingArea/);
-    assert.match(bootstrapSource, /AccessibleName = "Max Ultra MCP color-coded activity log"/);
+    assert.match(bootstrapSource, /colorMan\.getColor themeColorKey/);
+    assert.match(bootstrapSource, /fn lighterThemeSurface/);
+    assert.match(bootstrapSource, /local panelThemeBackground = themeDrawingColor #background 68 68 68/);
+    assert.match(bootstrapSource, /lblStatus\.BackColor = panelThemeBackground/);
+    assert.match(bootstrapSource, /lblContext\.BackColor = panelThemeBackground/);
+    assert.doesNotMatch(bootstrapSource, /lbl(?:Status|Context)\.BackColor = statusDialog\.rtbActivity\.BackColor/);
+    assert.match(bootstrapSource, /rtbActivity\.BackColor = lighterThemeSurface\(\)/);
+    assert.match(bootstrapSource, /\* 0\.14\) as integer/);
+    assert.match(bootstrapSource, /pnlLogOutline\.BackColor = \(dotNetClass "System\.Drawing\.Color"\)\.Black/);
+    assert.match(bootstrapSource, /rtbActivity\.BorderStyle = \(dotNetClass "System\.Windows\.Forms\.BorderStyle"\)\.None/);
+    assert.match(bootstrapSource, /FontStyle"\)\.Bold/);
+    assert.match(bootstrapSource, /AccessibleName = "Max Ultra MCP connection status"/);
     assert.match(bootstrapSource, /maximumActivityEntries = 30/);
-    assert.match(bootstrapSource, /MaxUltraMcpBridgeClient/);
-    assert.doesNotMatch(bootstrapSource, /RuntimeMcp|Runtime MCP|MaxPkg-Runtime/);
     assert.match(bootstrapSource, /SelectionColor = activityEntryColor/);
-    assert.match(bootstrapSource, /FromArgb 180 0 0/);
-    assert.match(bootstrapSource, /FromArgb 145 105 0/);
-    assert.match(bootstrapSource, /FromArgb 0 100 0/);
+    assert.match(bootstrapSource, /FromArgb 255 125 125/);
+    assert.match(bootstrapSource, /FromArgb 255 195 80/);
+    assert.match(bootstrapSource, /FromArgb 120 225 150/);
+    assert.match(bootstrapSource, /FromArgb 110 205 235/);
+    assert.match(bootstrapSource, /FromArgb 20 90 145/);
     assert.match(bootstrapSource, /AppendText activityEntry/);
     assert.match(bootstrapSource, /ScrollToCaret\(\)/);
+    assert.match(bootstrapSource, /fn showRestoreBubble/);
+    assert.match(bootstrapSource, /FormBorderStyle"\)\.None/);
+    assert.match(bootstrapSource, /ShowInTaskbar = false/);
+    assert.match(bootstrapSource, /workingArea\.Bottom - restoreBubbleForm\.Height - 12/);
+    assert.match(bootstrapSource, /restoreBubbleButton\.AccessibleName = "Restore Max Ultra MCP panel"/);
+    const hidePanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn hidePanel"), bootstrapSource.indexOf("fn closeForLifecycle"));
+    assert.match(hidePanelBody, /persistPanelPosition/);
+    assert.match(hidePanelBody, /panelForm\.Hide\(\)/);
+    assert.match(hidePanelBody, /showRestoreBubble\(\)/);
+    assert.doesNotMatch(hidePanelBody, /CancelAsync|shutdown_when_idle|destroyDialog|handleViewportScreenshot|disposeForReload/);
+    assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
+    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_when_idle"/);
+    assert.match(bootstrapSource, /#preSystemShutdown/);
+    assert.match(bootstrapSource, /workerFindFreeFallbackPort/);
+    assert.match(bootstrapSource, /#legacyCandidate/);
+    assert.match(bootstrapSource, /"port_changed"/);
+    assert.equal((bootstrapSource.match(/fn refreshUserInterface = \(/g) || []).length, 1);
     assert.match(bootstrapSource, /UIAccessor\.PressButton/);
     assert.match(bootstrapSource, /uiHandleBelongsToMax/);
+
+    const idleShutdownResponse = await controlClient.shutdownWhenIdle();
+    assert.equal(idleShutdownResponse.server, "max-ultra-mcp");
+    assert.equal(idleShutdownResponse.armed, true);
+    assert.equal(idleShutdownResponse.connected, 1);
+    assert.equal(shutdownRequests, 1, "Arming idle shutdown must not stop a server with a connected Max");
+    max2027.disconnect();
+    await waitFor(() => shutdownRequests === 2);
 
     process.stdout.write("Max Ultra MCP smoke passed: 13 concise/advanced MCP tools, Max 2022 + 2027 routing, safe Box actions, diagnostics, panel, guarded UI, screenshot, cancellation, and bounded async transport\n");
   } finally {

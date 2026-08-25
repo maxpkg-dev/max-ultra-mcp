@@ -1,4 +1,7 @@
 # Locates Node.js and runs the dependency-free Max Ultra MCP smoke test.
+# Copyright (c) 2026 Lukianenko Vasyl
+# Project website: https://3dground.net
+# Developed by Lukianenko Vasyl
 
 $nodeCandidates = @()
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
@@ -13,6 +16,6 @@ if (-not $nodeExecutable) {
     exit 1
 }
 
-$smokeTestPath = Join-Path $PSScriptRoot 'smoke-test.js'
+$smokeTestPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\core\smoke-test.js'))
 & $nodeExecutable $smokeTestPath
 exit $LASTEXITCODE

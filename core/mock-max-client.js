@@ -1,8 +1,8 @@
 /*
  * Simulates Max 2022 or 2027 for local bridge and protocol verification.
  * Copyright (c) 2026 Lukianenko Vasyl
- * https://3dground.net
- * Developed by https://3dground.net (3DGROUND)
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
  */
 
 "use strict";

@@ -1,7 +1,8 @@
 /*
- * Small loopback client for Max Ultra MCP's local control protocol.
+ * Provides a small loopback client for Max Ultra MCP's local control protocol.
  * Copyright (c) 2026 Lukianenko Vasyl
- * Developed by https://3dground.net (3DGROUND)
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
  */
 
 "use strict";
@@ -51,6 +52,10 @@ class BridgeControlClient {
 
   shutdownServer() {
     return this.request("shutdown");
+  }
+
+  shutdownWhenIdle() {
+    return this.request("shutdown_when_idle");
   }
 
   listInstances() {

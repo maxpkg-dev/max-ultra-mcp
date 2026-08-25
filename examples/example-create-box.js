@@ -1,4 +1,9 @@
-/* Real Max Ultra MCP example: one standard Box, one safe reusable action helper. */
+/*
+ * Defines one readable real Box action for the reusable safe action runner.
+ * Copyright (c) 2026 Lukianenko Vasyl
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
+ */
 
 "use strict";
 

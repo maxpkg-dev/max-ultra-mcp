@@ -1,12 +1,13 @@
 /*
- * Reusable safe action runner for Max Ultra MCP local command examples.
+ * Provides reusable connection, discovery, routing, and error handling for local examples.
  * Copyright (c) 2026 Lukianenko Vasyl
- * Developed by https://3dground.net (3DGROUND)
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
  */
 
 "use strict";
 
-const { BridgeControlClient } = require("./bridge-control-client");
+const { BridgeControlClient } = require("../core/bridge-control-client");
 
 class AmbiguousMaxInventoryError extends Error {
   constructor(inventory) {

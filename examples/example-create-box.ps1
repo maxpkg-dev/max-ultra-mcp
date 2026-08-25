@@ -1,4 +1,7 @@
 # Locates Node.js 18+ and runs the real Max Ultra MCP Box example.
+# Copyright (c) 2026 Lukianenko Vasyl
+# Project website: https://3dground.net
+# Developed by Lukianenko Vasyl
 
 $nodeCandidates = @()
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
