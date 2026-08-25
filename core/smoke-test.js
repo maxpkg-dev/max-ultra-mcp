@@ -11,6 +11,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const net = require("node:net");
+const os = require("node:os");
 const { spawn } = require("node:child_process");
 const { MaxBridge, handleRpcMessage, mcpTools } = require("./server");
 const { MockMaxClient } = require("./mock-max-client");
@@ -39,16 +40,41 @@ async function reserveLoopbackPort() {
   return port;
 }
 
-async function runBatOwnedShutdownTest() {
+async function runCommandBat(batchPath, argumentsList, cwd) {
+  const quote = (value) => '"' + String(value).replace(/"/g, '""') + '"';
+  const commandLine = 'call ' + quote(batchPath) + ' ' + argumentsList.map(quote).join(' ');
+  const child = spawn("cmd.exe", ["/d", "/c", commandLine], {
+    cwd,
+    windowsHide: true,
+    windowsVerbatimArguments: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  child.stdout.on("data", (chunk) => { output += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { output += chunk.toString(); });
+  const exitCode = await Promise.race([
+    new Promise((resolve) => child.once("exit", resolve)),
+    new Promise((resolve) => setTimeout(() => resolve("timeout"), 20000)),
+  ]);
+  if (exitCode === "timeout" && child.exitCode === null) child.kill();
+  return { exitCode, output };
+}
+
+async function runBatDetachedShutdownTest() {
   if (process.platform !== "win32") return;
   const port = await reserveLoopbackPort();
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-mcp-owner-"));
+  const ownershipFile = path.join(temporaryDirectory, "max-ultra-mcp-owned-" + String(port) + ".json");
+  const ownerToken = "smoke-" + process.pid + "-" + Date.now();
   const launcherPath = path.join(PROJECT_ROOT, "scripts", "start-server.bat");
-  const commandLine = 'call "' + launcherPath + '" --no-pause --port ' + String(port);
+  const helperPath = path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat");
+  const commandLine = 'call "' + launcherPath + '" --no-pause --port ' + String(port) +
+    ' --owner-file "' + ownershipFile + '" --owner-token "' + ownerToken + '" --owner-max-pid 22022';
   const child = spawn("cmd.exe", ["/d", "/c", commandLine], {
     cwd: PROJECT_ROOT,
     windowsHide: true,
     windowsVerbatimArguments: true,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
   let output = "";
   child.stdout.on("data", (chunk) => { output += chunk.toString(); });
@@ -58,11 +84,16 @@ async function runBatOwnedShutdownTest() {
     const deadline = Date.now() + 20000;
     let probeResponse;
     let lastConnectError;
-    while (Date.now() < deadline && !probeResponse) {
+    while (Date.now() < deadline && (!probeResponse || !fs.existsSync(ownershipFile))) {
       controlClient = new BridgeControlClient({ port, timeoutMs: 500 });
       try {
         await controlClient.connect();
         probeResponse = await controlClient.probe();
+        if (!fs.existsSync(ownershipFile)) {
+          controlClient.close();
+          controlClient = undefined;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       } catch (error) {
         lastConnectError = error;
         controlClient.close();
@@ -71,22 +102,51 @@ async function runBatOwnedShutdownTest() {
       }
     }
     assert.ok(probeResponse, "BAT-launched server did not become healthy (" + (lastConnectError && lastConnectError.message) + "): " + output);
-    const shutdownResponse = await controlClient.shutdownOwnedServer(probeResponse);
-    assert.equal(shutdownResponse.ownerMatched, true);
-    assert.equal(shutdownResponse.shuttingDown, true);
+    assert.equal(fs.existsSync(ownershipFile), true, "BAT-launched server did not write its ownership record");
     controlClient.close();
     controlClient = undefined;
-    const exitCode = child.exitCode !== null ? child.exitCode : await Promise.race([
+
+    const multiMaxResult = await runCommandBat(helperPath, [
+      "-OwnershipFile", ownershipFile,
+      "-Port", String(port),
+      "-OwnerToken", ownerToken,
+      "-ClosingMaxPid", "22022",
+      "-MaxProcessCountOverride", "2",
+    ], PROJECT_ROOT);
+    assert.equal(multiMaxResult.exitCode, 0, multiMaxResult.output);
+    assert.match(multiMaxResult.output, /Found 2 live 3ds Max processes/);
+
+    controlClient = new BridgeControlClient({ port, timeoutMs: 1000 });
+    await controlClient.connect();
+    await controlClient.probe();
+    controlClient.close();
+    controlClient = undefined;
+
+    const singleMaxResult = await runCommandBat(helperPath, [
+      "-OwnershipFile", ownershipFile,
+      "-Port", String(port),
+      "-OwnerToken", ownerToken,
+      "-ClosingMaxPid", "22022",
+      "-MaxProcessCountOverride", "1",
+    ], PROJECT_ROOT);
+    assert.equal(singleMaxResult.exitCode, 0, singleMaxResult.output);
+    assert.match(singleMaxResult.output, /Terminated verified Max Ultra MCP server PID/);
+    assert.equal(fs.existsSync(ownershipFile), false, "Detached helper did not remove the consumed ownership record");
+
+    const launcherExitCode = child.exitCode !== null ? child.exitCode : await Promise.race([
       new Promise((resolve) => child.once("exit", resolve)),
       new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000)),
     ]);
-    assert.equal(exitCode, 0, "Authenticated shutdown did not exit the BAT chain: " + output);
+    assert.notEqual(launcherExitCode, "timeout", "Detached helper did not release the owned BAT launcher: " + output);
+    const stoppedClient = new BridgeControlClient({ port, timeoutMs: 500 });
+    await assert.rejects(stoppedClient.connect(), /ECONNREFUSED|closed|connect/i);
+    stoppedClient.close();
   } finally {
     if (controlClient) controlClient.close();
     if (child.exitCode === null) child.kill();
+    fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 }
-
 function assertBalancedMaxScript(source) {
   const opening = new Map([["(", ")"], ["[", "]"], ["{", "}"]]);
   const closing = new Set(opening.values());
@@ -301,12 +361,14 @@ async function runSmokeTest() {
       assert.doesNotMatch(launcherSource, /Get-Command\s+node|codex-runtimes|process\.versions\.node/);
     }
     const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
+    const serverSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "server.js"), "utf8");
+    const shutdownHelperSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.ps1"), "utf8");
+    const shutdownHelperBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
     assert.match(bootstrapSource, /FIRST STEP: Run this file/);
     assert.match(bootstrapSource, /CSharpUtilities\.SynchronizingBackgroundWorker/);
     assert.match(bootstrapSource, /CONTROL\\t1\\tbootstrap-control\\t/);
     assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "probe"/);
-    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown"/);
     assert.match(bootstrapSource, /"System\.Threading\.Mutex" false workerMutexName/);
     assert.match(bootstrapSource, /ProcessStartInfo/);
     assert.match(bootstrapSource, /UseShellExecute = true/);
@@ -334,20 +396,34 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rtbActivity\.height = logHeight - 2/);
     assert.doesNotMatch(bootstrapSource, /on MaxUltraMcpStatusDialog moved panelPosition/);
     assert.match(bootstrapSource, /dotNet\.addEventHandler panelForm "FormClosing" handlePanelFormClosing/);
-    assert.match(bootstrapSource, /local finalLocation = formSender\.Location/);
-    assert.match(bootstrapSource, /persistPanelPosition \[finalLocation\.X as integer, finalLocation\.Y as integer\]/);
+    assert.match(bootstrapSource, /dotNet\.addEventHandler panelForm "LocationChanged" handlePanelGeometryChanged/);
+    assert.match(bootstrapSource, /dotNet\.addEventHandler panelForm "ResizeEnd" handlePanelGeometryChanged/);
+    assert.match(bootstrapSource, /formSender\.WindowState != normalWindowState/);
+    assert.match(bootstrapSource, /local restoreBounds = formSender\.RestoreBounds/);
+    assert.match(bootstrapSource, /local finalGeometry = capturePanelGeometry formSender/);
+    assert.match(bootstrapSource, /persistPanelGeometry finalGeometry\[1\] finalGeometry\[2\]/);
     const stopTimerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn stopPollTimer"), bootstrapSource.indexOf("fn performPanelFormClosing"));
     const formClosingBody = bootstrapSource.slice(bootstrapSource.indexOf("fn performPanelFormClosing"), bootstrapSource.indexOf("fn attachPanelFormClosing"));
     assert.match(stopTimerBody, /pollTimer = undefined[\s\S]*timerToDispose\.Stop\(\)[\s\S]*removeEventHandler timerToDispose "Tick" handleTimerTick[\s\S]*timerToDispose\.Dispose\(\)/);
-    assert.ok(formClosingBody.indexOf("stopPollTimer()") < formClosingBody.indexOf("persistPanelPosition"), "Timer must stop before panel cleanup touches external controls");
-    assert.ok(formClosingBody.indexOf("persistPanelPosition") < formClosingBody.indexOf("CancelAsync"), "Final panel position must be saved before transport cleanup");
-    assert.match(formClosingBody, /removeEventHandler formSender "FormClosing" handlePanelFormClosing/);
-    assert.match(bootstrapSource, /panelPositionIsVisible/);
+    assert.ok(formClosingBody.indexOf("stopPollTimer()") < formClosingBody.indexOf("persistPanelGeometry"), "Timer must stop before panel cleanup touches external controls");
+    assert.ok(formClosingBody.indexOf("persistPanelGeometry") < formClosingBody.indexOf("CancelAsync"), "Final panel geometry must be saved before transport cleanup");
+    assert.match(formClosingBody, /detachPanelFormEvents formSender/);
+    assert.match(bootstrapSource, /removeEventHandler formSender "LocationChanged" handlePanelGeometryChanged/);
+    assert.match(bootstrapSource, /removeEventHandler formSender "ResizeEnd" handlePanelGeometryChanged/);
+    assert.match(bootstrapSource, /fn normalizePanelGeometry/);
     assert.match(bootstrapSource, /System\.Windows\.Forms\.Screen/);
+    assert.match(bootstrapSource, /Screen"\)\.FromRectangle candidateBounds/);
+    assert.match(bootstrapSource, /local minimumWidth = amin 540 maximumWidth/);
+    assert.match(bootstrapSource, /local minimumHeight = amin 420 maximumHeight/);
+    assert.match(bootstrapSource, /local clampedX = amax workingArea\.Left \(amin maximumX panelX\)/);
+    assert.match(bootstrapSource, /local clampedY = amax workingArea\.Top \(amin maximumY panelY\)/);
     assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "x"/);
-    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "x" panelXString/);
-    assert.doesNotMatch(bootstrapSource, /as integer\s+as string/);
-    assert.match(bootstrapSource, /pos: \(loadPanelPosition\(\)\)/);
+    assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "width"/);
+    assert.match(bootstrapSource, /getINISetting uiStateFilePath "panel" "height"/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "x"/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "width"/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "panel" "height"/);
+    assert.match(bootstrapSource, /return normalizePanelGeometry storedPosition storedSize/);
     assert.match(bootstrapSource, /PrimaryScreen\.WorkingArea/);
     assert.match(bootstrapSource, /colorMan\.getColor themeColorKey/);
     assert.match(bootstrapSource, /fn lighterThemeSurface/);
@@ -396,29 +472,43 @@ async function runSmokeTest() {
     const restoreClickBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleRestoreBubbleClick"), bootstrapSource.indexOf("fn showRestoreBubble"));
     const restoreMiniPanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn showRestoreBubble"), bootstrapSource.indexOf("fn stopPollTimer"));
     assert.match(restoreMiniPanelBody, /if \(restoreBubbleForm != undefined\)[\s\S]*if \(not restoreBubbleForm\.IsDisposed\)[\s\S]*return true[\s\S]*restoreBubbleForm = dotNetObject "System\.Windows\.Forms\.Form"/);
-    assert.ok(restorePanelBody.indexOf("panelForm.Bounds = hiddenPanelBounds") < restorePanelBody.indexOf("panelForm.Show()"), "Saved panel bounds must be restored before the panel is shown");
-    assert.ok(restorePanelBody.indexOf("if (not panelWasShown) do return false") < restorePanelBody.indexOf("disposeRestoreBubble()"), "The mini-panel must remain available when the main panel cannot be shown");
+    assert.match(restorePanelBody, /restoreGeometry = if \(hiddenPanelPosition == undefined and hiddenPanelSize == undefined\) then loadPanelGeometry\(\) else normalizePanelGeometry hiddenPanelPosition hiddenPanelSize/);
+    assert.match(restorePanelBody, /restorePosition = restoreGeometry\[1\]/);
+    assert.match(restorePanelBody, /restoreSize = restoreGeometry\[2\]/);
+    assert.match(restorePanelBody, /createDialog statusDialog width: restoreSize\.x height: restoreSize\.y pos: restorePosition/);
+    assert.ok(restorePanelBody.indexOf("if (not panelIsOpen()) do return false") < restorePanelBody.indexOf("disposeRestoreBubble()"), "The mini-panel must remain available when the native rollout cannot be recreated");
+    assert.doesNotMatch(restorePanelBody, /panelForm == undefined|panelForm\.Bounds|panelForm\.Show/);
+    assert.doesNotMatch(restorePanelBody, /refreshUserInterface\(\)/);
     assert.match(restoreClickBody, /restoreHiddenPanel\(\)/);
     assert.doesNotMatch(restoreClickBody, /disposeRestoreBubble\(\)/);
     const showPanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn showPanel"), bootstrapSource.indexOf("fn hidePanel"));
-    assert.ok(showPanelBody.indexOf("panelForm != undefined") < showPanelBody.indexOf("not panelIsOpen()"), "A hidden existing panel must be restored instead of recreated");
     assert.match(showPanelBody, /restoreHiddenPanel\(\)/);
     const hidePanelBody = bootstrapSource.slice(bootstrapSource.indexOf("fn hidePanel"), bootstrapSource.indexOf("fn closeForLifecycle"));
-    assert.match(hidePanelBody, /hiddenPanelBounds = panelForm\.Bounds/);
-    assert.match(hidePanelBody, /persistPanelPosition \[hiddenPanelBounds\.X as integer, hiddenPanelBounds\.Y as integer\]/);
-    assert.match(hidePanelBody, /panelForm\.Hide\(\)/);
+    assert.match(hidePanelBody, /if \(panelIsOpen\(\)\) do/);
+    assert.match(hidePanelBody, /local hideGeometry = capturePanelGeometry panelForm/);
+    assert.match(hidePanelBody, /hiddenPanelPosition = hideGeometry\[1\]/);
+    assert.match(hidePanelBody, /hiddenPanelSize = hideGeometry\[2\]/);
+    assert.match(hidePanelBody, /persistPanelGeometry hiddenPanelPosition hiddenPanelSize/);
     assert.match(hidePanelBody, /showRestoreBubble\(\)/);
-    assert.match(hidePanelBody, /if \(not \(showRestoreBubble\(\)\)\) do \([\s\S]*restoreHiddenPanel\(\)/);
-    assert.doesNotMatch(hidePanelBody, /CancelAsync|shutdown_when_idle|destroyDialog|handleViewportScreenshot|disposeForReload/);
+    assert.match(hidePanelBody, /detachPanelFormEvents panelForm/);
+    assert.match(hidePanelBody, /destroyDialog statusDialog/);
+    assert.ok(hidePanelBody.indexOf("showRestoreBubble()") < hidePanelBody.indexOf("destroyDialog statusDialog"), "The restore mini-panel must exist before the native rollout is destroyed");
+    assert.doesNotMatch(hidePanelBody, /panelForm\.Hide\(\)|CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle|handleViewportScreenshot|disposeForReload/);
     assert.doesNotMatch(restorePanelBody + restoreClickBody + restoreMiniPanelBody, /CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle/);
     assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
-    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_owned"/);
-    assert.match(bootstrapSource, /ownerMatched/);
+    assert.match(bootstrapSource, /serverShutdownHelperPath/);
+    assert.match(bootstrapSource, /stop-owned-server\.bat/);
+    assert.match(bootstrapSource, /fn launchDetachedShutdownHelper/);
+    assert.match(bootstrapSource, /CreateNoWindow = true/);
+    assert.match(bootstrapSource, /-OwnershipFile/);
+    assert.match(bootstrapSource, /--owner-file/);
+    assert.match(bootstrapSource, /--owner-token/);
+    assert.match(bootstrapSource, /--owner-max-pid/);
     assert.match(bootstrapSource, /startTransport allowServerLaunch: true/);
     assert.match(bootstrapSource, /startTransport allowServerLaunch: false/);
-    assert.match(bootstrapSource, /workerOwnedIdentity = probeReply\.responsePayload/);
-    assert.doesNotMatch(bootstrapSource, /workerArguments\.Item\[11\] = probeReply\.responsePayload/);
-    assert.ok(bootstrapSource.indexOf("workerOwnedIdentity = probeReply.responsePayload") < bootstrapSource.indexOf("workerClient.Connect workerHost workerPort"), "Launched-server identity must be captured locally before TCP registration");
+    assert.doesNotMatch(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown/);
+    assert.doesNotMatch(bootstrapSource, /workerRequestOwnedShutdown|workerWaitForOwnedServerExit|ownedServerProcess\.Kill/);
+    assert.doesNotMatch(bootstrapSource, /workerArguments\.Item\[11\]/);
     assert.match(bootstrapSource, /if \(workerSender\.CancellationPending\) do throw "Server startup cancelled"[\s\S]*workerLaunchServer/);
     assert.doesNotMatch(bootstrapSource, /mod tickCount 20[^\n]*startTransport/);
     const timerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleTimerTick"), bootstrapSource.indexOf("fn startBridge"));
@@ -429,33 +519,34 @@ async function runSmokeTest() {
     const disposeForReloadBody = bootstrapSource.slice(bootstrapSource.indexOf("fn disposeForReload"), bootstrapSource.indexOf("fn registerMaxShutdownCallback"));
     assert.match(disposeForReloadBody, /isDisposed = true[\s\S]*isStopped = true[\s\S]*pendingConnectOnly = false[\s\S]*stopPollTimer\(\)/);
     assert.match(disposeForReloadBody, /removeEventHandler transportWorker "DoWork" transportDoWork/);
-    assert.match(disposeForReloadBody, /removeEventHandler panelForm "FormClosing" handlePanelFormClosing/);
+    assert.match(disposeForReloadBody, /detachPanelFormEvents panelForm/);
+    assert.doesNotMatch(disposeForReloadBody, /launchDetachedShutdownHelper/);
     const startBridgeBody = bootstrapSource.slice(bootstrapSource.indexOf("fn startBridge"), bootstrapSource.indexOf("bridgeClient = MaxUltraMcpBridgeClient"));
-    assert.ok(startBridgeBody.indexOf("startTransport allowServerLaunch: true") < startBridgeBody.indexOf("dotNet.addEventHandler pollTimer"), "Replacement timer must be created only after startup state and transport are ready");
+    assert.ok(startBridgeBody.indexOf("startTransport allowServerLaunch: true") < startBridgeBody.indexOf('dotNet.addEventHandler pollTimer'), "Replacement timer must be created only after startup state and transport are ready");
     assert.equal((bootstrapSource.match(/dotNet\.addEventHandler pollTimer "Tick" handleTimerTick/g) || []).length, 1);
-    assert.match(formClosingBody, /shutdownIdentity/);
-    assert.match(formClosingBody, /transportWorkerArguments\.Item\[8\] = true/);
-    assert.match(formClosingBody, /if \(shutdownIdentity != ""\) do transportWorkerArguments\.Item\[11\] = shutdownIdentity/);
-    assert.doesNotMatch(formClosingBody, /transportWorkerArguments\.Item\[8\] = shutdownIdentity != ""/);
-    assert.match(formClosingBody, /Item\[8\] = true[\s\S]*CancelAsync\(\)/);
-    assert.match(formClosingBody, /transportWorkerArguments\.Item\[9\] = true/);
-    assert.match(formClosingBody, /RunWorkerAsync transportWorkerArguments/);
-    assert.match(bootstrapSource, /workerWaitForOwnedServerExit/);
-    assert.match(bootstrapSource, /verificationReply\.responsePayload != expectedIdentity/);
-    assert.match(bootstrapSource, /finalVerificationReply\.responsePayload != expectedIdentity/);
-    assert.match(bootstrapSource, /GetProcessById ownedServerPid/);
-    assert.match(bootstrapSource, /ProcessName as string\)\) != "node"/);
-    assert.match(bootstrapSource, /ownedServerProcess\.Kill\(\)/);
-    assert.match(bootstrapSource, /server_shutdown_forced/);
-    assert.doesNotMatch(bootstrapSource, /workerRequestOwnedIdleShutdown/);
-    assert.match(bootstrapSource, /if \(workerArguments\.Count >= 12 and workerArguments\.Item\[8\]\) do workerRequestOwnedShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity/);
+    assert.match(formClosingBody, /launchDetachedShutdownHelper\(\)[\s\S]*CancelAsync\(\)/);
+    assert.doesNotMatch(formClosingBody, /workerControlRequest|RunWorkerAsync|shutdown_owned/);
+    assert.match(shutdownHelperBatSource, /stop-owned-server\.ps1/);
+    assert.match(shutdownHelperSource, /Get-Process -Name 3dsmax/);
+    assert.match(shutdownHelperSource, /\$liveMaxCount -ne 1/);
+    assert.match(shutdownHelperSource, /Get-CimInstance Win32_Process/);
+    assert.match(shutdownHelperSource, /Test-CreationTime/);
+    assert.match(shutdownHelperSource, /Test-CommandLineContains/);
+    assert.match(shutdownHelperSource, /Stop-Process -Id \$ownedNodePid -Force/);
+    assert.match(shutdownHelperSource, /Stop-Process -Id \$ownedLauncherPid -Force/);
+    assert.doesNotMatch(shutdownHelperSource, /TcpClient|CONTROL|shutdown_owned|Invoke-WebRequest/);
+    assert.doesNotMatch(bootstrapSource, /MaxProcessCountOverride/);
+    assert.match(serverSource, /MAX_ULTRA_MCP_OWNER_FILE/);
+    assert.match(serverSource, /processStartedAtUtc/);
+    assert.match(serverSource, /launcherStartedAtUtc/);
+    assert.match(serverSource, /fs\.renameSync\(temporaryFile, ownerFile\)/);
     assert.match(bootstrapSource, /hasConnectedThisSession = true/);
     assert.match(bootstrapSource, /if \(hasConnectedThisSession\) then/);
     assert.match(bootstrapSource, /else if \(connectionError == ""\) do/);
     assert.match(bootstrapSource, /Initial server connection ended before this Max registered/);
     assert.match(bootstrapSource, /Server connection ended\. Run 01_START_MAX_ULTRA_MCP_FIRST\.ms to start it again\./);
     assert.match(bootstrapSource, /Connect-only retry requested; a stopped server will not be launched/);
-    assert.match(bootstrapSource, /restartServerForReload = true/);
+    assert.doesNotMatch(bootstrapSource, /restartServerForReload|restartServerOnNextConnect/);
     assert.match(bootstrapSource, /#preSystemShutdown/);
     assert.match(bootstrapSource, /workerFindFreeFallbackPort/);
     assert.match(bootstrapSource, /#legacyCandidate/);
@@ -487,9 +578,9 @@ async function runSmokeTest() {
     assert.equal(shutdownRequests, 2, "Arming idle shutdown must not stop a server with a connected Max");
     max2027.disconnect();
     await waitFor(() => shutdownRequests === 3);
-    await runBatOwnedShutdownTest();
+    await runBatDetachedShutdownTest();
 
-    process.stdout.write("Max Ultra MCP smoke passed: 13 concise/advanced MCP tools, Max 2022 + 2027 routing, safe Box actions, diagnostics, panel, guarded UI, screenshot, cancellation, and bounded async transport\n");
+    process.stdout.write("Max Ultra MCP smoke passed: 13 tools, Max 2022 + 2027 routing, guarded UI/transport, and detached ownership-verified shutdown\n");
   } finally {
     controlClient.close();
     max2022.disconnect();

@@ -10,14 +10,16 @@ Run this single file from 3ds Max:
 01_START_MAX_ULTRA_MCP_FIRST.ms
 ```
 
-It verifies the loopback endpoint, starts the project server in a minimized console when needed, and connects the current Max instance. Re-running the file performs a verified clean restart.
+It verifies the loopback endpoint, starts the project server in a minimized console when needed, and connects the current Max instance. Re-running the file disposes the previous in-Max client, then explicitly reuses a healthy compatible server or launches a new one when absent.
 
-- Closing the panel with X or pressing **Stop / Exit** disconnects Max and immediately stops the exact server launched by that bootstrap session. A pre-existing or manually launched server is left running.
+- Closing the panel with X or pressing **Stop / Exit** stops Max-side timers and transport, then starts a detached shutdown helper. The helper stops a recorded Max-launched server only when exactly one `3dsmax.exe` process is still live; with zero or two-plus Max processes it leaves the server running.
+- The helper does not use the Max-to-server connection. It validates the port-scoped ownership record, Node PID/start time/script, and BAT PID/start time/command line before terminating anything. Manual, pre-existing, stale, mismatched, or unverifiable servers are left running.
 - **Hide panel** keeps the bridge running and replaces the main panel with a compact lower-left **Expand MCP Server** mini-panel.
+- The main panel remembers its last normal position and user-resized size per Windows user, with safe on-screen recovery after monitor or DPI changes.
 - If the BAT/server is closed manually, this Max session stops with an actionable error. It does not launch the server again; explicitly run `01_START_MAX_ULTRA_MCP_FIRST.ms` to start a new session.
 - **Reconnect** and **Connect only** never launch a stopped server.
 
-For a visible diagnostic server console, run `scripts\start-server.bat` manually.
+For a visible diagnostic server console, run `scripts\start-server.bat` manually. Manual launches do not create the Max-owned record and are never targeted by the detached helper.
 
 ## PowerShell requirement
 

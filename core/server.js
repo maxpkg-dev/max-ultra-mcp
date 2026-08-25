@@ -21,6 +21,53 @@ const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.MAX_ULTRA_MCP_TIMEOUT_MS |
 const MAX_EXECUTION_TIMEOUT_MS = 600000;
 const MAX_LINE_BYTES = 4 * 1024 * 1024;
 const MAX_LOG_ENTRIES = 200;
+let launchOwnershipRecord = null;
+
+function writeLaunchOwnership(bridge) {
+  const ownerFileValue = process.env.MAX_ULTRA_MCP_OWNER_FILE || "";
+  const ownerToken = process.env.MAX_ULTRA_MCP_OWNER_TOKEN || "";
+  if (!ownerFileValue || !ownerToken) return;
+
+  const ownerFile = path.resolve(ownerFileValue);
+  const launcherPid = Number(process.env.MAX_ULTRA_MCP_LAUNCHER_PID || 0);
+  const ownerMaxPid = Number(process.env.MAX_ULTRA_MCP_OWNER_MAX_PID || 0);
+  const launcherPath = path.resolve(process.env.MAX_ULTRA_MCP_LAUNCHER_PATH || "");
+  const processStartedAtUtc = new Date(Date.now() - (process.uptime() * 1000)).toISOString();
+  const record = {
+    schemaVersion: 1,
+    server: "max-ultra-mcp",
+    ownerToken,
+    ownerFile,
+    ownerMaxPid,
+    pid: process.pid,
+    processStartedAtUtc,
+    launcherPid,
+    launcherStartedAtUtc: process.env.MAX_ULTRA_MCP_LAUNCHER_STARTED_AT_UTC || "",
+    launcherPath,
+    projectRoot: path.resolve(__dirname, ".."),
+    scriptPath: path.resolve(__filename),
+    host: bridge.host,
+    port: bridge.port,
+  };
+  fs.mkdirSync(path.dirname(ownerFile), { recursive: true });
+  const temporaryFile = ownerFile + "." + process.pid + ".tmp";
+  fs.writeFileSync(temporaryFile, JSON.stringify(record, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+  fs.renameSync(temporaryFile, ownerFile);
+  launchOwnershipRecord = record;
+}
+
+function removeLaunchOwnership() {
+  if (!launchOwnershipRecord) return;
+  try {
+    const currentRecord = JSON.parse(fs.readFileSync(launchOwnershipRecord.ownerFile, "utf8"));
+    if (currentRecord.pid === process.pid && currentRecord.ownerToken === launchOwnershipRecord.ownerToken) {
+      fs.unlinkSync(launchOwnershipRecord.ownerFile);
+    }
+  } catch {
+    // Missing, replaced, or unreadable ownership records are left untouched.
+  }
+  launchOwnershipRecord = null;
+}
 
 function encodeField(sourceContent) {
   const normalizedContent = String(sourceContent ?? "");
@@ -583,6 +630,12 @@ async function handleRpcMessage(bridge, message, sendResponse = writeRpcMessage)
 async function main() {
   const bridge = new MaxBridge();
   await bridge.start();
+  try {
+    writeLaunchOwnership(bridge);
+    process.once("exit", removeLaunchOwnership);
+  } catch (error) {
+    process.stderr.write("[3D Ground | Max Ultra MCP] WARNING | Ownership record was not written: " + error.message + "\n");
+  }
   const inputReader = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   inputReader.on("line", (inputLine) => {
     if (!inputLine.trim()) return;

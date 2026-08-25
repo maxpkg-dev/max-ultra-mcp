@@ -73,6 +73,19 @@ if (-not $nodeExecutable) {
 }
 
 $scriptArguments = @($args)
+if ($env:MAX_ULTRA_MCP_OWNER_FILE -and $env:MAX_ULTRA_MCP_OWNER_TOKEN) {
+    try {
+        $runnerProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $PID" -ErrorAction Stop
+        $launcherProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($runnerProcess.ParentProcessId)" -ErrorAction Stop
+        $env:MAX_ULTRA_MCP_LAUNCHER_PID = [string]$launcherProcess.ProcessId
+        $env:MAX_ULTRA_MCP_LAUNCHER_STARTED_AT_UTC = $launcherProcess.CreationDate.ToUniversalTime().ToString('o')
+    }
+    catch {
+        [Console]::Error.WriteLine("[3D Ground | Max Ultra MCP] WARNING | Could not capture launcher ownership metadata: $($_.Exception.Message)")
+        $env:MAX_ULTRA_MCP_LAUNCHER_PID = ''
+        $env:MAX_ULTRA_MCP_LAUNCHER_STARTED_AT_UTC = ''
+    }
+}
 try {
     & $nodeExecutable $resolvedScriptPath @scriptArguments
     $nodeExitCode = $LASTEXITCODE

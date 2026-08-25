@@ -10,7 +10,7 @@ The only file a 3ds Max user runs manually is the root file:
 01_START_MAX_ULTRA_MCP_FIRST.ms
 ```
 
-Run it once in every Max process that should connect. It locates `scripts\start-server.bat` relative to the project root, probes the configured loopback endpoint, launches a minimized branded server console when needed, and connects the current Max. Running the file again disposes the previous in-Max client and performs a verified clean restart. An unexpected disconnect or manually closed server is terminal for that session: the bootstrap reports the failure and does not relaunch until the first-step file is explicitly run again. Panel **Reconnect** and **Connect only** actions attach only to an already-running server.
+Run it once in every Max process that should connect. It locates `scripts\start-server.bat` relative to the project root, probes the configured loopback endpoint, launches a minimized branded server console when needed, and connects the current Max. Running the file again disposes the previous in-Max client, then explicitly reuses a healthy compatible server or launches a new one when absent. An unexpected disconnect or manually closed server is terminal for that session: the bootstrap reports the failure and does not relaunch until the first-step file is explicitly run again. Panel **Reconnect** and **Connect only** actions attach only to an already-running server.
 
 A manual diagnostic launch remains visible:
 
@@ -18,7 +18,7 @@ A manual diagnostic launch remains visible:
 scripts\start-server.bat
 ```
 
-Automatic launch uses `--no-pause --port <PORT>` and starts minimized. The BAT accepts the selected fallback port and passes it to the core server.
+Automatic launch uses `--no-pause --port <PORT>` and starts minimized. It also passes a unique launch token, the Max PID, and a port-scoped ownership-file path. The Node process writes the record only after listening, including its own PID/start time and the exact BAT launcher PID/start time. Manual BAT launches omit this metadata and remain outside automatic shutdown.
 
 ## Safe endpoint recovery
 
@@ -27,7 +27,10 @@ The default endpoint is `127.0.0.1:47635`.
 - A healthy current Max Ultra MCP server is reused on first start.
 - A compatible legacy bridge that lacks `probe` is recognized through its live `CONTROL list` inventory. First start may attach to it.
 - Re-running against a legacy bridge, or encountering a truly unknown occupant, never kills a process. The bootstrap scans only the next 10 loopback ports, selects a free fallback, starts Max Ultra MCP there, and reports `MAX_ULTRA_MCP_PORT=<PORT>` in the panel.
-- Current servers identify themselves through CONTROL probe. A bootstrap-owned server uses authenticated shutdown_owned with the exact captured server identity; an identity mismatch is rejected. The bootstrap waits boundedly for graceful exit, then permits a fallback only after the endpoint still matches that exact identity, its captured PID resolves to Node.js, and a final identity probe still matches. General control clients retain shutdown and shutdown_when_idle. No pre-existing/manual or unverified process is terminated.
+- The MaxScript uses CONTROL only for endpoint discovery and never sends a shutdown command. On Window X, **Stop / Exit**, or `#preSystemShutdown`, it launches `scripts\stop-owned-server.bat` detached and cancels its transport worker; that path never relaunches a server.
+- The helper counts live `3dsmax.exe` processes without using the bridge connection. It proceeds only when the count is exactly one and, in normal operation, that PID is the Max process that dispatched it. Zero or two-plus processes leave the server running.
+- Before termination, the helper requires a Max-created ownership record for the selected port (or the same launch token during a fallback-port startup race). It verifies project root, server script, ownership token, Node PID/name/start time/command line, and BAT PID/name/start time/command line. It force-stops only those exact verified PIDs. Missing, stale, manual, mismatched, or inaccessible metadata fails closed.
+- General protocol clients retain `shutdown`, `shutdown_owned`, and idle-shutdown controls, but the root MaxScript does not call them.
 
 ## Panel behavior
 
@@ -36,9 +39,10 @@ The compact panel shows two status/context rows above a tall log.
 - Running/connected is green; connecting/restarting/retrying is amber; errors are red; stopped/unknown is neutral. Status text is bold and always names the state, so color is not the only cue.
 - Panel and log colors derive from 3ds Max `ColorMan` background/text colors, with safe fallbacks. The log uses a lighter theme surface, a one-pixel flat black boundary, and blue/cyan informational text. Success, warning, error, and debug colors remain distinct.
 - The RichTextBox is read-only, wrapped, capped at 30 entries, and auto-scrolls to the latest entry.
-- Final window `x`/`y` are saved before cleanup in the user-scripts `MaxUltraMCP\panel-ui.ini` file. On the next launch, the full 680×500 bounds must fit a current screen working area or the panel centers safely.
-- **Hide panel** saves the current bounds and hides only the main panel. The server and Max client remain connected. A compact borderless mini-panel appears at the lower-left of the screen containing 3ds Max, with one **Expand MCP Server** action and no minimize, maximize, or close controls. Expanding restores/focuses the main panel at its previous size and position, then removes the mini-panel. Repeated hide requests reuse the same mini-panel instead of creating duplicates, and a failed expansion leaves it available to retry.
-- Window X and **Stop / Exit** first stop and unsubscribe the Max-side timer, disconnect Max, and immediately stop only the exact server launched by this bootstrap session. This intentionally disconnects any other Max clients in the single-user workflow. A pre-existing/manual server is disconnected but left running. The #preSystemShutdown callback applies the same idempotent cleanup during Max exit. Re-run cleanup disposes the prior timer, worker/form handlers, and restore mini-panel before creating replacements, while server restart remains limited to the explicit first-step flow.
+- Final normal window `x`/`y` plus user-resized `width`/`height` are saved before cleanup in the per-user scripts `MaxUltraMCP\panel-ui.ini` file. Existing position-only files remain compatible and use the 680×500 default size. On launch, corrupt or missing values fall back safely; size is constrained to the panel's 540×420 layout minimum and the selected monitor's current working area, and position is clamped so the full panel remains visible. If monitor topology or DPI scaling changed, the nearest current screen is used; an unusable position centers the validated size on the primary screen.
+- **Hide panel** saves the current normal geometry and hides only the main panel. The server and Max client remain connected. A compact borderless mini-panel appears at the lower-left of the screen containing 3ds Max, with one **Expand MCP Server** action and no minimize, maximize, or close controls. Expanding revalidates and restores/focuses the main panel at its previous size and position, then removes the mini-panel. Minimized or maximized state is never persisted: move/resize tracking retains the last normal bounds, with WinForms restore bounds used only as a fallback. Repeated hide requests reuse the same mini-panel instead of creating duplicates, and a failed expansion leaves it available to retry.
+- Window X and **Stop / Exit** first stop and unsubscribe the Max-side timer, start the detached exactly-one-Max helper, and cancel transport. If two or more Max processes are live, the helper leaves the server available to them. If exactly one is live, it terminates only the ownership-verified Max-launched server/BAT chain. A pre-existing/manual server is disconnected but left running. The `#preSystemShutdown` callback applies the same idempotent cleanup during Max exit. Re-run cleanup disposes the prior timer, worker/form handlers, and restore mini-panel without invoking the shutdown helper, then begins a new explicit start flow.
+- Shutdown is deliberately fail-closed: if helper startup is delayed until the closing Max has fully exited, it sees zero Max processes and leaves the server running; likewise, unreadable process metadata or a missing/corrupt ownership file leaves it running. Run the root script and use **Stop / Exit** again after resolving the metadata issue rather than terminating arbitrary processes.
 
 ## Concise MCP tools
 
@@ -116,7 +120,7 @@ Automatic launch/recovery is loopback-only.
 01_START_MAX_ULTRA_MCP_FIRST.ms   one user-facing MaxScript entry point
 README.md                         concise start page and documentation links
 core/                             server, protocol client, mock, smoke, package metadata
-scripts/                          BAT/PowerShell launchers and shared Node.js 18+ runner
+scripts/                          launchers, shared Node.js runner, and detached owned-server shutdown helper
 examples/                         runnable Box action and reusable action helper
 docs/README.md                    detailed documentation
 .agents/                          adapted project coding instructions
@@ -136,4 +140,4 @@ Or with Node 18+:
 node .\core\smoke-test.js
 ```
 
-The suite uses mock Max 2022 and 2027 clients only. It verifies all 13 tools, routing/cancellation, Box safety, panel/UI/screenshot protocol, RichTextBox bounds/autoscroll, FormClosing persistence order, Hide/restore-mini-panel isolation, theme/status invariants, legacy/fallback recovery, minimized launch, and identity-verified shutdown. It does not open 3ds Max, manipulate a real scene, or save a scene.
+The suite uses mock Max 2022 and 2027 clients only. It verifies all 13 tools, routing/cancellation, Box safety, panel/UI/screenshot protocol, RichTextBox bounds/autoscroll, normal-state position/size persistence and screen-clamping invariants, FormClosing persistence order, Hide/restore-mini-panel isolation, theme/status invariants, legacy/fallback recovery, minimized launch, external ownership records, two-plus-Max refusal, and detached exactly-one-Max shutdown without a live bridge connection. It does not open 3ds Max, manipulate a real scene, or save a scene.

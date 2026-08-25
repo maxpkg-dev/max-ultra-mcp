@@ -8,6 +8,9 @@ set "BRIDGE_SCRIPT_DIR=%~dp0"
 
 set "BRIDGE_NO_PAUSE=0"
 set "BRIDGE_PORT_OVERRIDE="
+set "BRIDGE_OWNER_FILE="
+set "BRIDGE_OWNER_TOKEN="
+set "BRIDGE_OWNER_MAX_PID="
 
 :parse_arguments
 if "%~1"=="" goto arguments_complete
@@ -20,6 +23,30 @@ if /I "%~1"=="--port" (
     set "BRIDGE_PORT_OVERRIDE=%~2"
     shift
 )
+if /I "%~1"=="--owner-file" (
+    if "%~2"=="" (
+        echo [3D Ground ^| Max Ultra MCP] ERROR ^| --owner-file requires a value.
+        exit /b 2
+    )
+    set "BRIDGE_OWNER_FILE=%~2"
+    shift
+)
+if /I "%~1"=="--owner-token" (
+    if "%~2"=="" (
+        echo [3D Ground ^| Max Ultra MCP] ERROR ^| --owner-token requires a value.
+        exit /b 2
+    )
+    set "BRIDGE_OWNER_TOKEN=%~2"
+    shift
+)
+if /I "%~1"=="--owner-max-pid" (
+    if "%~2"=="" (
+        echo [3D Ground ^| Max Ultra MCP] ERROR ^| --owner-max-pid requires a value.
+        exit /b 2
+    )
+    set "BRIDGE_OWNER_MAX_PID=%~2"
+    shift
+)
 shift
 goto parse_arguments
 
@@ -30,6 +57,20 @@ set "BRIDGE_PORT=%MAX_ULTRA_MCP_PORT%"
 if not defined BRIDGE_PORT set "BRIDGE_PORT=47635"
 if defined BRIDGE_PORT_OVERRIDE set "BRIDGE_PORT=%BRIDGE_PORT_OVERRIDE%"
 set "MAX_ULTRA_MCP_PORT=%BRIDGE_PORT%"
+if defined BRIDGE_OWNER_FILE if not defined BRIDGE_OWNER_TOKEN (
+    echo [3D Ground ^| Max Ultra MCP] ERROR ^| --owner-file and --owner-token must be supplied together.
+    exit /b 2
+)
+if defined BRIDGE_OWNER_TOKEN if not defined BRIDGE_OWNER_FILE (
+    echo [3D Ground ^| Max Ultra MCP] ERROR ^| --owner-file and --owner-token must be supplied together.
+    exit /b 2
+)
+if defined BRIDGE_OWNER_FILE (
+    set "MAX_ULTRA_MCP_OWNER_FILE=%BRIDGE_OWNER_FILE%"
+    set "MAX_ULTRA_MCP_OWNER_TOKEN=%BRIDGE_OWNER_TOKEN%"
+    set "MAX_ULTRA_MCP_OWNER_MAX_PID=%BRIDGE_OWNER_MAX_PID%"
+    set "MAX_ULTRA_MCP_LAUNCHER_PATH=%BRIDGE_SCRIPT_DIR%start-server.bat"
+)
 
 if "%BRIDGE_NO_PAUSE%"=="0" (
     title 3D Ground - Max Ultra MCP

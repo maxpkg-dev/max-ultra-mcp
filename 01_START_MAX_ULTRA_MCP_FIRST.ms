@@ -1,4 +1,4 @@
--- FIRST STEP: Run this file in 3ds Max to start/restart Max Ultra MCP and connect this Max.
+-- FIRST STEP: Run this file in 3ds Max to start Max Ultra MCP and connect/reconnect this Max.
 -- Endpoint probing, lifecycle work, and retry waits run off the Max UI thread.
 -- Copyright (c) 2026 Lukianenko Vasyl
 -- Project website: https://3dground.net
@@ -8,9 +8,7 @@ global MaxUltraMcpActiveClient
 
 (
     local bridgeClient
-    local restartServerForReload = false
     if (MaxUltraMcpActiveClient != undefined) do (
-        restartServerForReload = true
         try (
             MaxUltraMcpActiveClient.disposeForReload()
         ) catch (
@@ -62,9 +60,12 @@ global MaxUltraMcpActiveClient
         bootstrapFilePath = "",
         serverLauncherPath = "",
         serverWorkingDirectory = "",
+        serverShutdownHelperPath = "",
+        serverOwnershipDirectory = "",
+        serverOwnerToken = "",
+        shutdownHelperStarted = false,
         uiStateDirectory = "",
         uiStateFilePath = "",
-        restartServerOnNextConnect = false,
         lifecycleMutexName = @"Local\3DGround.MaxUltraMCP.ServerLifecycle",
         statusDialog,
         transportWorker,
@@ -72,7 +73,10 @@ global MaxUltraMcpActiveClient
         outboundQueue,
         pollTimer,
         panelForm,
-        hiddenPanelBounds,
+        hiddenPanelPosition,
+        hiddenPanelSize,
+        lastNormalPanelPosition,
+        lastNormalPanelSize,
         restoreBubbleForm,
         restoreBubbleLabel,
         restoreBubbleButton,
@@ -88,7 +92,6 @@ global MaxUltraMcpActiveClient
         isStopped = true,
         pendingConnectOnly = false,
         hasConnectedThisSession = false,
-        ownedServerIdentity = "",
         pendingRequestLines = #(),
         cancelledRequestIds = #(),
         activityEntries = #(),
@@ -144,8 +147,10 @@ global MaxUltraMcpActiveClient
 
             serverLauncherPath = ""
             serverWorkingDirectory = ""
+            serverShutdownHelperPath = ""
             uiStateDirectory = (ensureSlash (getDir #userScripts)) + @"MaxUltraMCP\"
             uiStateFilePath = uiStateDirectory + "panel-ui.ini"
+            serverOwnershipDirectory = uiStateDirectory + @"ownership\"
             local launcherCandidates = #()
             if (bootstrapFilePath != undefined and bootstrapFilePath != "") do (
                 append launcherCandidates ((ensureSlash (getFilenamePath bootstrapFilePath)) + @"scripts\start-server.bat")
@@ -158,9 +163,41 @@ global MaxUltraMcpActiveClient
                 if (doesFileExist launcherCandidate) do (
                     serverLauncherPath = launcherCandidate
                     serverWorkingDirectory = ensureSlash (getFilenamePath launcherCandidate)
+                    local helperCandidate = serverWorkingDirectory + "stop-owned-server.bat"
+                    if (doesFileExist helperCandidate) do serverShutdownHelperPath = helperCandidate
                 )
             )
             return serverLauncherPath != ""
+        ),
+
+        fn serverOwnershipFile portValue = (
+            return serverOwnershipDirectory + "max-ultra-mcp-owned-" + (portValue as string) + ".json"
+        ),
+
+        fn launchDetachedShutdownHelper = (
+            if (shutdownHelperStarted) do return true
+            shutdownHelperStarted = true
+            if (serverShutdownHelperPath == undefined or serverShutdownHelperPath == "" or not (doesFileExist serverShutdownHelperPath)) do (
+                format "[3D Ground | Max Ultra MCP] SHUTDOWN HELPER SKIPPED | scripts\\stop-owned-server.bat was not found\n"
+                return false
+            )
+            try (
+                local ownershipFilePath = serverOwnershipFile hostPort
+                local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
+                startInfo.FileName = "cmd.exe"
+                startInfo.Arguments = "/d /c \"\"" + serverShutdownHelperPath + "\" -OwnershipFile \"" + ownershipFilePath + "\" -Port " + (hostPort as string) + " -OwnerToken \"" + serverOwnerToken + "\" -ClosingMaxPid " + (processId as string) + "\""
+                startInfo.WorkingDirectory = serverWorkingDirectory
+                startInfo.UseShellExecute = false
+                startInfo.CreateNoWindow = true
+                startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
+                local helperProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
+                if (helperProcess == undefined) do throw "Windows did not start the detached shutdown helper"
+                helperProcess.Dispose()
+                return true
+            ) catch (
+                format "[3D Ground | Max Ultra MCP] SHUTDOWN HELPER ERROR | %\n" (getCurrentException() as string)
+                return false
+            )
         ),
 
         fn currentSceneFilePath = (
@@ -331,50 +368,116 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn panelPositionIsVisible panelPosition panelWidth: 680 panelHeight: 500 = (
-            if (panelPosition == undefined) do return false
-            local screens = (dotNetClass "System.Windows.Forms.Screen").AllScreens
-            for screenIndex in 0 to (screens.Length - 1) do (
-                local workingArea = screens.GetValue(screenIndex).WorkingArea
-                if (panelPosition.x >= workingArea.Left and panelPosition.y >= workingArea.Top and (panelPosition.x + panelWidth) <= workingArea.Right and (panelPosition.y + panelHeight) <= workingArea.Bottom) do return true
+        fn requestedPanelSize panelSize = (
+            local requestedWidth = 680
+            local requestedHeight = 500
+            if (panelSize != undefined) do (
+                try (requestedWidth = panelSize.x as integer) catch (requestedWidth = 680)
+                try (requestedHeight = panelSize.y as integer) catch (requestedHeight = 500)
             )
-            return false
+            return [requestedWidth, requestedHeight]
         ),
 
-        fn defaultPanelPosition panelWidth: 680 panelHeight: 500 = (
+        fn clampPanelSizeToWorkingArea panelSize workingArea = (
+            local requestedSize = requestedPanelSize panelSize
+            local maximumWidth = amax 1 (workingArea.Width as integer)
+            local maximumHeight = amax 1 (workingArea.Height as integer)
+            local minimumWidth = amin 540 maximumWidth
+            local minimumHeight = amin 420 maximumHeight
+            local clampedWidth = amax minimumWidth (amin maximumWidth requestedSize.x)
+            local clampedHeight = amax minimumHeight (amin maximumHeight requestedSize.y)
+            return [clampedWidth as integer, clampedHeight as integer]
+        ),
+
+        fn defaultPanelGeometry panelSize = (
             local workingArea = (dotNetClass "System.Windows.Forms.Screen").PrimaryScreen.WorkingArea
-            local centeredX = workingArea.Left + (amax 0 ((workingArea.Width - panelWidth) / 2))
-            local centeredY = workingArea.Top + (amax 0 ((workingArea.Height - panelHeight) / 2))
-            return [centeredX as integer, centeredY as integer]
+            local clampedSize = clampPanelSizeToWorkingArea panelSize workingArea
+            local centeredX = workingArea.Left + (amax 0 ((workingArea.Width - clampedSize.x) / 2))
+            local centeredY = workingArea.Top + (amax 0 ((workingArea.Height - clampedSize.y) / 2))
+            return #([centeredX as integer, centeredY as integer], clampedSize)
         ),
 
-        fn loadPanelPosition = (
-            local fallbackPosition = defaultPanelPosition()
-            if (uiStateFilePath == undefined or uiStateFilePath == "" or not (doesFileExist uiStateFilePath)) do return fallbackPosition
+        fn normalizePanelGeometry panelPosition panelSize = (
+            if (panelPosition == undefined) do return defaultPanelGeometry panelSize
+            local requestedSize = requestedPanelSize panelSize
+            try (
+                local panelX = panelPosition.x as integer
+                local panelY = panelPosition.y as integer
+                local candidateWidth = amin 1000000 (amax 1 requestedSize.x)
+                local candidateHeight = amin 1000000 (amax 1 requestedSize.y)
+                local candidateBounds = dotNetObject "System.Drawing.Rectangle" panelX panelY candidateWidth candidateHeight
+                local targetScreen = (dotNetClass "System.Windows.Forms.Screen").FromRectangle candidateBounds
+                if (targetScreen == undefined) do return defaultPanelGeometry requestedSize
+                local workingArea = targetScreen.WorkingArea
+                local clampedSize = clampPanelSizeToWorkingArea requestedSize workingArea
+                local maximumX = workingArea.Right - clampedSize.x
+                local maximumY = workingArea.Bottom - clampedSize.y
+                local clampedX = amax workingArea.Left (amin maximumX panelX)
+                local clampedY = amax workingArea.Top (amin maximumY panelY)
+                return #([clampedX as integer, clampedY as integer], clampedSize)
+            ) catch (
+                return defaultPanelGeometry requestedSize
+            )
+        ),
+
+        fn loadPanelGeometry = (
+            local storedPosition = undefined
+            local storedSize = undefined
+            if (uiStateFilePath == undefined or uiStateFilePath == "" or not (doesFileExist uiStateFilePath)) do return defaultPanelGeometry undefined
             try (
                 local storedX = getINISetting uiStateFilePath "panel" "x"
                 local storedY = getINISetting uiStateFilePath "panel" "y"
-                if (storedX == "" or storedY == "") do return fallbackPosition
-                local storedPosition = [storedX as integer, storedY as integer]
-                if (panelPositionIsVisible storedPosition) do return storedPosition
-            ) catch ()
-            return fallbackPosition
+                if (storedX != "" and storedY != "") do storedPosition = [storedX as integer, storedY as integer]
+            ) catch (storedPosition = undefined)
+            try (
+                local storedWidth = getINISetting uiStateFilePath "panel" "width"
+                local storedHeight = getINISetting uiStateFilePath "panel" "height"
+                if (storedWidth != "" and storedHeight != "") do storedSize = [storedWidth as integer, storedHeight as integer]
+            ) catch (storedSize = undefined)
+            return normalizePanelGeometry storedPosition storedSize
         ),
 
-        fn persistPanelPosition panelPosition = (
+        fn persistPanelGeometry panelPosition panelSize = (
             if (panelPosition == undefined or uiStateDirectory == undefined or uiStateDirectory == "") do return false
             try (
+                local panelGeometry = normalizePanelGeometry panelPosition panelSize
+                local normalizedPosition = panelGeometry[1]
+                local normalizedSize = panelGeometry[2]
                 if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
-                local panelX = panelPosition.x as integer
-                local panelY = panelPosition.y as integer
-                local panelXString = panelX as string
-                local panelYString = panelY as string
-                setINISetting uiStateFilePath "panel" "x" panelXString
-                setINISetting uiStateFilePath "panel" "y" panelYString
+                setINISetting uiStateFilePath "panel" "x" ((normalizedPosition.x as integer) as string)
+                setINISetting uiStateFilePath "panel" "y" ((normalizedPosition.y as integer) as string)
+                setINISetting uiStateFilePath "panel" "width" ((normalizedSize.x as integer) as string)
+                setINISetting uiStateFilePath "panel" "height" ((normalizedSize.y as integer) as string)
                 return true
             ) catch (
                 return false
             )
+        ),
+
+        fn rememberNormalPanelGeometry formSender = (
+            if (not panelIsOpen()) do return false
+            try (
+                local normalWindowState = (dotNetClass "System.Windows.Forms.FormWindowState").Normal
+                if (formSender != undefined and formSender.WindowState != normalWindowState) do return false
+                local currentGeometry = normalizePanelGeometry (getDialogPos statusDialog) [statusDialog.width, statusDialog.height]
+                lastNormalPanelPosition = currentGeometry[1]
+                lastNormalPanelSize = currentGeometry[2]
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn capturePanelGeometry formSender = (
+            rememberNormalPanelGeometry formSender
+            if (lastNormalPanelPosition != undefined and lastNormalPanelSize != undefined) do return normalizePanelGeometry lastNormalPanelPosition lastNormalPanelSize
+            try (
+                if (formSender != undefined) do (
+                    local restoreBounds = formSender.RestoreBounds
+                    if (restoreBounds.Width > 0 and restoreBounds.Height > 0) do return normalizePanelGeometry [restoreBounds.X as integer, restoreBounds.Y as integer] undefined
+                )
+            ) catch ()
+            return loadPanelGeometry()
         ),
 
         fn disposeRestoreBubble = (
@@ -405,23 +508,27 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
+        fn handlePanelGeometryChanged formSender eventArgs = (
+            if (not isDisposed) do rememberNormalPanelGeometry formSender
+            return true
+        ),
+
         fn restoreHiddenPanel = (
-            if (isDisposed or panelForm == undefined) do return false
-            local panelWasShown = false
-            try (
-                panelForm.WindowState = (dotNetClass "System.Windows.Forms.FormWindowState").Normal
-                if (hiddenPanelBounds != undefined) do panelForm.Bounds = hiddenPanelBounds
-                panelForm.Show()
-                panelWasShown = panelForm.Visible
-            ) catch (
-                format "[3D Ground | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
+            if (isDisposed) do return false
+            if (not panelIsOpen()) do (
+                local restoreGeometry = if (hiddenPanelPosition == undefined and hiddenPanelSize == undefined) then loadPanelGeometry() else normalizePanelGeometry hiddenPanelPosition hiddenPanelSize
+                local restorePosition = restoreGeometry[1]
+                local restoreSize = restoreGeometry[2]
+                try (
+                    createDialog statusDialog width: restoreSize.x height: restoreSize.y pos: restorePosition style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
+                ) catch (
+                    format "[3D Ground | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
+                )
             )
-            if (not panelWasShown) do return false
-            hiddenPanelBounds = undefined
-            try (panelForm.BringToFront()) catch ()
-            try (panelForm.Activate()) catch ()
+            if (not panelIsOpen()) do return false
+            hiddenPanelPosition = undefined
+            hiddenPanelSize = undefined
             disposeRestoreBubble()
-            refreshUserInterface()
             return true
         ),
 
@@ -516,33 +623,17 @@ global MaxUltraMcpActiveClient
             stopPollTimer()
             if (formSender != undefined) do (
                 try (
-                    local finalLocation = formSender.Location
-                    persistPanelPosition [finalLocation.X as integer, finalLocation.Y as integer]
+                    local finalGeometry = capturePanelGeometry formSender
+                    persistPanelGeometry finalGeometry[1] finalGeometry[2]
                 ) catch (
-                    try (format "[3D Ground | Max Ultra MCP] POSITION SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
+                    try (format "[3D Ground | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
                 )
             )
             disposeRestoreBubble()
             if (suppressPanelShutdown or wasAlreadyDisposed) do return true
             connectionState = #stopped
-            try (
-                local shutdownIdentity = ownedServerIdentity
-                if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 12 and transportWorkerArguments.Item[11] != "") do shutdownIdentity = transportWorkerArguments.Item[11]
-                if (transportWorkerArguments != undefined and transportWorkerArguments.Count >= 12) do (
-                    -- Always leave the active worker a shutdown request. If this close races
-                    -- server startup, that worker fills its local identity before cleanup.
-                    transportWorkerArguments.Item[8] = true
-                    if (shutdownIdentity != "") do transportWorkerArguments.Item[11] = shutdownIdentity
-                    if (transportWorker != undefined and transportWorker.IsBusy) then (
-                        transportWorker.CancelAsync()
-                    ) else if (shutdownIdentity != "") do (
-                        transportWorkerArguments.Item[9] = true
-                        transportWorker.RunWorkerAsync transportWorkerArguments
-                    )
-                )
-            ) catch (
-                try (format "[3D Ground | Max Ultra MCP] SHUTDOWN REQUEST ERROR | %\n" (getCurrentException() as string)) catch ()
-            )
+            launchDetachedShutdownHelper()
+            try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
             try (callbacks.removeScripts id: maxShutdownCallbackId) catch ()
             MaxUltraMcpActiveClient = undefined
             return true
@@ -550,6 +641,8 @@ global MaxUltraMcpActiveClient
 
         fn handlePanelFormClosing formSender eventArgs = (
             try (if (formSender != undefined) do dotNet.removeEventHandler formSender "FormClosing" handlePanelFormClosing) catch ()
+            try (if (formSender != undefined) do dotNet.removeEventHandler formSender "LocationChanged" handlePanelGeometryChanged) catch ()
+            try (if (formSender != undefined) do dotNet.removeEventHandler formSender "ResizeEnd" handlePanelGeometryChanged) catch ()
             local cleanupResult = true
             try (
                 cleanupResult = performPanelFormClosing formSender eventArgs
@@ -559,14 +652,25 @@ global MaxUltraMcpActiveClient
             return cleanupResult
         ),
 
+        fn detachPanelFormEvents formSender = (
+            if (formSender == undefined) do return true
+            try (dotNet.removeEventHandler formSender "FormClosing" handlePanelFormClosing) catch ()
+            try (dotNet.removeEventHandler formSender "LocationChanged" handlePanelGeometryChanged) catch ()
+            try (dotNet.removeEventHandler formSender "ResizeEnd" handlePanelGeometryChanged) catch ()
+            return true
+        ),
+
         fn attachPanelFormClosing = (
             if (not panelIsOpen()) do return false
             try (
                 local dialogHandle = dotNetObject "System.IntPtr" statusDialog.hwnd
                 panelForm = (dotNetClass "System.Windows.Forms.Control").FromHandle dialogHandle
                 if (panelForm == undefined) do return false
-                try (dotNet.removeEventHandler panelForm "FormClosing" handlePanelFormClosing) catch ()
+                detachPanelFormEvents panelForm
                 dotNet.addEventHandler panelForm "FormClosing" handlePanelFormClosing
+                dotNet.addEventHandler panelForm "LocationChanged" handlePanelGeometryChanged
+                dotNet.addEventHandler panelForm "ResizeEnd" handlePanelGeometryChanged
+                rememberNormalPanelGeometry panelForm
                 return true
             ) catch (
                 format "[3D Ground | Max Ultra MCP] FORM HOOK ERROR | %\n" (getCurrentException() as string)
@@ -604,10 +708,10 @@ global MaxUltraMcpActiveClient
 
         fn showPanel = (
             if (isDisposed) do return false
-            if (panelForm != undefined) then (
+            if (not panelIsOpen()) then (
                 if (not (restoreHiddenPanel())) do return false
-            ) else if (not panelIsOpen()) then (
-                createDialog statusDialog width: 680 height: 500 pos: (loadPanelPosition()) style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
+            ) else (
+                try (if (panelForm != undefined) do panelForm.Show()) catch ()
                 disposeRestoreBubble()
             )
             refreshUserInterface()
@@ -616,20 +720,24 @@ global MaxUltraMcpActiveClient
 
         fn hidePanel = (
             if (isDisposed) do return false
-            if (panelIsOpen() and panelForm != undefined) do (
+            if (panelIsOpen()) do (
                 try (
-                    hiddenPanelBounds = panelForm.Bounds
-                    if (panelForm.WindowState != (dotNetClass "System.Windows.Forms.FormWindowState").Normal) do hiddenPanelBounds = panelForm.RestoreBounds
-                    persistPanelPosition [hiddenPanelBounds.X as integer, hiddenPanelBounds.Y as integer]
-                    panelForm.Hide()
+                    local hideGeometry = capturePanelGeometry panelForm
+                    hiddenPanelPosition = hideGeometry[1]
+                    hiddenPanelSize = hideGeometry[2]
+                    persistPanelGeometry hiddenPanelPosition hiddenPanelSize
                     if (not (showRestoreBubble())) do (
-                        restoreHiddenPanel()
                         addActivity "error" "Could not create the restore mini-panel; the MCP Server panel was shown again"
                         return false
                     )
+                    detachPanelFormEvents panelForm
+                    destroyDialog statusDialog
+                    panelForm = undefined
+                    if (panelIsOpen()) do throw "The native MCP Server rollout did not close"
                     addActivity "info" "Panel hidden; use the lower-left Expand MCP Server mini-panel to restore it"
                 ) catch (
-                    try (restoreHiddenPanel()) catch ()
+                    disposeRestoreBubble()
+                    try (if (panelIsOpen()) do attachPanelFormClosing()) catch ()
                     addActivity "error" ("Could not hide panel: " + (getCurrentException() as string))
                     return false
                 )
@@ -640,7 +748,7 @@ global MaxUltraMcpActiveClient
         fn closeForLifecycle reason: "Stopped" = (
             if (isDisposed) do return true
             stopPollTimer()
-            addActivity "warning" (reason + ": stopping the exact server launched by this bootstrap session")
+            addActivity "warning" (reason + ": disconnecting Max and starting the detached single-Max shutdown check")
             connectionState = #stopped
             refreshUserInterface()
             if (panelIsOpen()) then (
@@ -1017,19 +1125,7 @@ global MaxUltraMcpActiveClient
                     connectionState = #starting
                     addActivity "warning" "Another Max instance is starting the local server; waiting"
                 )
-                "server_stopping": (
-                    connectionState = #restarting
-                    addActivity "info" ("Verified Max Ultra MCP server; requesting clean shutdown (" + eventMessage + ")")
-                )
-                "server_stopped": addActivity "info" "Previous Max Ultra MCP server stopped and released the port"
-                "server_started": (
-                    ownedServerIdentity = eventMessage
-                    addActivity "success" "Fresh Max Ultra MCP server is healthy and owned by this bootstrap session"
-                )
-                "server_shutdown_requested": addActivity "info" "Authenticated immediate shutdown requested for this bootstrap-owned server"
-                "server_shutdown_forced": addActivity "warning" eventMessage
-                "server_shutdown_skipped": addActivity "error" eventMessage
-                "restart_complete": restartServerOnNextConnect = false
+                "server_started": addActivity "success" "Fresh Max Ultra MCP server is healthy and recorded for detached ownership-verified shutdown"
                 "error": (
                     connectionState = #error
                     connectionError = if (eventMessage != "") then eventMessage else "Transport error"
@@ -1127,7 +1223,7 @@ global MaxUltraMcpActiveClient
                 local convertClass = dotNetClass "System.Convert"
                 controlReply.responsePayload = encodingClass.UTF8.GetString (convertClass.FromBase64String responseFields[4])
                 if (responseFields[3] == "ok") then (
-                    if (operationName == "probe" or operationName == "shutdown" or operationName == "shutdown_owned" or operationName == "shutdown_owned_when_idle") do (
+                    if (operationName == "probe") do (
                         if ((findString controlReply.responsePayload "\"server\":\"max-ultra-mcp\"") == undefined) do throw "Endpoint identity is not Max Ultra MCP"
                     )
                     controlReply.controlState = #verified
@@ -1170,86 +1266,6 @@ global MaxUltraMcpActiveClient
             return probeReply
         ),
 
-        fn workerWaitForOwnedServerExit workerHost workerPort expectedIdentity timeoutMilliseconds = (
-            local exitRetryDelays = #(100, 150, 250, 500, 750)
-            local lastProbeReply = undefined
-            for retryDelay in exitRetryDelays do (
-                (dotNetClass "System.Threading.Thread").Sleep retryDelay
-                lastProbeReply = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
-                if (lastProbeReply.controlState == #closed) do return #closed
-                if (lastProbeReply.controlState == #healthy and lastProbeReply.responsePayload != expectedIdentity) do return #changed
-            )
-            if (lastProbeReply != undefined and lastProbeReply.controlState == #healthy and lastProbeReply.responsePayload == expectedIdentity) do return #running
-            return #unverified
-        ),
-
-        fn workerOwnedServerPid expectedIdentity = (
-            try (
-                local pidMatch = (dotNetClass "System.Text.RegularExpressions.Regex").Match expectedIdentity "\"pid\":([0-9]+)"
-                if (not pidMatch.Success) do return 0
-                return pidMatch.Groups.Item[1].Value as integer
-            ) catch (
-                return 0
-            )
-        ),
-
-        fn workerTerminateVerifiedOwnedServer workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds = (
-            local verificationReply = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
-            if (verificationReply.controlState != #healthy or verificationReply.responsePayload != expectedIdentity) do (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "Fallback refused: the live endpoint no longer matches this bootstrap-owned server identity"
-                return false
-            )
-            local ownedServerPid = workerOwnedServerPid expectedIdentity
-            if (ownedServerPid <= 0) do (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "Fallback refused: the verified owned server identity did not contain a valid process id"
-                return false
-            )
-            local ownedServerProcess = undefined
-            local fallbackTriggered = false
-            try (
-                ownedServerProcess = (dotNetClass "System.Diagnostics.Process").GetProcessById ownedServerPid
-                if ((toLower (ownedServerProcess.ProcessName as string)) != "node") do throw "Verified owned server PID is not a Node.js process"
-                local finalVerificationReply = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
-                if (finalVerificationReply.controlState != #healthy or finalVerificationReply.responsePayload != expectedIdentity) do throw "Owned server identity changed before fallback termination"
-                ownedServerProcess.Kill()
-                fallbackTriggered = true
-                workerEncodeEvent workerQueue "server_shutdown_forced" ("Terminated unresponsive verified owned server PID " + (ownedServerPid as string))
-            ) catch (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" ("Fallback refused or failed: " + (getCurrentException() as string))
-            )
-            try (if (ownedServerProcess != undefined) do ownedServerProcess.Dispose()) catch ()
-            if (not fallbackTriggered) do return false
-            local fallbackExitState = workerWaitForOwnedServerExit workerHost workerPort expectedIdentity timeoutMilliseconds
-            if (fallbackExitState == #closed) do return true
-            workerEncodeEvent workerQueue "server_shutdown_skipped" "Verified owned server process did not release the endpoint after fallback termination"
-            return false
-        ),
-
-        fn workerRequestOwnedShutdown workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds = (
-            if (expectedIdentity == undefined or expectedIdentity == "") do (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "This bootstrap session did not launch the current server; it was left running"
-                return false
-            )
-            local shutdownReply = workerControlRequest workerHost workerPort "shutdown_owned" timeoutMilliseconds requestPayload: expectedIdentity
-            if (shutdownReply.controlState == #closed) do return true
-            local shutdownVerified = shutdownReply.controlState == #verified and (findString shutdownReply.responsePayload "\"shuttingDown\":true") != undefined and (findString shutdownReply.responsePayload "\"ownerMatched\":true") != undefined
-            if (not shutdownVerified) do (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "Server ownership could not be verified for immediate shutdown; no process was terminated"
-                return false
-            )
-            workerEncodeEvent workerQueue "server_shutdown_requested" shutdownReply.responsePayload
-            local gracefulExitState = workerWaitForOwnedServerExit workerHost workerPort expectedIdentity timeoutMilliseconds
-            if (gracefulExitState == #closed) do (
-                workerEncodeEvent workerQueue "server_stopped" "Owned server exited after its authenticated shutdown request"
-                return true
-            )
-            if (gracefulExitState != #running) do (
-                workerEncodeEvent workerQueue "server_shutdown_skipped" "Fallback refused: endpoint ownership could not be reverified after graceful shutdown timeout"
-                return false
-            )
-            return workerTerminateVerifiedOwnedServer workerQueue workerHost workerPort expectedIdentity timeoutMilliseconds
-        ),
-
         fn workerHostIsLoopback workerHost = (
             local normalizedHost = toLower (workerHost as string)
             return normalizedHost == "127.0.0.1" or normalizedHost == "localhost" or normalizedHost == "::1"
@@ -1266,11 +1282,12 @@ global MaxUltraMcpActiveClient
             return 0
         ),
 
-        fn workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort = (
+        fn workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid = (
             if (workerLauncherPath == undefined or workerLauncherPath == "") do throw "scripts\\start-server.bat was not found below the project root; set MAX_ULTRA_MCP_ROOT if the first-step script was copied"
+            local ownershipFilePath = workerOwnershipDirectory + "max-ultra-mcp-owned-" + (workerPort as string) + ".json"
             local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
             startInfo.FileName = "cmd.exe"
-            startInfo.Arguments = "/d /c \"\"" + workerLauncherPath + "\" --no-pause --port " + (workerPort as string) + "\""
+            startInfo.Arguments = "/d /c \"\"" + workerLauncherPath + "\" --no-pause --port " + (workerPort as string) + " --owner-file \"" + ownershipFilePath + "\" --owner-token \"" + workerOwnerToken + "\" --owner-max-pid " + (workerMaxPid as string) + "\""
             startInfo.WorkingDirectory = workerWorkingDirectory
             startInfo.UseShellExecute = true
             startInfo.CreateNoWindow = false
@@ -1287,13 +1304,13 @@ global MaxUltraMcpActiveClient
             local workerPort = workerArguments.Item[1]
             local workerInboundQueue = workerArguments.Item[2]
             local workerOutboundQueue = workerArguments.Item[3]
-            local workerRestartServer = workerArguments.Item[4]
-            local workerLauncherPath = workerArguments.Item[5]
-            local workerWorkingDirectory = workerArguments.Item[6]
-            local workerMutexName = workerArguments.Item[7]
-            local workerShutdownOnly = workerArguments.Count >= 10 and workerArguments.Item[9]
-            local workerAllowServerLaunch = workerArguments.Count >= 11 and workerArguments.Item[10]
-            local workerOwnedIdentity = if (workerArguments.Count >= 12) then workerArguments.Item[11] else ""
+            local workerLauncherPath = workerArguments.Item[4]
+            local workerWorkingDirectory = workerArguments.Item[5]
+            local workerMutexName = workerArguments.Item[6]
+            local workerAllowServerLaunch = workerArguments.Item[7]
+            local workerOwnershipDirectory = workerArguments.Item[8]
+            local workerOwnerToken = workerArguments.Item[9]
+            local workerMaxPid = workerArguments.Item[10]
             local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000)
             local probeTimeoutMilliseconds = 500
             local lifecycleMutex = undefined
@@ -1303,42 +1320,19 @@ global MaxUltraMcpActiveClient
             local workerStream = undefined
             local workerReader = undefined
             local workerWriter = undefined
-            if (workerShutdownOnly) do (
-                try (
-                    workerRequestOwnedShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
-                ) catch (
-                    workerEncodeEvent workerInboundQueue "server_shutdown_skipped" (getCurrentException() as string)
-                )
-                workerInboundQueue.Enqueue "EVENT\tdisconnected\t-"
-                return true
-            )
+
             try (
                 local probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
-                local needsFallbackPort = probeReply.controlState == #occupied or (workerRestartServer and probeReply.controlState == #legacy)
+                local needsFallbackPort = probeReply.controlState == #occupied
                 local fallbackReason = ""
 
-                if (workerRestartServer or needsFallbackPort) do (
-                    if (not workerHostIsLoopback workerHost) do throw "Automatic restart and fallback ports are allowed only for a configured loopback endpoint"
+                if (needsFallbackPort) do (
+                    if (not workerHostIsLoopback workerHost) do throw "Automatic fallback-port selection is allowed only for a configured loopback endpoint"
                     lifecycleMutex = dotNetObject "System.Threading.Mutex" false workerMutexName
                     try (ownsLifecycleMutex = lifecycleMutex.WaitOne 3000 false) catch (ownsLifecycleMutex = false)
                     if (not ownsLifecycleMutex) do throw "Another Max Ultra MCP lifecycle operation is still running; retry after its bounded startup completes"
                     probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
-                    needsFallbackPort = probeReply.controlState == #occupied or (workerRestartServer and probeReply.controlState == #legacy)
-                )
-
-                if (workerRestartServer and probeReply.controlState == #healthy) do (
-                    workerEncodeEvent workerInboundQueue "server_stopping" probeReply.responsePayload
-                    local shutdownReply = workerControlRequest workerHost workerPort "shutdown" probeTimeoutMilliseconds
-                    if (shutdownReply.controlState != #verified or (findString shutdownReply.responsePayload "\"shuttingDown\":true") == undefined) do throw "Verified server did not acknowledge clean shutdown"
-                    local endpointClosed = false
-                    for retryDelay in retryDelays while not endpointClosed do (
-                        if (workerSender.CancellationPending) do throw "Server restart cancelled"
-                        (dotNetClass "System.Threading.Thread").Sleep retryDelay
-                        probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
-                        endpointClosed = probeReply.controlState == #closed
-                    )
-                    if (not endpointClosed) do throw "Verified Max Ultra MCP server did not release the loopback port within the restart timeout"
-                    workerEncodeEvent workerInboundQueue "server_stopped" ""
+                    needsFallbackPort = probeReply.controlState == #occupied
                 )
 
                 if (needsFallbackPort) do (
@@ -1364,7 +1358,7 @@ global MaxUltraMcpActiveClient
                         if (probeReply.controlState == #closed) do (
                             if (workerSender.CancellationPending) do throw "Server startup cancelled"
                             workerEncodeEvent workerInboundQueue "server_launching" (workerLauncherPath + "|automatic minimized console")
-                            workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort
+                            workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid
                             launchedServer = true
                         )
                     ) else (
@@ -1385,12 +1379,11 @@ global MaxUltraMcpActiveClient
                 if (probeReply.controlState == #legacy) then (
                     workerEncodeEvent workerInboundQueue "legacy_server" ""
                 ) else if (launchedServer) then (
-                    workerOwnedIdentity = probeReply.responsePayload
                     workerEncodeEvent workerInboundQueue "server_started" probeReply.responsePayload
                 ) else (
                     workerEncodeEvent workerInboundQueue "server_ready" ""
                 )
-                if (workerRestartServer) do workerEncodeEvent workerInboundQueue "restart_complete" ""
+
                 if (ownsLifecycleMutex) do (
                     lifecycleMutex.ReleaseMutex()
                     ownsLifecycleMutex = false
@@ -1424,11 +1417,6 @@ global MaxUltraMcpActiveClient
             try (if (workerClient != undefined) do workerClient.Close()) catch ()
             if (ownsLifecycleMutex) do try (lifecycleMutex.ReleaseMutex()) catch ()
             try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
-            try (
-                if (workerArguments.Count >= 12 and workerArguments.Item[8]) do workerRequestOwnedShutdown workerInboundQueue workerHost workerPort workerOwnedIdentity probeTimeoutMilliseconds
-            ) catch (
-                workerEncodeEvent workerInboundQueue "server_shutdown_skipped" (getCurrentException() as string)
-            )
             workerInboundQueue.Enqueue "EVENT\tdisconnected\t-"
             return true
         ),
@@ -1441,6 +1429,9 @@ global MaxUltraMcpActiveClient
             instanceId = "max-" + (currentMaxYear() as string) + "-pid-" + (processId as string) + "-" + (processStartTime.Ticks as string)
             processInfo.Dispose()
             bootstrapFilePath = getSourceFileName()
+            local guidClass = dotNetClass "System.Guid"
+            local ownerGuid = guidClass.NewGuid()
+            serverOwnerToken = ownerGuid.ToString()
             configureEndpointAndLauncher()
             return true
         ),
@@ -1469,14 +1460,13 @@ global MaxUltraMcpActiveClient
             workerArguments.Add hostPort
             workerArguments.Add inboundQueue
             workerArguments.Add outboundQueue
-            workerArguments.Add restartServerOnNextConnect
             workerArguments.Add serverLauncherPath
             workerArguments.Add serverWorkingDirectory
             workerArguments.Add lifecycleMutexName
-            workerArguments.Add false
-            workerArguments.Add false
             workerArguments.Add allowServerLaunch
-            workerArguments.Add ownedServerIdentity
+            workerArguments.Add serverOwnershipDirectory
+            workerArguments.Add serverOwnerToken
+            workerArguments.Add processId
             transportWorkerArguments = workerArguments
             outboundQueue.Enqueue (buildHelloLine())
             sendSceneStatus()
@@ -1513,7 +1503,7 @@ global MaxUltraMcpActiveClient
             ) catch (
                 suppressPanelShutdown = false
             )
-            try (if (panelForm != undefined) do dotNet.removeEventHandler panelForm "FormClosing" handlePanelFormClosing) catch ()
+            detachPanelFormEvents panelForm
             panelForm = undefined
             transportWorker = undefined
             transportWorkerArguments = undefined
@@ -1599,15 +1589,11 @@ global MaxUltraMcpActiveClient
             isStopped = false
             pendingConnectOnly = false
             hasConnectedThisSession = false
-            ownedServerIdentity = ""
+            shutdownHelperStarted = false
             connectionState = #starting
             connectionError = ""
             showPanel()
-            if (restartServerOnNextConnect) then (
-                addActivity "info" "First-step file re-run: clean server restart requested"
-            ) else (
-                addActivity "info" "First-step file started: ensuring local server is healthy"
-            )
+            addActivity "info" "First-step file started: ensuring local server is healthy"
             if (serverLauncherPath == "") do addActivity "warning" "scripts\\start-server.bat not found below this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
             startTransport allowServerLaunch: true
             try (
@@ -1628,7 +1614,7 @@ global MaxUltraMcpActiveClient
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog restartServerOnNextConnect: restartServerForReload
+    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient
