@@ -1,3 +1,12 @@
 /dist/
 /runtime/win-x64/
 *.tmp
+/logs/
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12

@@ -1,69 +1,163 @@
 # 3DGROUND - Max Ultra MCP
 
-Max Ultra MCP connects AI agents to already-open Autodesk 3ds Max 2022 and 2027 instances while keeping all Max UI and scene work on the main thread.
-## V1 integration
+Max Ultra MCP connects ChatGPT, Codex, and other MCP clients to Autodesk 3ds Max. It exposes semantic tools for scene operations, viewport inspection, rendering, MaxScript, process-scoped UI automation, and architectural workflows while keeping all 3ds Max API work on the Max main thread.
 
-Release users do not install Node.js. Run `scripts\install-chatgpt-codex.bat`; it installs the portable runtime and registers the STDIO MCP host. Then run `01_START_MAX_ULTRA_MCP_FIRST.ms` in every 3ds Max process that should connect.
+## Project status
 
-The v1 MCP host and singleton bridge are separate processes: ChatGPT/Codex starts `core\server.js --stdio`, while the MaxScript bootstrap starts `core\server.js --daemon`. This allows several agent clients and Max versions to share one bridge without sharing their selected instance.
+The v1 architecture and mock-tested MCP surface are implemented. The current automated suite covers the 3ds Max 2022 and 2027 protocol endpoints, multi-instance routing, authenticated STDIO transport, structured responses, viewport images, render jobs, UI boundaries, and floor-plan generation. Real 3ds Max and renderer-version acceptance testing remains required before a production release.
 
-See [Max Ultra MCP v1](docs/V1.md) for installation, architecture, profiles, all tool families, rendering/UI behavior, ChatGPT/Codex configuration, and the house-plan image example.
+The required production workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, material diagnostics, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
 
-Source checkouts without a packaged runtime can use Node.js 22+ for development. Release artifacts bundle official Node.js 24 LTS.
+## What users can do
 
+- Connect one or more already-open 3ds Max instances to one local bridge.
+- Let each ChatGPT or Codex client select its own Max instance.
+- Inspect and modify scenes through structured MCP tools.
+- Capture viewport screenshots and return them directly to the model.
+- Start, monitor, cancel, and retrieve renders.
+- Run MaxScript text, files, macros, and Action Table commands.
+- Inspect and operate UI controls only inside the selected `3dsmax.exe` process.
+- Validate and build a dimensioned house plan interpreted from an attached image.
+- Use unrestricted `max_execute` when a semantic tool does not exist yet.
 
-## Start here
+## Installation for release users
 
-Run this single file from 3ds Max:
+Release packages bundle a portable Node.js runtime. Users do not install Node.js, change `PATH`, require administrator rights, or download dependencies at runtime.
+
+1. Extract or install Max Ultra MCP into a stable local directory.
+2. Run:
+
+   ```bat
+   scripts\install-chatgpt-codex.bat
+   ```
+
+3. Run this file once in every 3ds Max process that should connect:
+
+   ```text
+   01_START_MAX_ULTRA_MCP_FIRST.ms
+   ```
+
+4. Restart or reconnect the MCP client if it was already open.
+
+The installer uses the bundled runtime and registers the STDIO host through the Codex CLI when available. If the CLI is unavailable, it prints the exact command and arguments required by the desktop MCP settings. It does not rewrite application configuration files directly.
+
+> The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1` when building a release.
+
+## Development checkout
+
+Requirements:
+
+- Windows with Windows PowerShell 5.1.
+- Node.js 22 or newer, unless `runtime\win-x64\node.exe` has been prepared.
+- Autodesk 3ds Max only for real integration testing; mock tests do not launch Max.
+
+Start the bridge daemon:
+
+```powershell
+node .\core\server.js --daemon
+```
+
+Register the development STDIO host:
+
+```powershell
+codex mcp add max-ultra-mcp --env MAX_ULTRA_MCP_TOOL_PROFILE=archviz -- node "<PROJECT_ROOT>\core\server.js" --stdio
+```
+
+Then run `01_START_MAX_ULTRA_MCP_FIRST.ms` inside 3ds Max.
+
+## How the connection works
 
 ```text
-01_START_MAX_ULTRA_MCP_FIRST.ms
+ChatGPT Desktop / Codex
+        | MCP JSON-RPC over STDIO
+        v
+MCP host: core/server.js --stdio
+        | authenticated loopback control protocol
+        v
+Bridge daemon: core/server.js --daemon
+        | persistent TCP on 127.0.0.1
+        v
+MaxScript bootstrap in each 3ds Max process
+        | bounded main-thread queue
+        v
+3ds Max scene, viewport, renderer, and Max-owned UI
 ```
 
-It verifies the loopback endpoint, starts the project server in a minimized console when needed, and connects the current Max instance. Re-running the file disposes the previous in-Max client, then explicitly reuses a healthy compatible server or launches a new one when absent.
+One daemon can serve several MCP clients and several Max processes. Selection is stored per MCP client. Exactly one connected Max routes automatically; multiple connected instances require `max_list_instances` followed by `max_select_instance`.
 
-- Closing the panel with X or pressing **Stop / Exit** stops Max-side timers and transport, then starts a detached shutdown helper. The helper stops a recorded Max-launched server only when exactly one `3dsmax.exe` process is still live; with zero or two-plus Max processes it leaves the server running.
-- The helper does not use the Max-to-server connection. It validates the port-scoped ownership record, Node PID/start time/script, and BAT PID/start time/command line before terminating anything. Manual, pre-existing, stale, mismatched, or unverifiable servers are left running.
-- **Hide panel** keeps the bridge running and replaces the main panel with a draggable **Expand MCP Server** mini-panel. Its position and the hidden/expanded state are remembered per Windows user, so the next script start opens directly as the mini-panel when Hide was the last chosen state.
-- **Settings** opens a compact auto-saving settings window. **Autostart with 3ds Max** immediately updates the per-user INI setting and creates or removes `3DGROUND-Max-Ultra-MCP-Autostart.ms` in the current Max version's user startup-scripts directory. The generated launcher stores the absolute bootstrap path; if that file no longer exists at startup, the launcher disables the INI setting and deletes itself after startup-script loading completes.
-- The main panel remembers its last normal position and user-resized size per Windows user, with safe on-screen recovery after monitor or DPI changes.
-- If the BAT/server is closed manually, this Max session stops with an actionable error. It does not launch the server again; explicitly run `01_START_MAX_ULTRA_MCP_FIRST.ms` to start a new session.
-- **Reconnect** and **Connect only** never launch a stopped server.
+## First AI-assisted house plan
 
-For a visible diagnostic server console, run `scripts\start-server.bat` manually. Manual launches do not create the Max-owned record and are never targeted by the detached helper.
+The complete image-to-scene example is in [examples/house-plan-from-image](examples/house-plan-from-image/README.md).
 
-## PowerShell requirement
+1. Attach `plan-example.png` to ChatGPT or Codex.
+2. Send the English prompt from `PROMPT.md`.
+3. The model interprets dimensions into structured JSON.
+4. MCP validates the plan and returns a validation token.
+5. MCP builds wall segments, openings, placeholders, and the floor in one undo transaction.
+6. The model captures top and perspective viewport screenshots and verifies the result.
 
-PowerShell 7 (`pwsh`) is **not required** for normal Max Ultra MCP operation. The supplied BAT and smoke launchers use Windows PowerShell 5.1 (`powershell.exe`), which is included with supported Windows versions. PowerShell 7 is needed only if your own external automation explicitly chooses `pwsh` or depends on a PowerShell 7-only feature.
+The source image is interpreted by the model. Raw image bytes are not passed to 3ds Max.
 
-The public launchers pass one project-relative JavaScript path to `scripts\run-node-script.ps1`. The shared helper prefers `runtime\win-x64\node.exe`, then discovers Node.js 22+ only as a development fallback; it also owns version/script validation, safe argument forwarding, process execution, and exit-code reporting.
+## Tool profiles
 
-Check Windows PowerShell 5.1:
+- `core`: connection, scene, objects, viewport, rendering, scripts, diagnostics, and UI automation.
+- `archviz`: core plus materials and structured floor-plan workflows.
+- `full`: archviz plus layers, modifiers, import/export, and animation helpers.
 
-```powershell
-powershell.exe -NoProfile -Command "$PSVersionTable.PSVersion"
-```
+Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
-Check optional PowerShell 7:
+## Security model
 
-```powershell
-pwsh -NoProfile -Command '$PSVersionTable.PSVersion'
-```
+- Network listeners bind to `127.0.0.1` only.
+- Local control requests use a random installation token.
+- Committed documentation, fixtures, logs, and media use synthetic or anonymized data; see the privacy policy.
+- STDOUT from the MCP host contains only JSON-RPC; logs go to STDERR or log files.
+- Scene mutations are serialized through the Max main-thread queue.
+- UI Automation rejects every HWND not owned by the selected `3dsmax.exe` process.
+- Arbitrary MaxScript is intentionally powerful and is annotated as a destructive, open-world operation for client approval.
+- Unknown renderer APIs return explicit unsupported errors instead of reporting false success.
 
-If the second command is not found, Max Ultra MCP still operates normally.
+## Verification
 
-## Verify
+Run all mock, contract, and CLI integration suites:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-smoke.ps1
 ```
 
-The smoke suite uses mock Max clients and never opens, changes, or saves a real scene.
+The suites never open, modify, or save a real 3ds Max scene.
 
-## Examples
+Before a production release, also test real 3ds Max versions and installed Corona/V-Ray adapters using the acceptance fixtures described in [USE_CASES.md](docs/USE_CASES.md).
 
-Run any `.bat` file in `examples\`. The root of that directory contains only launchers; every launcher has a same-named subfolder with its JavaScript implementation. Each implementation calls `core\bridge-control-client.js` directly, without an intermediate example framework.
+## Documentation
 
-The included examples can maximize, capture, and open the active viewport; start the current production render through the MaxScript equivalent of **Render / F9**; create and frame a 3DGROUND - Max Ultra MCP text object; inspect connected Max instances; and perform small scene actions. The screenshot example always overwrites one `viewport-current.png`, so captures do not accumulate. Creation examples do not save the scene, and targeted actions refuse ambiguous routing when several Max instances are connected.
+- [V1 architecture, MCP integration, and tool behavior](docs/V1.md)
+- [Required production use cases and acceptance contracts](docs/USE_CASES.md)
+- [Privacy and data sanitization policy](docs/PRIVACY.md)
+- [Detailed bootstrap, panel, lifecycle, and example documentation](docs/README.md)
+- [Portable runtime layout](runtime/README.md)
+- [Experimental single-executable packaging](docs/SEA.md)
+- [Instructions for AI coding agents](AGENTS.md)
 
-See [the detailed documentation](docs/README.md) for MCP configuration, tools, endpoint recovery, panel behavior, examples, environment variables, and repository layout.
+## Repository layout
+
+```text
+01_START_MAX_ULTRA_MCP_FIRST.ms   user-facing 3ds Max bootstrap
+core/                             MCP host, daemon, tool runtime, tests
+scripts/                          launch, installation, packaging, UI helpers
+examples/                         runnable and acceptance examples
+docs/                             architecture and product specifications
+runtime/                          portable runtime location in release builds
+AGENTS.md                         repository contract for AI coding agents
+```
+
+## Troubleshooting
+
+- If several Max instances are connected, select one explicitly.
+- If the daemon console was closed manually, rerun `01_START_MAX_ULTRA_MCP_FIRST.ms`.
+- `BRIDGE_DOWN` means the local daemon is unavailable.
+- `MAX_NOT_CONNECTED` means no live bootstrap is connected.
+- `RENDERER_UNSUPPORTED` means the active renderer or plugin version lacks a verified adapter for the requested operation.
+- PowerShell 7 is not required. Normal scripts use Windows PowerShell 5.1.
+
+For detailed endpoint recovery and panel behavior, see [docs/README.md](docs/README.md).
