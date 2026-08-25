@@ -112,6 +112,7 @@ global MaxUltraMcpActiveClient
         cancelledRequestIds = #(),
         activityEntries = #(),
         maximumActivityEntries = 30,
+        activityLogDirty = true,
         maximumPendingRequests = 100,
         maximumInboundLinesPerTick = 16,
         maximumRequestsPerTick = 1,
@@ -318,6 +319,7 @@ global MaxUltraMcpActiveClient
                 statusDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
                 statusDialog.rtbActivity.AccessibleName = "Max Ultra MCP color-coded activity log"
                 statusDialog.rtbActivity.TabStop = true
+                activityLogDirty = true
                 statusDialog.rtbActivity.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0
                 local panelThemeBackground = themeDrawingColor #background 68 68 68
                 statusDialog.lblStatus.BackColor = panelThemeBackground
@@ -341,24 +343,119 @@ global MaxUltraMcpActiveClient
             return if (darkTheme) then (colorClass.FromArgb 110 205 235) else (colorClass.FromArgb 20 90 145)
         ),
 
+        fn activityLogIsNearBottom = (
+            if (isDisposed or not panelIsOpen()) do return true
+            try (
+                if (statusDialog.rtbActivity.SelectionLength > 0) do return false
+                if (statusDialog.rtbActivity.TextLength <= 0) do return true
+                local lastCharacterIndex = amax 0 (statusDialog.rtbActivity.TextLength - 1)
+                local lastCharacterPosition = statusDialog.rtbActivity.GetPositionFromCharIndex lastCharacterIndex
+                local bottomTolerance = amax 2 (statusDialog.rtbActivity.Font.Height * 2)
+                return lastCharacterPosition.Y >= 0 and lastCharacterPosition.Y <= (statusDialog.rtbActivity.ClientSize.Height + bottomTolerance)
+            ) catch (
+                return true
+            )
+        ),
+
+        fn activityTextStartsWith sourceText prefixText = (
+            if (prefixText == "") do return true
+            if (sourceText.count < prefixText.count) do return false
+            return (substring sourceText 1 prefixText.count) == prefixText
+        ),
+
+        fn scrollActivityLogToBottom = (
+            if (isDisposed or not panelIsOpen()) do return false
+            statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
+            statusDialog.rtbActivity.SelectionLength = 0
+            statusDialog.rtbActivity.ScrollToCaret()
+            try (
+                local logWindowHandle = statusDialog.rtbActivity.Handle.ToInt64()
+                local windowsMessageVerticalScroll = 0x0115
+                local scrollBarBottom = 7
+                windows.sendMessage logWindowHandle windowsMessageVerticalScroll scrollBarBottom 0
+            ) catch (
+            )
+            return true
+        ),
+
+        fn appendColoredActivityText activityEntry = (
+            if (statusDialog.rtbActivity.TextLength > 0) do statusDialog.rtbActivity.AppendText "\r\n"
+            statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
+            statusDialog.rtbActivity.SelectionLength = 0
+            statusDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
+            statusDialog.rtbActivity.AppendText activityEntry
+            statusDialog.rtbActivity.SelectionColor = statusDialog.rtbActivity.ForeColor
+            return true
+        ),
+
         fn refreshActivityText = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                statusDialog.rtbActivity.SuspendLayout()
-                statusDialog.rtbActivity.Clear()
-                for activityIndex in 1 to activityEntries.count do (
-                    local activityEntry = activityEntries[activityIndex]
-                    statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
-                    statusDialog.rtbActivity.SelectionLength = 0
-                    statusDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
-                    statusDialog.rtbActivity.AppendText activityEntry
-                    if (activityIndex < activityEntries.count) do statusDialog.rtbActivity.AppendText "\r\n"
+                local expectedActivityText = activityText()
+                local currentActivityText = statusDialog.rtbActivity.Text as string
+                if (not activityLogDirty and currentActivityText == expectedActivityText) do return true
+                if (currentActivityText == expectedActivityText) then (
+                    activityLogDirty = false
+                    return true
                 )
-                statusDialog.rtbActivity.SelectionColor = statusDialog.rtbActivity.ForeColor
-                statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
-                statusDialog.rtbActivity.SelectionLength = 0
-                statusDialog.rtbActivity.ScrollToCaret()
+                local shouldAutoScroll = activityLogIsNearBottom()
+                local savedSelectionStart = statusDialog.rtbActivity.SelectionStart
+                local savedSelectionLength = statusDialog.rtbActivity.SelectionLength
+                local firstClientPoint = dotNetObject "System.Drawing.Point" 1 1
+                local savedFirstVisibleCharacter = statusDialog.rtbActivity.GetCharIndexFromPosition firstClientPoint
+                local removedCharacterCount = 0
+                local appendedActivityText = ""
+                local changedIncrementally = false
+                local appendPrefix = currentActivityText + "\r\n"
+                if (currentActivityText != "" and activityTextStartsWith expectedActivityText appendPrefix) then (
+                    appendedActivityText = substring expectedActivityText (appendPrefix.count + 1) -1
+                    changedIncrementally = appendedActivityText != ""
+                ) else if (currentActivityText != "") do (
+                    local firstLineBreak = findString currentActivityText "\r\n"
+                    if (firstLineBreak != undefined) do (
+                        local remainingActivityText = substring currentActivityText (firstLineBreak + 2) -1
+                        local rollingPrefix = remainingActivityText + "\r\n"
+                        if (activityTextStartsWith expectedActivityText rollingPrefix) do (
+                            appendedActivityText = substring expectedActivityText (rollingPrefix.count + 1) -1
+                            removedCharacterCount = firstLineBreak + 1
+                            changedIncrementally = appendedActivityText != ""
+                        )
+                    )
+                )
+                statusDialog.rtbActivity.SuspendLayout()
+                if (changedIncrementally) then (
+                    if (removedCharacterCount > 0) do (
+                        statusDialog.rtbActivity.Select 0 removedCharacterCount
+                        statusDialog.rtbActivity.SelectedText = ""
+                    )
+                    appendColoredActivityText appendedActivityText
+                ) else (
+                    statusDialog.rtbActivity.Clear()
+                    for activityIndex in 1 to activityEntries.count do (
+                        local activityEntry = activityEntries[activityIndex]
+                        statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
+                        statusDialog.rtbActivity.SelectionLength = 0
+                        statusDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
+                        statusDialog.rtbActivity.AppendText activityEntry
+                        if (activityIndex < activityEntries.count) do statusDialog.rtbActivity.AppendText "\r\n"
+                    )
+                    statusDialog.rtbActivity.SelectionColor = statusDialog.rtbActivity.ForeColor
+                )
+                activityLogDirty = false
                 statusDialog.rtbActivity.ResumeLayout()
+                statusDialog.rtbActivity.Update()
+                if (shouldAutoScroll) then (
+                    scrollActivityLogToBottom()
+                ) else (
+                    local adjustedFirstVisibleCharacter = amax 0 (savedFirstVisibleCharacter - removedCharacterCount)
+                    adjustedFirstVisibleCharacter = amin adjustedFirstVisibleCharacter statusDialog.rtbActivity.TextLength
+                    statusDialog.rtbActivity.Select adjustedFirstVisibleCharacter 0
+                    statusDialog.rtbActivity.ScrollToCaret()
+                    local adjustedSelectionStart = amax 0 (savedSelectionStart - removedCharacterCount)
+                    adjustedSelectionStart = amin adjustedSelectionStart statusDialog.rtbActivity.TextLength
+                    local availableSelectionLength = statusDialog.rtbActivity.TextLength - adjustedSelectionStart
+                    if (savedSelectionLength > 0) do statusDialog.rtbActivity.Select adjustedSelectionStart (amin savedSelectionLength availableSelectionLength)
+                )
             ) catch (
                 try (statusDialog.rtbActivity.ResumeLayout()) catch ()
             )
@@ -1049,14 +1146,17 @@ global MaxUltraMcpActiveClient
             statusDialog.lblContext.AccessibleDescription = contextText
             statusDialog.btnStop.enabled = not isStopped
             statusDialog.btnStart.enabled = isStopped
-            refreshActivityText()
+            if (activityLogDirty) do refreshActivityText()
             return true
         ),
 
         fn addActivity activityLevel activityMessage = (
             local timestampText = (dotNetClass "System.DateTime").Now.ToString("HH:mm:ss")
-            append activityEntries (timestampText + " [" + activityLevel + "] " + (activityMessage as string))
+            local singleLineActivityMessage = substituteString (activityMessage as string) "\r" " "
+            singleLineActivityMessage = substituteString singleLineActivityMessage "\n" " "
+            append activityEntries (timestampText + " [" + activityLevel + "] " + singleLineActivityMessage)
             while (activityEntries.count > maximumActivityEntries) do deleteItem activityEntries 1
+            activityLogDirty = true
             refreshActivityText()
             return true
         ),
