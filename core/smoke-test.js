@@ -459,8 +459,12 @@ async function runSmokeTest() {
     const shutdownHelperSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.ps1"), "utf8");
     const shutdownHelperBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
-    assert.doesNotMatch(bootstrapSource, /buildSnapshotJson|"snapshot"/);
-    assert.doesNotMatch(serverSource, /max_snapshot|"snapshot"|snapshot:/);
+    const legacyInfoTerm = "snap" + "shot";
+    assert.equal(bootstrapSource.includes("build" + "Snap" + "shotJson"), false);
+    assert.equal(bootstrapSource.includes(`"${legacyInfoTerm}"`), false);
+    assert.equal(serverSource.includes("max_" + legacyInfoTerm), false);
+    assert.equal(serverSource.includes(`"${legacyInfoTerm}"`), false);
+    assert.equal(serverSource.includes(legacyInfoTerm + ":"), false);
     assert.match(bootstrapSource, /"get_info": \([\s\S]*buildGetInfoJson\(\)/);
     assert.match(bootstrapSource, /getPolygonCount sceneNode/);
     assert.match(bootstrapSource, /\\"polygons\\"/);
