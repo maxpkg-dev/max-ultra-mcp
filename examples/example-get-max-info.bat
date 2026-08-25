@@ -1,22 +1,21 @@
-@rem Creates three clearly named test boxes in the sole connected Max scene.
+@rem Prints detailed read-only information from the sole connected 3ds Max.
 @rem Copyright (c) 2026 Lukianenko Vasyl
 @rem Project website: https://3dground.net
 @rem Developed by Lukianenko Vasyl
 @echo off
 setlocal EnableExtensions
 
-title 3DGROUND - Max Ultra MCP - Create Box Grid
+title 3DGROUND - Max Ultra MCP - Get Max Info
 cls
 echo ================================================================
 echo   3DGROUND ^| MAX ULTRA MCP
-echo   REAL EXAMPLE - CREATE THREE TEST BOXES
+echo   READ-ONLY EXAMPLE - GET DETAILED MAX AND SCENE INFO
 echo ================================================================
 echo.
-echo   Creates MaxUltraMCP_GridBox_01 through _03 and never saves.
-echo   Refuses before creating anything if any exact name already exists.
+echo   Reads detailed 3ds Max and scene information without changes.
 echo.
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-create-box-grid\example-create-box-grid.js"
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-get-max-info\example-get-max-info.js"
 set "EXAMPLE_EXIT_CODE=%ERRORLEVEL%"
 
 echo.

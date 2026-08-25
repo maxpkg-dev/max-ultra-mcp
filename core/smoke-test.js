@@ -16,18 +16,16 @@ const { spawn } = require("node:child_process");
 const { MaxBridge, handleRpcMessage, mcpTools } = require("./server");
 const { MockMaxClient } = require("./mock-max-client");
 const { BridgeControlClient } = require("./bridge-control-client");
-const { GRID_BOX_NAMES, createBoxGridExample } = require("../examples/example-create-box-grid/example-create-box-grid");
+const { MCP_TITLE_OBJECT_NAME, MCP_TITLE_TEXT, createSplineTextExample } = require("../examples/example-create-spline-text/example-create-spline-text");
 const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-test-box/example-create-test-box");
 const { healthCheckExample } = require("../examples/example-health-check/example-health-check");
+const { getMaxInfoExample } = require("../examples/example-get-max-info/example-get-max-info");
 const { listInstancesExample } = require("../examples/example-list-instances/example-list-instances");
 const { QUICK_RENDER_MAXSCRIPT, pressRenderButtonExample } = require("../examples/example-press-render-button/example-press-render-button");
-const { sceneSnapshotExample } = require("../examples/example-scene-snapshot/example-scene-snapshot");
 const { sceneSummaryExample } = require("../examples/example-scene-summary/example-scene-summary");
 const {
   MAXIMIZE_VIEWPORT_MAXSCRIPT,
-  PRODUCT_TEMP_DIRECTORY,
   captureViewportScreenshotExample,
-  removeScreenshotAfterProcessExit,
 } = require("../examples/example-viewport-screenshot/example-viewport-screenshot");
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
@@ -240,8 +238,13 @@ async function runSmokeTest() {
 
     const healthResponse = await bridge.callTool("max_health", { instance_id: "test-max-2022" });
     assert.equal(healthResponse.health.mainThread, true);
-    const snapshotResponse = await bridge.callTool("max_snapshot", { instance_id: "test-max-2027" });
-    assert.equal(snapshotResponse.snapshot.scene.objectCount, 3);
+    const getInfoResponse = await bridge.callTool("max_get_info", { instance_id: "test-max-2027" });
+    assert.equal(getInfoResponse.info.action, "get_info");
+    assert.equal(getInfoResponse.info.scene.objectCount, 3);
+    assert.equal(getInfoResponse.info.scene.statistics.objects.geometry, 2);
+    assert.equal(getInfoResponse.info.scene.statistics.geometry.polygons, 24);
+    assert.equal(getInfoResponse.info.scene.statistics.geometry.vertices, 16);
+    assert.equal(getInfoResponse.info.scene.statistics.geometry.countingMode, "evaluatedMesh/getPolygonCount");
     const summaryResponse = await bridge.callTool("max_scene_summary", { instance_id: "test-max-2022" });
     assert.equal(summaryResponse.scene.objectCount, 3);
     assert.equal("details" in summaryResponse, false);
@@ -279,7 +282,7 @@ async function runSmokeTest() {
     assert.equal(uiInvokeResponse.result, "mock-invoked");
 
     const expectedTools = [
-      "max_list_instances", "max_select_instance", "max_scene_summary", "max_create_box", "max_health", "max_snapshot",
+      "max_list_instances", "max_select_instance", "max_scene_summary", "max_create_box", "max_health", "max_get_info",
       "max_logs", "max_smoke", "max_execute", "max_panel", "max_ui_list", "max_ui_invoke", "max_viewport_screenshot",
     ];
     assert.deepEqual(mcpTools.map((toolInfo) => toolInfo.name), expectedTools);
@@ -336,8 +339,9 @@ async function runSmokeTest() {
     assert.equal(exampleHealth.health.mainThread, true);
     const exampleSummary = await sceneSummaryExample({ client: controlClient, output: quietOutput });
     assert.equal(exampleSummary.scene.objectCount, 3);
-    const exampleSnapshot = await sceneSnapshotExample({ client: controlClient, output: quietOutput });
-    assert.equal(exampleSnapshot.snapshot.scene.objectCount, 3);
+    const exampleMaxInfo = await getMaxInfoExample({ client: controlClient, output: quietOutput });
+    assert.equal(exampleMaxInfo.info.scene.objectCount, 3);
+    assert.equal(exampleMaxInfo.info.scene.statistics.geometry.polygons, 24);
 
     const screenshotOutputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-mcp-example-screenshot-"));
     try {
@@ -349,26 +353,15 @@ async function runSmokeTest() {
       });
       assert.equal(exampleScreenshot.screenshot.mimeType, "image/png");
       assert.equal(exampleScreenshot.opened, false);
-      assert.equal(exampleScreenshot.cleanupScheduled, false);
       assert.equal(fs.existsSync(exampleScreenshot.savedFilePath), true);
       assert.equal(path.dirname(exampleScreenshot.savedFilePath), screenshotOutputDirectory);
+      assert.equal(path.basename(exampleScreenshot.savedFilePath), "viewport-current.png");
       assert.equal(max2027.executeRequests.at(-1), MAXIMIZE_VIEWPORT_MAXSCRIPT);
       assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /max tool maximize/);
       assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /getViewSize\(\)/);
       assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /toggledViewportSize\.x \* toggledViewportSize\.y/);
     } finally {
       fs.rmSync(screenshotOutputDirectory, { recursive: true, force: true });
-    }
-
-    fs.mkdirSync(PRODUCT_TEMP_DIRECTORY, { recursive: true });
-    const cleanupTestDirectory = fs.mkdtempSync(path.join(PRODUCT_TEMP_DIRECTORY, "smoke-cleanup-"));
-    const cleanupTestFile = path.join(cleanupTestDirectory, "viewport-cleanup.png");
-    try {
-      fs.writeFileSync(cleanupTestFile, "temporary screenshot test");
-      assert.equal(await removeScreenshotAfterProcessExit(cleanupTestFile, 2147483647, { pollIntervalMs: 1, maximumDeleteAttempts: 2 }), true);
-      assert.equal(fs.existsSync(cleanupTestFile), false);
-    } finally {
-      fs.rmSync(cleanupTestDirectory, { recursive: true, force: true });
     }
 
     const renderButtonResponse = await pressRenderButtonExample({ client: controlClient, output: quietOutput });
@@ -383,12 +376,16 @@ async function runSmokeTest() {
     assert.match(exampleScript, /pos:\[0,0,0\]/);
     assert.doesNotMatch(exampleScript, /save(MaxFile|Nodes|AsVersion)/i);
 
-    const gridResponse = await createBoxGridExample({ client: controlClient, output: quietOutput });
-    assert.equal(gridResponse.instance.instanceId, "test-max-2027");
-    const gridScript = max2027.executeRequests.at(-1);
-    for (const boxName of GRID_BOX_NAMES) assert.ok(gridScript.includes(boxName));
-    assert.match(gridScript, /for boxIndex in 1 to boxNames\.count/);
-    assert.doesNotMatch(gridScript, /save(MaxFile|Nodes|AsVersion)/i);
+    const titleResponse = await createSplineTextExample({ client: controlClient, output: quietOutput });
+    assert.equal(titleResponse.instance.instanceId, "test-max-2027");
+    const titleScript = max2027.executeRequests.at(-1);
+    assert.ok(titleScript.includes(MCP_TITLE_OBJECT_NAME));
+    assert.ok(titleScript.includes(MCP_TITLE_TEXT));
+    assert.match(titleScript, /local titleShape = text name:/);
+    assert.match(titleScript, /addModifier titleShape \(Extrude amount: 2\.0\)/);
+    assert.match(titleScript, /select titleShape/);
+    assert.match(titleScript, /max tool zoomextents/);
+    assert.doesNotMatch(titleScript, /\bbox\b|save(MaxFile|Nodes|AsVersion)/i);
 
     assert.equal(fs.existsSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms")), true);
     const rootReadme = fs.readFileSync(path.join(PROJECT_ROOT, "README.md"), "utf8");
@@ -411,12 +408,12 @@ async function runSmokeTest() {
     assert.doesNotMatch(nodeRunnerSource, /Invoke-Expression|Start-Process|cmd\.exe/i);
     const examplesRoot = path.join(PROJECT_ROOT, "examples");
     const expectedExampleNames = [
-      "example-create-box-grid",
+      "example-create-spline-text",
       "example-create-test-box",
+      "example-get-max-info",
       "example-health-check",
       "example-list-instances",
       "example-press-render-button",
-      "example-scene-snapshot",
       "example-scene-summary",
       "example-viewport-screenshot",
     ];
@@ -435,12 +432,12 @@ async function runSmokeTest() {
       assert.doesNotMatch(implementationSource, /save(MaxFile|Nodes|AsVersion)/i);
     }
     const thinNodeLaunchers = [
-      ["examples/example-create-box-grid.bat", "examples\\example-create-box-grid\\example-create-box-grid.js"],
+      ["examples/example-create-spline-text.bat", "examples\\example-create-spline-text\\example-create-spline-text.js"],
       ["examples/example-create-test-box.bat", "examples\\example-create-test-box\\example-create-test-box.js"],
+      ["examples/example-get-max-info.bat", "examples\\example-get-max-info\\example-get-max-info.js"],
       ["examples/example-health-check.bat", "examples\\example-health-check\\example-health-check.js"],
       ["examples/example-list-instances.bat", "examples\\example-list-instances\\example-list-instances.js"],
       ["examples/example-press-render-button.bat", "examples\\example-press-render-button\\example-press-render-button.js"],
-      ["examples/example-scene-snapshot.bat", "examples\\example-scene-snapshot\\example-scene-snapshot.js"],
       ["examples/example-scene-summary.bat", "examples\\example-scene-summary\\example-scene-summary.js"],
       ["examples/example-viewport-screenshot.bat", "examples\\example-viewport-screenshot\\example-viewport-screenshot.js"],
       ["scripts/start-server.bat", "core\\server.js"],
@@ -453,19 +450,22 @@ async function runSmokeTest() {
       assert.ok(launcherSource.includes(expectedScriptPath), relativeLauncherPath + " must name only its requested Node.js script");
       assert.doesNotMatch(launcherSource, /Get-Command\s+node|codex-runtimes|process\.versions\.node/);
     }
-    const screenshotLauncherSource = fs.readFileSync(path.join(examplesRoot, "example-viewport-screenshot.bat"), "utf8");
-    assert.match(screenshotLauncherSource, /MAX_ULTRA_MCP_EXAMPLE_BAT_PID/);
-    assert.match(screenshotLauncherSource, /MAX_ULTRA_MCP_EXAMPLE_SCREENSHOT_FILE/);
-    assert.match(screenshotLauncherSource, /del \/f \/q "%MAX_ULTRA_MCP_EXAMPLE_SCREENSHOT_FILE%"/);
     const screenshotExampleSource = fs.readFileSync(path.join(examplesRoot, "example-viewport-screenshot", "example-viewport-screenshot.js"), "utf8");
-    assert.match(screenshotExampleSource, /--cleanup-after-process/);
-    assert.match(screenshotExampleSource, /startCleanupWatcher\(savedFilePath, options\.cleanupAfterProcessId\)/);
-    assert.match(screenshotExampleSource, /pathIsInsideDirectory\(normalizedFilePath, PRODUCT_TEMP_DIRECTORY\)/);
+    assert.match(screenshotExampleSource, /path\.join\(outputDirectory, "viewport-current\.png"\)/);
+    assert.match(screenshotExampleSource, /fs\.copyFileSync\(sourceFilePath, savedFilePath\)/);
+    assert.doesNotMatch(screenshotExampleSource, /cleanup-after-process|startCleanupWatcher|removeScreenshotAfterProcessExit/);
     const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
     const serverSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "server.js"), "utf8");
     const shutdownHelperSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.ps1"), "utf8");
     const shutdownHelperBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat"), "utf8");
     assertBalancedMaxScript(bootstrapSource);
+    assert.doesNotMatch(bootstrapSource, /buildSnapshotJson|"snapshot"/);
+    assert.doesNotMatch(serverSource, /max_snapshot|"snapshot"|snapshot:/);
+    assert.match(bootstrapSource, /"get_info": \([\s\S]*buildGetInfoJson\(\)/);
+    assert.match(bootstrapSource, /getPolygonCount sceneNode/);
+    assert.match(bootstrapSource, /\\"polygons\\"/);
+    assert.match(bootstrapSource, /\\"vertices\\"/);
+    assert.match(serverSource, /name: "max_get_info"/);
     assert.match(bootstrapSource, /FIRST STEP: Run this file/);
     assert.match(bootstrapSource, /CSharpUtilities\.SynchronizingBackgroundWorker/);
     assert.match(bootstrapSource, /CONTROL\\t1\\tbootstrap-control\\t/);
@@ -596,6 +596,12 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /restoreBubbleForm\.ShowIcon = false/);
     assert.match(bootstrapSource, /ShowInTaskbar = false/);
     assert.match(bootstrapSource, /restoreBubbleForm\.Size = dotNetObject "System\.Drawing\.Size" 236 64/);
+    assert.match(bootstrapSource, /restoreBubbleForm\.BackColor = \(dotNetClass "System\.Drawing\.Color"\)\.Black/);
+    assert.match(bootstrapSource, /restoreBubbleSurface = dotNetObject "System\.Windows\.Forms\.Panel"/);
+    assert.match(bootstrapSource, /restoreBubbleSurface\.Location = dotNetObject "System\.Drawing\.Point" 1 1/);
+    assert.match(bootstrapSource, /restoreBubbleSurface\.Size = dotNetObject "System\.Drawing\.Size" 234 62/);
+    assert.match(bootstrapSource, /restoreBubbleSurface\.BackColor = themeDrawingColor #background 68 68 68/);
+    assert.match(bootstrapSource, /restoreBubbleSurface\.Controls\.Add restoreBubbleLabel[\s\S]*restoreBubbleSurface\.Controls\.Add restoreBubbleButton[\s\S]*restoreBubbleForm\.Controls\.Add restoreBubbleSurface/);
     assert.match(bootstrapSource, /screenClass\.FromHandle maxWindowHandle/);
     assert.match(bootstrapSource, /windows\.getMAXHWND\(\)/);
     assert.match(bootstrapSource, /workingArea\.Bottom - 64 - 12/);
@@ -620,6 +626,8 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /dotNet\.addEventHandler restoreBubbleLabel "MouseUp" handleRestoreBubbleMouseUp/);
     assert.match(bootstrapSource, /labelOffsetX = labelSender\.Left as integer/);
     assert.match(bootstrapSource, /labelOffsetY = labelSender\.Top as integer/);
+    assert.match(bootstrapSource, /labelOffsetX \+= restoreBubbleSurface\.Left as integer/);
+    assert.match(bootstrapSource, /labelOffsetY \+= restoreBubbleSurface\.Top as integer/);
     assert.match(bootstrapSource, /restoreBubbleDragOffset = \[labelOffsetX \+ \(eventArgs\.X as integer\), labelOffsetY \+ \(eventArgs\.Y as integer\)\]/);
     assert.match(bootstrapSource, /labelSender\.Capture = true/);
     assert.match(bootstrapSource, /Cursor"\)\.Position/);
@@ -630,6 +638,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /removeEventHandler bubbleLabelToDispose "MouseUp" handleRestoreBubbleMouseUp/);
     assert.match(bootstrapSource, /removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick/);
     assert.match(bootstrapSource, /removeEventHandler bubbleFormToDispose "FormClosing" handleRestoreBubbleFormClosing/);
+    assert.match(bootstrapSource, /if \(bubbleSurfaceToDispose != undefined\) do bubbleSurfaceToDispose\.Dispose\(\)/);
     assert.match(bootstrapSource, /fn resizePanelControls panelSize = \([\s\S]*if \(isDisposed or not panelIsOpen\(\)\) do return false/);
     assert.match(bootstrapSource, /fn refreshRestoreBubbleStatus = \([\s\S]*restoreBubbleButton\.ForeColor = statusTextColor\(\)[\s\S]*restoreBubbleButton\.Refresh\(\)/);
     assert.match(bootstrapSource, /fn refreshUserInterface = \([\s\S]*local miniPanelRefreshed = refreshRestoreBubbleStatus\(\)[\s\S]*if \(not panelIsOpen\(\)\) do return miniPanelRefreshed/);

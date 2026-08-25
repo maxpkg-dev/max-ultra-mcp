@@ -54,6 +54,6 @@ The smoke suite uses mock Max clients and never opens, changes, or saves a real 
 
 Run any `.bat` file in `examples\`. The root of that directory contains only launchers; every launcher has a same-named subfolder with its JavaScript implementation. Each implementation calls `core\bridge-control-client.js` directly, without an intermediate example framework.
 
-The included examples can maximize, capture, and temporarily open the active viewport; start the current production render through the MaxScript equivalent of **Render / F9**; inspect connected Max instances; and perform small scene actions. The screenshot PNG is deleted when its BAT closes. Creation examples do not save the scene, and targeted actions refuse ambiguous routing when several Max instances are connected.
+The included examples can maximize, capture, and open the active viewport; start the current production render through the MaxScript equivalent of **Render / F9**; create and frame a 3DGROUND - Max Ultra MCP text object; inspect connected Max instances; and perform small scene actions. The screenshot example always overwrites one `viewport-current.png`, so captures do not accumulate. Creation examples do not save the scene, and targeted actions refuse ambiguous routing when several Max instances are connected.
 
 See [the detailed documentation](docs/README.md) for MCP configuration, tools, endpoint recovery, panel behavior, examples, environment variables, and repository layout.

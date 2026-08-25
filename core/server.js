@@ -18,7 +18,7 @@ const CONTROL_CALLABLE_TOOLS = new Set([
   "max_list_instances",
   "max_health",
   "max_scene_summary",
-  "max_snapshot",
+  "max_get_info",
   "max_create_box",
   "max_execute",
   "max_viewport_screenshot",
@@ -451,9 +451,9 @@ class MaxBridge {
     const instanceInfo = this.selectInstance(toolArguments.instance_id);
     const publicInstanceInfo = this.publicInstance(instanceInfo);
     if (toolName === "max_scene_summary") {
-      const snapshot = await this.request(instanceInfo.instanceId, "snapshot");
-      const response = { instanceId: instanceInfo.instanceId, maxVersion: instanceInfo.maxVersion, scene: snapshot.scene };
-      if (toolArguments.details) response.details = snapshot;
+      const sceneSummary = await this.request(instanceInfo.instanceId, "scene_summary");
+      const response = { instanceId: instanceInfo.instanceId, maxVersion: instanceInfo.maxVersion, scene: sceneSummary.scene };
+      if (toolArguments.details) response.details = sceneSummary;
       return response;
     }
     if (toolName === "max_create_box") {
@@ -481,7 +481,7 @@ class MaxBridge {
       return response;
     }
     if (toolName === "max_health") return { instance: publicInstanceInfo, health: await this.request(instanceInfo.instanceId, "health") };
-    if (toolName === "max_snapshot") return { instance: publicInstanceInfo, snapshot: await this.request(instanceInfo.instanceId, "snapshot") };
+    if (toolName === "max_get_info") return { instance: publicInstanceInfo, info: await this.request(instanceInfo.instanceId, "get_info", "", 30000) };
     if (toolName === "max_logs") {
       const requestedTail = Number(toolArguments.tail ?? 20);
       const logTail = Number.isFinite(requestedTail) ? Math.min(MAX_LOG_ENTRIES, Math.max(1, requestedTail)) : 20;
@@ -562,7 +562,7 @@ const mcpTools = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   },
   { name: "max_health", description: "Ping the selected Max main thread.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
-  { name: "max_snapshot", description: "Return a detailed non-mutating Max/scene snapshot.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
+  { name: "max_get_info", description: "Return detailed read-only Max, scene, object-category, topology, selection, material, layer, animation, and render information.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
   { name: "max_logs", description: "Return detailed server and panel diagnostics.", inputSchema: { type: "object", properties: { ...targetProperties, tail: { type: "integer", minimum: 1, maximum: MAX_LOG_ENTRIES, default: 20 } }, additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "max_smoke", description: "Run a fixed non-mutating main-thread check.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
   { name: "max_execute", description: "Advanced escape hatch: execute arbitrary MaxScript. Prefer semantic tools.", inputSchema: { type: "object", properties: { ...targetProperties, script: { type: "string" }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, required: ["script"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true } },
@@ -614,7 +614,7 @@ async function handleRpcMessage(bridge, message, sendResponse = writeRpcMessage)
         protocolVersion: message.params?.protocolVersion || "2024-11-05",
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "max-ultra-mcp", version: "0.3.0" },
-        instructions: "Use concise semantic tools first: max_list_instances, max_select_instance, max_scene_summary, max_create_box, max_ui_list/invoke, and max_viewport_screenshot. Results are compact by default; request details only for diagnostics. max_execute is the advanced full-control escape hatch. All Max work is queued on the main thread.",
+        instructions: "Use concise semantic tools first: max_list_instances, max_select_instance, max_scene_summary, max_get_info, max_create_box, max_ui_list/invoke, and max_viewport_screenshot. Results are compact by default; use max_get_info for detailed scene statistics. max_execute is the advanced full-control escape hatch. All Max work is queued on the main thread.",
       };
     } else if (message.method === "ping") {
       rpcResponse.result = {};

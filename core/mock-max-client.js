@@ -84,6 +84,24 @@ class MockMaxClient {
         action: actionName, available: true, source: "Max Ultra MCP panel",
         content: "[mock] Max Ultra MCP panel activity", entryCount: 2, maximumEntries: 30, mock: true,
       };
+    } else if (actionName === "get_info") {
+      responsePayload = {
+        action: actionName, ok: true, instanceId: this.instanceId, pid: this.pid,
+        maxVersion: this.maxVersion, productVersion: `mock-${this.maxVersion}`, mainThread: true,
+        sampledAt: new Date().toISOString(),
+        scene: {
+          filePath: "", displayName: "Untitled", saveRequired: false, objectCount: 3, selectionCount: 0, frame: "0f",
+          animation: { current: "0f", start: "0f", end: "100f" },
+          statistics: {
+            objects: { total: 3, geometry: 2, shapes: 1, lights: 0, cameras: 0, helpers: 0, spaceWarps: 0, systems: 0, selected: 0, hidden: 0, hiddenInViewport: 0, frozen: 0, renderable: 3, groupHeads: 0, groupMembers: 0 },
+            geometry: { nodes: 2, evaluatedNodes: 2, failedNodes: 0, vertices: 16, polygons: 24, meshFaces: 24, triangles: 24, countingMode: "evaluatedMesh/getPolygonCount" },
+            selection: { total: 0, geometryNodes: 0, evaluatedNodes: 0, failedNodes: 0, vertices: 0, polygons: 0, triangles: 0 },
+            materials: 1, layers: 1,
+          },
+          render: { renderer: "MockRenderer", width: 1920, height: 1080 },
+        },
+        mock: true,
+      };
     } else if (actionName === "execute") {
       this.executeRequests.push(actionPayload);
       responsePayload = {

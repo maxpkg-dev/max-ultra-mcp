@@ -90,6 +90,7 @@ global MaxUltraMcpActiveClient
         lastNormalPanelPosition,
         lastNormalPanelSize,
         restoreBubbleForm,
+        restoreBubbleSurface,
         restoreBubbleLabel,
         restoreBubbleButton,
         restoreBubbleDragging = false,
@@ -751,6 +752,10 @@ global MaxUltraMcpActiveClient
                 labelOffsetX = labelSender.Left as integer
                 labelOffsetY = labelSender.Top as integer
             )
+            if (restoreBubbleSurface != undefined) do (
+                labelOffsetX += restoreBubbleSurface.Left as integer
+                labelOffsetY += restoreBubbleSurface.Top as integer
+            )
             restoreBubbleDragging = true
             restoreBubbleDragOffset = [labelOffsetX + (eventArgs.X as integer), labelOffsetY + (eventArgs.Y as integer)]
             try (if (labelSender != undefined) do labelSender.Capture = true) catch ()
@@ -783,9 +788,11 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeRestoreBubble = (
+            local bubbleSurfaceToDispose = restoreBubbleSurface
             local bubbleLabelToDispose = restoreBubbleLabel
             local bubbleButtonToDispose = restoreBubbleButton
             local bubbleFormToDispose = restoreBubbleForm
+            restoreBubbleSurface = undefined
             restoreBubbleLabel = undefined
             restoreBubbleButton = undefined
             restoreBubbleForm = undefined
@@ -806,6 +813,7 @@ global MaxUltraMcpActiveClient
             ) catch ()
             try (if (bubbleLabelToDispose != undefined) do bubbleLabelToDispose.Dispose()) catch ()
             try (if (bubbleButtonToDispose != undefined) do bubbleButtonToDispose.Dispose()) catch ()
+            try (if (bubbleSurfaceToDispose != undefined) do bubbleSurfaceToDispose.Dispose()) catch ()
             restoreBubbleCloseAllowed = false
             return true
         ),
@@ -869,6 +877,7 @@ global MaxUltraMcpActiveClient
             )
             try (
                 restoreBubbleForm = dotNetObject "System.Windows.Forms.Form"
+                restoreBubbleSurface = dotNetObject "System.Windows.Forms.Panel"
                 restoreBubbleLabel = dotNetObject "System.Windows.Forms.Label"
                 restoreBubbleButton = dotNetObject "System.Windows.Forms.Button"
                 restoreBubbleForm.FormBorderStyle = (dotNetClass "System.Windows.Forms.FormBorderStyle").None
@@ -882,20 +891,24 @@ global MaxUltraMcpActiveClient
                 restoreBubbleForm.Size = dotNetObject "System.Drawing.Size" 236 64
                 local bubblePosition = loadRestoreBubblePosition()
                 restoreBubbleForm.Location = dotNetObject "System.Drawing.Point" bubblePosition.x bubblePosition.y
-                restoreBubbleForm.BackColor = themeDrawingColor #background 68 68 68
+                restoreBubbleForm.BackColor = (dotNetClass "System.Drawing.Color").Black
                 restoreBubbleForm.Text = "Max Ultra MCP"
                 restoreBubbleForm.AccessibleName = "Max Ultra MCP restore mini-panel"
+                restoreBubbleSurface.Location = dotNetObject "System.Drawing.Point" 1 1
+                restoreBubbleSurface.Size = dotNetObject "System.Drawing.Size" 234 62
+                restoreBubbleSurface.BackColor = themeDrawingColor #background 68 68 68
+                restoreBubbleSurface.AccessibleName = "Max Ultra MCP restore mini-panel surface inside a one-pixel black border"
                 restoreBubbleLabel.Text = "Max Ultra MCP"
-                restoreBubbleLabel.Location = dotNetObject "System.Drawing.Point" 8 5
+                restoreBubbleLabel.Location = dotNetObject "System.Drawing.Point" 7 4
                 restoreBubbleLabel.Size = dotNetObject "System.Drawing.Size" 220 18
-                restoreBubbleLabel.BackColor = restoreBubbleForm.BackColor
+                restoreBubbleLabel.BackColor = restoreBubbleSurface.BackColor
                 restoreBubbleLabel.ForeColor = themeDrawingColor #text 220 220 220
                 restoreBubbleLabel.TabStop = false
                 restoreBubbleLabel.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeAll
                 restoreBubbleLabel.AccessibleDescription = "Drag to move the Max Ultra MCP restore mini-panel"
                 restoreBubbleButton.Text = "Expand MCP Server"
                 restoreBubbleButton.AccessibleName = "Expand MCP Server"
-                restoreBubbleButton.Location = dotNetObject "System.Drawing.Point" 8 27
+                restoreBubbleButton.Location = dotNetObject "System.Drawing.Point" 7 26
                 restoreBubbleButton.Size = dotNetObject "System.Drawing.Size" 220 29
                 restoreBubbleButton.FlatStyle = (dotNetClass "System.Windows.Forms.FlatStyle").Flat
                 restoreBubbleButton.FlatAppearance.BorderSize = 1
@@ -909,8 +922,9 @@ global MaxUltraMcpActiveClient
                 dotNet.addEventHandler restoreBubbleLabel "MouseUp" handleRestoreBubbleMouseUp
                 dotNet.addEventHandler restoreBubbleButton "Click" handleRestoreBubbleClick
                 dotNet.addEventHandler restoreBubbleForm "FormClosing" handleRestoreBubbleFormClosing
-                restoreBubbleForm.Controls.Add restoreBubbleLabel
-                restoreBubbleForm.Controls.Add restoreBubbleButton
+                restoreBubbleSurface.Controls.Add restoreBubbleLabel
+                restoreBubbleSurface.Controls.Add restoreBubbleButton
+                restoreBubbleForm.Controls.Add restoreBubbleSurface
                 restoreBubbleForm.Show()
                 return true
             ) catch (
@@ -1165,7 +1179,7 @@ global MaxUltraMcpActiveClient
             return responseBody
         ),
 
-        fn buildSnapshotJson actionName = (
+        fn buildSceneSummaryJson actionName = (
             local versionInfo = maxVersion()
             local currentTimestamp = (dotNetClass "System.DateTime").UtcNow.ToString("o")
             local responseBody = "{\"action\":\"" + jsonEscape(actionName) + "\",\"ok\":true,\"instanceId\":\"" + jsonEscape(instanceId) + "\""
@@ -1173,6 +1187,69 @@ global MaxUltraMcpActiveClient
             responseBody += ",\"productVersion\":\"" + jsonEscape(versionInfo as string) + "\",\"mainThread\":true,\"sampledAt\":\"" + jsonEscape(currentTimestamp) + "\""
             responseBody += ",\"scene\":{\"filePath\":\"" + jsonEscape(currentSceneFilePath()) + "\",\"saveRequired\":" + jsonBoolean(isSceneSaveRequired())
             responseBody += ",\"objectCount\":" + (objects.count as string) + ",\"selectionCount\":" + (selection.count as string) + ",\"frame\":\"" + jsonEscape(sliderTime as string) + "\"}}"
+            return responseBody
+        ),
+
+        fn sceneNodeStateCounts = (
+            local hiddenCount = 0
+            local hiddenInViewportCount = 0
+            local frozenCount = 0
+            local renderableCount = 0
+            local groupHeadCount = 0
+            local groupMemberCount = 0
+            for sceneNode in objects do (
+                if (try (sceneNode.isHidden) catch (false)) do hiddenCount += 1
+                if (try (sceneNode.isHiddenInVpt) catch (false)) do hiddenInViewportCount += 1
+                if (try (sceneNode.isFrozen) catch (false)) do frozenCount += 1
+                if (try (sceneNode.renderable) catch (false)) do renderableCount += 1
+                if (try (isGroupHead sceneNode) catch (false)) do groupHeadCount += 1
+                if (try (isGroupMember sceneNode) catch (false)) do groupMemberCount += 1
+            )
+            return #(hiddenCount, hiddenInViewportCount, frozenCount, renderableCount, groupHeadCount, groupMemberCount)
+        ),
+
+        fn evaluatedGeometryCounts nodeCollection = (
+            local evaluatedNodeCount = 0
+            local failedNodeCount = 0
+            local polygonCount = 0
+            local vertexCount = 0
+            for sceneNode in nodeCollection do (
+                local topologyCounts = try (getPolygonCount sceneNode) catch (undefined)
+                if (topologyCounts != undefined and topologyCounts.count >= 2) then (
+                    polygonCount += topologyCounts[1]
+                    vertexCount += topologyCounts[2]
+                    evaluatedNodeCount += 1
+                ) else failedNodeCount += 1
+            )
+            return #(evaluatedNodeCount, failedNodeCount, polygonCount, vertexCount)
+        ),
+
+        fn buildGetInfoJson = (
+            local versionInfo = maxVersion()
+            local currentTimestamp = (dotNetClass "System.DateTime").UtcNow.ToString("o")
+            local nodeStateCounts = sceneNodeStateCounts()
+            local geometryCounts = evaluatedGeometryCounts geometry
+            local selectedGeometryNodes = for sceneNode in selection where (superClassOf sceneNode == GeometryClass) collect sceneNode
+            local selectedGeometryCounts = evaluatedGeometryCounts selectedGeometryNodes
+            local rendererClass = try ((classOf renderers.current) as string) catch ("Unknown")
+            local layerCount = try (LayerManager.count) catch (0)
+            local materialCount = try (sceneMaterials.count) catch (0)
+            local responseBody = "{\"action\":\"get_info\",\"ok\":true,\"instanceId\":\"" + jsonEscape(instanceId) + "\""
+            responseBody += ",\"pid\":" + (processId as string) + ",\"maxVersion\":\"" + (currentMaxYear() as string) + "\""
+            responseBody += ",\"productVersion\":\"" + jsonEscape(versionInfo as string) + "\",\"mainThread\":true,\"sampledAt\":\"" + jsonEscape(currentTimestamp) + "\""
+            responseBody += ",\"scene\":{\"filePath\":\"" + jsonEscape(currentSceneFilePath()) + "\",\"displayName\":\"" + jsonEscape(currentSceneDisplayName()) + "\",\"saveRequired\":" + jsonBoolean(isSceneSaveRequired())
+            responseBody += ",\"objectCount\":" + (objects.count as string) + ",\"selectionCount\":" + (selection.count as string) + ",\"frame\":\"" + jsonEscape(sliderTime as string) + "\""
+            responseBody += ",\"animation\":{\"current\":\"" + jsonEscape(sliderTime as string) + "\",\"start\":\"" + jsonEscape(animationRange.start as string) + "\",\"end\":\"" + jsonEscape(animationRange.end as string) + "\"}"
+            responseBody += ",\"statistics\":{\"objects\":{\"total\":" + (objects.count as string) + ",\"geometry\":" + (geometry.count as string) + ",\"shapes\":" + (shapes.count as string)
+            responseBody += ",\"lights\":" + (lights.count as string) + ",\"cameras\":" + (cameras.count as string) + ",\"helpers\":" + (helpers.count as string) + ",\"spaceWarps\":" + (spaceWarps.count as string) + ",\"systems\":" + (systems.count as string)
+            responseBody += ",\"selected\":" + (selection.count as string) + ",\"hidden\":" + (nodeStateCounts[1] as string) + ",\"hiddenInViewport\":" + (nodeStateCounts[2] as string) + ",\"frozen\":" + (nodeStateCounts[3] as string)
+            responseBody += ",\"renderable\":" + (nodeStateCounts[4] as string) + ",\"groupHeads\":" + (nodeStateCounts[5] as string) + ",\"groupMembers\":" + (nodeStateCounts[6] as string) + "}"
+            responseBody += ",\"geometry\":{\"nodes\":" + (geometry.count as string) + ",\"evaluatedNodes\":" + (geometryCounts[1] as string) + ",\"failedNodes\":" + (geometryCounts[2] as string)
+            responseBody += ",\"vertices\":" + (geometryCounts[4] as string) + ",\"polygons\":" + (geometryCounts[3] as string) + ",\"meshFaces\":" + (geometryCounts[3] as string) + ",\"triangles\":" + (geometryCounts[3] as string) + ",\"countingMode\":\"evaluatedMesh/getPolygonCount\"}"
+            responseBody += ",\"selection\":{\"total\":" + (selection.count as string) + ",\"geometryNodes\":" + (selectedGeometryNodes.count as string) + ",\"evaluatedNodes\":" + (selectedGeometryCounts[1] as string) + ",\"failedNodes\":" + (selectedGeometryCounts[2] as string)
+            responseBody += ",\"vertices\":" + (selectedGeometryCounts[4] as string) + ",\"polygons\":" + (selectedGeometryCounts[3] as string) + ",\"triangles\":" + (selectedGeometryCounts[3] as string) + "}"
+            responseBody += ",\"materials\":" + (materialCount as string) + ",\"layers\":" + (layerCount as string) + "}"
+            responseBody += ",\"render\":{\"renderer\":\"" + jsonEscape(rendererClass) + "\",\"width\":" + (renderWidth as string) + ",\"height\":" + (renderHeight as string) + "}}}"
             return responseBody
         ),
 
@@ -1429,15 +1506,19 @@ global MaxUltraMcpActiveClient
                 "logs": return sendBridgeResponse requestId true (buildActivityLogJson())
                 "health": (
                     sendSceneStatus()
-                    return sendBridgeResponse requestId true (buildSnapshotJson actionName)
+                    return sendBridgeResponse requestId true (buildSceneSummaryJson actionName)
                 )
-                "snapshot": (
+                "scene_summary": (
                     sendSceneStatus()
-                    return sendBridgeResponse requestId true (buildSnapshotJson actionName)
+                    return sendBridgeResponse requestId true (buildSceneSummaryJson actionName)
+                )
+                "get_info": (
+                    sendSceneStatus()
+                    return sendBridgeResponse requestId true (buildGetInfoJson())
                 )
                 "smoke": (
                     sendSceneStatus()
-                    return sendBridgeResponse requestId true (buildSnapshotJson actionName)
+                    return sendBridgeResponse requestId true (buildSceneSummaryJson actionName)
                 )
                 "execute": return handleExecuteRequest requestId actionPayload
                 "panel": return handlePanelAction requestId actionPayload
