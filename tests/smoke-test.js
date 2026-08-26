@@ -75,6 +75,9 @@ async function runBatDetachedShutdownTest() {
   const port = await reserveLoopbackPort();
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-mcp-owner-"));
   const ownershipFile = path.join(temporaryDirectory, "max-ultra-mcp-owned-" + String(port) + ".json");
+  const tokenFile = path.join(temporaryDirectory, "control-token");
+  const previousTokenFile = process.env.MAX_ULTRA_MCP_TOKEN_FILE;
+  process.env.MAX_ULTRA_MCP_TOKEN_FILE = tokenFile;
   const ownerToken = "smoke-" + process.pid + "-" + Date.now();
   const launcherPath = path.join(PROJECT_ROOT, "scripts", "start-server.bat");
   const helperPath = path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat");
@@ -154,6 +157,8 @@ async function runBatDetachedShutdownTest() {
   } finally {
     if (controlClient) controlClient.close();
     if (child.exitCode === null) child.kill();
+    if (previousTokenFile === undefined) delete process.env.MAX_ULTRA_MCP_TOKEN_FILE;
+    else process.env.MAX_ULTRA_MCP_TOKEN_FILE = previousTokenFile;
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   }
 }
@@ -687,6 +692,8 @@ async function runSmokeTest() {
     assert.match(agentIntegrationSource, /function Test-StdioHostRestartRequired/);
     assert.match(agentIntegrationSource, /'restart_required'/);
     assert.match(fs.readFileSync(path.join(PROJECT_ROOT, "core", "bridge-control-client.js"), "utf8"), /const currentControlToken = readControlToken\(\)/);
+    assert.match(localAuthSource, /process\.env\.LOCALAPPDATA/);
+    assert.match(localAuthSource, /"3DGROUND", "MaxUltraMCP", "runtime", "state", "control-token"/);
     assert.match(localAuthSource, /path\.resolve\(__dirname, "\.\.", "runtime", "state", "control-token"\)/);
     assert.match(maxPkgFilesSource, /runtime\/win-x64\/node\.exe/);
     assert.match(maxPkgFilesSource, /core\/job-registry\.js/);
@@ -1002,9 +1009,13 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /startTransport allowServerLaunch: false/);
     assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_owned"[\s\S]*requestPayload: probeReply\.responsePayload[\s\S]*controlToken: workerControlToken/);
     assert.match(bootstrapSource, /workerWaitForEndpointClose/);
+    const endpointCloseBody = bootstrapSource.slice(bootstrapSource.indexOf("fn workerWaitForEndpointClose"), bootstrapSource.indexOf("fn workerHostIsLoopback"));
+    assert.doesNotMatch(endpointCloseBody, /controlState == #occupied\) do return/);
     assert.match(bootstrapSource, /restartExistingServer: restartServerForReload/);
     assert.match(bootstrapSource, /MAX_ULTRA_MCP_TOKEN_FILE/);
-    assert.match(bootstrapSource, /runtime\\state\\control-token/);
+    assert.match(bootstrapSource, /LOCALAPPDATA/);
+    assert.match(bootstrapSource, /3DGROUND\\MaxUltraMCP\\runtime\\state\\control-token/);
+    assert.match(bootstrapSource, /System\.IO\.File"\)\.Copy legacyTokenFilePath controlTokenFilePath true/);
     assert.doesNotMatch(bootstrapSource, /workerRequestOwnedShutdown|workerWaitForOwnedServerExit|ownedServerProcess\.Kill/);
     assert.match(bootstrapSource, /workerArguments\.Item\[12\]/);
     assert.match(bootstrapSource, /workerArguments\.Item\[13\]/);

@@ -13,6 +13,8 @@
 - Fixed: Release preparation can be rerun safely after a verification failure without duplicating its changelog section.
 - Fixed: UI Automation safely normalizes non-finite Qt element bounds instead of failing during window-tree inspection.
 - Fixed: MaxPkg launches resolve the active bootstrap from the installed package entry instead of a previously loaded source file.
+- Fixed: Control authentication now uses installation-stable per-user state so MaxPkg updates can restart the shared daemon safely.
+- Fixed: Verified daemon replacement tolerates transient probe responses while the previous listener is closing.
 
 ## 1.1.0 - 2026-08-26
 

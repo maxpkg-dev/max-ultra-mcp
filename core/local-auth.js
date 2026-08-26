@@ -1,4 +1,4 @@
-/* Local per-install control token management. */
+/* Local installation-stable per-user control token management. */
 
 "use strict";
 
@@ -8,6 +8,9 @@ const { randomBytes, timingSafeEqual } = require("node:crypto");
 
 function tokenFilePath() {
   if (process.env.MAX_ULTRA_MCP_TOKEN_FILE) return path.resolve(process.env.MAX_ULTRA_MCP_TOKEN_FILE);
+  if (process.env.LOCALAPPDATA) {
+    return path.resolve(process.env.LOCALAPPDATA, "3DGROUND", "MaxUltraMCP", "runtime", "state", "control-token");
+  }
   return path.resolve(__dirname, "..", "runtime", "state", "control-token");
 }
 

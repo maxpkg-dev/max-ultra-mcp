@@ -148,7 +148,7 @@ The first command checks Windows PowerShell 5.1. The second checks optional Powe
 - `MAX_ULTRA_MCP_PORT` — listener port; defaults to `47635`.
 - `MAX_ULTRA_MCP_TIMEOUT_MS` — request timeout; defaults to `5000`.
 - `MAX_ULTRA_MCP_ROOT` — optional project root when the first-start MaxScript is copied elsewhere.
-- `MAX_ULTRA_MCP_TOKEN_FILE` — optional absolute control-token file override; the default is `runtime\state\control-token` below the executing package root.
+- `MAX_ULTRA_MCP_TOKEN_FILE` — optional absolute control-token file override; the default is the stable per-user `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\runtime\state\control-token`.
 
 Automatic launch/recovery is loopback-only.
 ## Repository layout

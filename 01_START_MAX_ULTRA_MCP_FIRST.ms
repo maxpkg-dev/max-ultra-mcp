@@ -348,8 +348,23 @@ global MaxUltraMcpActiveClient
             local configuredTokenFile = environmentClass.GetEnvironmentVariable "MAX_ULTRA_MCP_TOKEN_FILE"
             if (configuredTokenFile != undefined and configuredTokenFile != "") then (
                 try (controlTokenFilePath = (dotNetClass "System.IO.Path").GetFullPath configuredTokenFile) catch (controlTokenFilePath = "")
-            ) else if (serverWorkingDirectory != "") do (
-                try (controlTokenFilePath = (dotNetClass "System.IO.Path").GetFullPath (serverWorkingDirectory + @"..\runtime\state\control-token")) catch (controlTokenFilePath = "")
+            ) else (
+                local legacyTokenFilePath = ""
+                if (serverWorkingDirectory != "") do (
+                    try (legacyTokenFilePath = (dotNetClass "System.IO.Path").GetFullPath (serverWorkingDirectory + @"..\runtime\state\control-token")) catch (legacyTokenFilePath = "")
+                )
+                local localAppDataDirectory = environmentClass.GetEnvironmentVariable "LOCALAPPDATA"
+                if (localAppDataDirectory != undefined and localAppDataDirectory != "") then (
+                    try (controlTokenFilePath = (dotNetClass "System.IO.Path").GetFullPath ((ensureSlash localAppDataDirectory) + @"3DGROUND\MaxUltraMCP\runtime\state\control-token")) catch (controlTokenFilePath = "")
+                ) else (
+                    controlTokenFilePath = legacyTokenFilePath
+                )
+                if (controlTokenFilePath != "" and legacyTokenFilePath != "" and controlTokenFilePath != legacyTokenFilePath and doesFileExist legacyTokenFilePath) do (
+                    try (
+                        (dotNetClass "System.IO.Directory").CreateDirectory (getFilenamePath controlTokenFilePath)
+                        (dotNetClass "System.IO.File").Copy legacyTokenFilePath controlTokenFilePath true
+                    ) catch ()
+                )
             )
             return serverLauncherPath != ""
         ),
@@ -2762,7 +2777,6 @@ global MaxUltraMcpActiveClient
                 (dotNetClass "System.Threading.Thread").Sleep closeRetryDelay
                 closeProbe = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
                 if (closeProbe.controlState == #closed) do return closeProbe
-                if (closeProbe.controlState == #occupied) do return closeProbe
             )
             return closeProbe
         ),
