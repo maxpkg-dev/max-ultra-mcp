@@ -104,6 +104,12 @@ The source image is interpreted by the model. Raw image bytes are not passed to 
 
 Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
+## Optional agent skill
+
+The release includes [`skills/max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md), a portable optional skill for agents that support file-based skills. It teaches instance selection, semantic-tool priority, verification, renderer/UI boundaries, and reviewed MaxScript escape-hatch patterns without duplicating the generated MCP tool catalog.
+
+The MCP server remains fully usable without the skill. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
+
 ## Security model
 
 - Network listeners bind to `127.0.0.1` only.
@@ -137,12 +143,15 @@ Before a production release, also test real 3ds Max versions and installed Coron
 - [Experimental single-executable packaging](docs/SEA.md)
 - [MaxPkg packaging and lifecycle](docs/MAXPKG.md)
 - [Instructions for AI coding agents](AGENTS.md)
+- [Optional Max Ultra MCP agent skill](skills/max-ultra-mcp/SKILL.md)
 
 ## Repository layout
 
 ```text
 01_START_MAX_ULTRA_MCP_FIRST.ms   user-facing 3ds Max bootstrap
-core/                             MCP host, daemon, tool runtime, tests
+core/                             MCP host, daemon, and production tool runtime
+tests/                            automated suites, helpers, and real-Max fixtures
+skills/                           optional agent skills and focused references
 scripts/                          launch, installation, packaging, UI helpers
 examples/                         runnable and acceptance examples
 docs/                             architecture and product specifications

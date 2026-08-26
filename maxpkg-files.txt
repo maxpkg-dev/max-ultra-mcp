@@ -17,6 +17,10 @@ core/stdio-host.js
 core/tool-catalog.js
 core/tool-runtime.js
 core/windows-ui.js
+skills/max-ultra-mcp/SKILL.md
+skills/max-ultra-mcp/references/maxscript.md
+skills/max-ultra-mcp/references/workflows.md
+skills/max-ultra-mcp/references/capabilities-and-boundaries.md
 scripts/agent-integration.ps1
 scripts/max-ui-automation.ps1
 scripts/maxpkg-uninstall.ps1
@@ -36,5 +40,5 @@ examples/house-plan-from-image/expected-result.png
 examples/house-plan-from-image/expected-plan.json
 examples/house-plan-from-image/PROMPT.md
 examples/house-plan-from-image/README.md
-examples/ui-automation-rollout/test-ui-rollout.ms
-examples/ui-automation-rollout/README.md
+tests/fixtures/ui-automation-rollout/test-ui-rollout.ms
+tests/fixtures/ui-automation-rollout/README.md

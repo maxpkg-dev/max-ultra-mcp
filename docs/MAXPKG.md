@@ -1,6 +1,6 @@
 # MaxPkg packaging
 
-Max Ultra MCP is adapted for the standard [MaxPkg Packager](https://github.com/maxpkg-dev/max-dev-tool) workflow. The package keeps `01_START_MAX_ULTRA_MCP_FIRST.ms` as its single user-facing entry file and includes the portable Node.js runtime, MCP host, daemon, integration helper, runtime documentation, and focused examples.
+Max Ultra MCP is adapted for the standard [MaxPkg Packager](https://github.com/maxpkg-dev/max-dev-tool) workflow. The package keeps `01_START_MAX_ULTRA_MCP_FIRST.ms` as its single user-facing entry file and includes the portable Node.js runtime, MCP host, daemon, integration helper, optional agent skill, runtime documentation, and focused examples.
 
 ## Prepare the project
 
@@ -40,6 +40,7 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 ## Maintainer files
 
 - `maxpkg-files.txt` is the reviewed production file allowlist.
+- `skills\max-ultra-mcp` is the optional file-based agent skill shipped with the package; MCP operation does not depend on installing it.
 - `assets/max-ultra-mcp.svg` is the square package icon source.
 - `scripts/prepare-maxpkg.ps1` creates machine-local packager INI files with absolute source paths.
 - `scripts/sync-maxpkg-tooling.ps1` provides reproducible MaxPkg tooling.

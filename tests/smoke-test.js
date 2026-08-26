@@ -13,9 +13,10 @@ const path = require("node:path");
 const net = require("node:net");
 const os = require("node:os");
 const { spawn } = require("node:child_process");
-const { MaxBridge, handleRpcMessage, mcpTools } = require("./server");
-const { MockMaxClient } = require("./mock-max-client");
-const { BridgeControlClient } = require("./bridge-control-client");
+const { MaxBridge, handleRpcMessage, mcpTools } = require("../core/server");
+const { MockMaxClient } = require("./helpers/mock-max-client");
+const { BridgeControlClient } = require("../core/bridge-control-client");
+const { getMcpTools } = require("../core/tool-catalog");
 const { MCP_TITLE_OBJECT_NAME, MCP_TITLE_TEXT, createSplineTextExample } = require("../examples/example-create-spline-text/example-create-spline-text");
 const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-test-box/example-create-test-box");
 const { healthCheckExample } = require("../examples/example-health-check/example-health-check");
@@ -445,7 +446,7 @@ async function runSmokeTest() {
       ["examples/example-viewport-screenshot.bat", "examples\\example-viewport-screenshot\\example-viewport-screenshot.js"],
       ["scripts/start-server.bat", "core\\server.js"],
       ["scripts/start-server.ps1", "core\\server.js"],
-      ["scripts/run-smoke.ps1", "core\\smoke-test.js"],
+      ["scripts/run-smoke.ps1", "tests\\smoke-test.js"],
     ];
     for (const [relativeLauncherPath, expectedScriptPath] of thinNodeLaunchers) {
       const launcherSource = fs.readFileSync(path.join(PROJECT_ROOT, ...relativeLauncherPath.split("/")), "utf8");
@@ -469,9 +470,22 @@ async function runSmokeTest() {
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
     const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "max-ultra-mcp.svg"), "utf8");
+    const skillRoot = path.join(PROJECT_ROOT, "skills", "max-ultra-mcp");
+    const skillSource = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
+    const skillReferenceRoot = path.join(skillRoot, "references");
+    const skillReferenceNames = fs.readdirSync(skillReferenceRoot).filter((entryName) => entryName.endsWith(".md")).sort();
+    const linkedSkillReferences = [...skillSource.matchAll(/\]\(references\/([a-z0-9-]+\.md)\)/g)].map((entry) => entry[1]).sort();
+    assert.deepEqual(linkedSkillReferences, skillReferenceNames, "Every skill reference must be linked exactly once from SKILL.md");
+    assert.match(skillSource, /^---\r?\nname: max-ultra-mcp\r?\ndescription: .+\r?\n---\r?\n/);
+    const skillDocumentation = [skillSource, ...skillReferenceNames.map((entryName) => fs.readFileSync(path.join(skillReferenceRoot, entryName), "utf8"))].join("\n");
+    const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
+    const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
+    for (const documentedToolName of documentedToolNames) {
+      assert.equal(implementedToolNames.has(documentedToolName), true, `Skill references unavailable tool ${documentedToolName}`);
+    }
     assertBalancedMaxScript(bootstrapSource);
     assertBalancedMaxScript(maxPkgUninstallHookSource);
-    const uiRolloutSource = fs.readFileSync(path.join(PROJECT_ROOT, "examples", "ui-automation-rollout", "test-ui-rollout.ms"), "utf8");
+    const uiRolloutSource = fs.readFileSync(path.join(PROJECT_ROOT, "tests", "fixtures", "ui-automation-rollout", "test-ui-rollout.ms"), "utf8");
     assertBalancedMaxScript(uiRolloutSource);
     assert.match(uiRolloutSource, /Max Ultra MCP UI Automation Test/);
     assert.match(uiRolloutSource, /button applyButton "Apply with MCP"/);
@@ -579,6 +593,8 @@ async function runSmokeTest() {
     assert.match(fs.readFileSync(path.join(PROJECT_ROOT, "core", "bridge-control-client.js"), "utf8"), /const currentControlToken = readControlToken\(\)/);
     assert.match(localAuthSource, /path\.resolve\(__dirname, "\.\.", "runtime", "state", "control-token"\)/);
     assert.match(maxPkgFilesSource, /runtime\/win-x64\/node\.exe/);
+    assert.match(maxPkgFilesSource, /skills\/max-ultra-mcp\/SKILL\.md/);
+    for (const skillReferenceName of skillReferenceNames) assert.ok(maxPkgFilesSource.includes(`skills/max-ultra-mcp/references/${skillReferenceName}`));
     assert.doesNotMatch(maxPkgFilesSource, /smoke-test|mock-max-client|runtime\/state/);
     assert.match(maxPkgPrepareSource, /packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'/);
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);

@@ -106,6 +106,8 @@ The normal packaged-release flow starts inside 3ds Max:
 The onboarding status/install work runs in a hidden Windows PowerShell 5.1 child process. The Max UI timer only polls process completion, so CLI discovery and registration do not block the 3ds Max main thread. It resolves known per-user Codex and Claude Code CLI locations in addition to `PATH`, which handles a 3ds Max process started before an agent was installed or updated. `scripts\agent-integration.ps1` writes a short per-run INI result below the existing per-user `MaxUltraMCP` state directory. It contains status labels and local runtime paths, never raw CLI output, environment dumps, access tokens, or client configuration contents.
 If a configured STDIO host started before the installed MCP runtime was updated, onboarding reports **Restart required** in amber. Restart or reconnect the AI client once; restarting the 3ds Max bridge does not reload a stale client-owned STDIO process. Control clients reload the package token file before subsequent requests, so later token-file rotation does not require another code change.
 
+The MaxPkg release also contains the optional file-based skill at `skills\max-ultra-mcp\SKILL.md`. MCP registration does not silently copy skill files into an AI client profile. Clients that support skills can load or install that folder separately; clients without skill support continue to use the complete MCP schemas and initialization instructions.
+
 Supported automatic targets:
 
 - **ChatGPT Desktop / Codex** through `codex mcp add`. These OpenAI clients share the same local Codex MCP configuration.
@@ -152,7 +154,9 @@ Automatic launch/recovery is loopback-only.
 ```text
 01_START_MAX_ULTRA_MCP_FIRST.ms   one user-facing MaxScript entry point
 README.md                         concise start page and documentation links
-core/                             server, protocol client, mock, smoke, package metadata
+core/                             production server, protocol, tools, and package metadata
+tests/                            automated suites, test helpers, and real-Max fixtures
+skills/                           optional agent skills and focused references
 scripts/                          launchers, shared Node.js runner, and detached owned-server shutdown helper
 examples/                         BAT-only launcher root plus same-named implementation folders
 docs/README.md                    detailed documentation
@@ -171,7 +175,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-smoke.ps1
 Or with Node 22+:
 
 ```powershell
-node .\core\smoke-test.js
+node .\tests\smoke-test.js
 ```
 
 The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 52–63 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.

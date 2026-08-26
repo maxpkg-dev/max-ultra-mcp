@@ -3,12 +3,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { MaxBridge } = require("./server");
-const { MockMaxClient } = require("./mock-max-client");
-const { BridgeControlClient } = require("./bridge-control-client");
-const { StdioHost } = require("./stdio-host");
-const { getMcpTools } = require("./tool-catalog");
-const { generateFloorPlanScript, validateFloorPlan } = require("./floor-plan");
+const { MaxBridge } = require("../core/server");
+const { MockMaxClient } = require("./helpers/mock-max-client");
+const { BridgeControlClient } = require("../core/bridge-control-client");
+const { StdioHost } = require("../core/stdio-host");
+const { getMcpTools } = require("../core/tool-catalog");
+const { generateFloorPlanScript, validateFloorPlan } = require("../core/floor-plan");
 const EXAMPLE_PLAN = require("../examples/house-plan-from-image/expected-plan.json");
 
 function assertBalancedGeneratedMaxScript(source) {

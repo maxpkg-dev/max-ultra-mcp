@@ -9,6 +9,9 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
+const PROJECT_ROOT = path.resolve(__dirname, "..");
+const CORE_ROOT = path.join(PROJECT_ROOT, "core");
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -57,19 +60,19 @@ async function run() {
   let hostError = "";
   const hostLines = [];
   try {
-    daemon = spawn(process.execPath, [path.join(__dirname, "server.js"), "--daemon"], { env: environment, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    daemon = spawn(process.execPath, [path.join(CORE_ROOT, "server.js"), "--daemon"], { env: environment, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     daemon.stdout.setEncoding("utf8");
     daemon.stderr.setEncoding("utf8");
     daemon.stdout.on("data", (chunk) => { daemonOutput += chunk; });
     daemon.stderr.on("data", (chunk) => { daemonError += chunk; });
     await waitForText(() => daemonError, /RUNNING/);
 
-    mock = spawn(process.execPath, [path.join(__dirname, "mock-max-client.js"), "2027"], { env: environment, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    mock = spawn(process.execPath, [path.join(__dirname, "helpers", "mock-max-client.js"), "2027"], { env: environment, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
     mock.stderr.setEncoding("utf8");
     mock.stderr.on("data", (chunk) => { mockError += chunk; });
     await waitForText(() => daemonError, /CONNECTED/);
 
-    host = spawn(process.execPath, [path.join(__dirname, "server.js"), "--stdio"], { env: environment, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    host = spawn(process.execPath, [path.join(CORE_ROOT, "server.js"), "--stdio"], { env: environment, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     host.stdout.setEncoding("utf8");
     host.stderr.setEncoding("utf8");
     let hostBuffer = "";
@@ -100,7 +103,7 @@ async function run() {
     for (const line of hostLines) assert.doesNotThrow(() => JSON.parse(line));
 
     process.env.MAX_ULTRA_MCP_TOKEN_FILE = tokenFile;
-    const { BridgeControlClient } = require("./bridge-control-client");
+    const { BridgeControlClient } = require("../core/bridge-control-client");
     const unauthenticated = new BridgeControlClient({ port, timeoutMs: 5000, controlToken: "0".repeat(64) });
     await unauthenticated.connect();
     await assert.rejects(unauthenticated.callTool("max_list_instances"), /authentication failed/i);

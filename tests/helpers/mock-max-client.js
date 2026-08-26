@@ -9,7 +9,7 @@
 
 const fs = require("node:fs");
 const net = require("node:net");
-const { decodeField, encodeField } = require("./server");
+const { decodeField, encodeField } = require("../../core/server");
 
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",

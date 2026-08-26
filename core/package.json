@@ -8,10 +8,10 @@
     "start": "node server.js --stdio",
     "daemon": "node server.js --daemon",
     "stdio": "node server.js --stdio",
-    "test": "node smoke-test.js && node v1-smoke-test.js && node cli-integration-test.js",
-    "test:v1": "node v1-smoke-test.js",
-    "mock:2022": "node mock-max-client.js 2022",
-    "mock:2027": "node mock-max-client.js 2027",
+    "test": "node ../tests/smoke-test.js && node ../tests/v1-smoke-test.js && node ../tests/cli-integration-test.js",
+    "test:v1": "node ../tests/v1-smoke-test.js",
+    "mock:2022": "node ../tests/helpers/mock-max-client.js 2022",
+    "mock:2027": "node ../tests/helpers/mock-max-client.js 2027",
     "example:box": "node ../examples/example-create-test-box/example-create-test-box.js"
   },
   "engines": {

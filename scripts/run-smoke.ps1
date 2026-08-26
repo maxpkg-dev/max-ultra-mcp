@@ -3,10 +3,10 @@
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
 
-& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\smoke-test.js' @args
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\smoke-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\v1-smoke-test.js' @args
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\v1-smoke-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'core\cli-integration-test.js' @args
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\cli-integration-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 exit 0
