@@ -8,10 +8,10 @@ param([switch]$Force)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$revision = '93ceb0e018b44ca53546cf2c274b196160495699'
+$revision = '561d0a882ad42eb29dcc04b7f950d02c33d09cc4'
 $baseUri = "https://raw.githubusercontent.com/maxpkg-dev/max-dev-tool/$revision"
 $toolFiles = [ordered]@{
-    'maxpkg-packager.ms' = '0150877445B22EAEFAFD5E299D96BA57430FE572C7DD94C46B8C9BF78293460B'
+    'maxpkg-packager.ms' = '104756885DACE63103624F7B89EA86E2FFC3FCE7CCA85DB1120DD7D3C9FB364C'
     '_install.ms' = '237663E6AE926A54605F5B0B52F7C9368903445DF21A642E001C2EFD7D0C883D'
     '_uninstall.ms' = 'C1082A7B3467EF0DD627B5722D54CB726028E317640821F5542528064D05A9CB'
 }

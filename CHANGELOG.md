@@ -15,6 +15,7 @@
 - Fixed: MaxPkg launches resolve the active bootstrap from the installed package entry instead of a previously loaded source file.
 - Fixed: Control authentication now uses installation-stable per-user state so MaxPkg updates can restart the shared daemon safely.
 - Fixed: Verified daemon replacement tolerates transient probe responses while the previous listener is closing.
+- Changed: Release builds now pin the official MaxPkg Packager 1.1.7 revision and verify its exact SHA-256.
 
 ## 1.1.0 - 2026-08-26
 

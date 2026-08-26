@@ -43,7 +43,7 @@ The launcher delegates to `scripts\publish-github-release.ps1`. It requires an a
 
 The three compared sources are `version.ini` (cross-checked against `core\package.json`), the version parsed from the newest MZP filename below `dist`, and stable GitHub Release tags.
 
-`scripts/sync-maxpkg-tooling.ps1` downloads the MaxPkg Packager and standard hooks from pinned revision `93ceb0e018b44ca53546cf2c274b196160495699`. Every downloaded file is checked against a committed SHA-256 value before it replaces a local tooling file.
+`scripts/sync-maxpkg-tooling.ps1` downloads the MaxPkg Packager and standard hooks from pinned revision `561d0a882ad42eb29dcc04b7f950d02c33d09cc4`. Every downloaded file is checked against a committed SHA-256 value before it replaces a local tooling file.
 
 Pinned `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` live in the project root and are source controlled. Generated `maxpkg-packager.ini`, `maxpkg-changelog.ini`, `maxpkg-icon.svg`, and build output are machine-local release artifacts and are not committed.
 

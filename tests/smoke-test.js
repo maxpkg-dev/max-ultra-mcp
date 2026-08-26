@@ -748,7 +748,7 @@ async function runSmokeTest() {
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);
     assert.match(maxPkgPrepareSource, /compileEntry=false/);
     assert.match(maxPkgPrepareSource, /customUninstallScript=/);
-    assert.match(maxPkgSyncSource, /93ceb0e018b44ca53546cf2c274b196160495699/);
+    assert.match(maxPkgSyncSource, /561d0a882ad42eb29dcc04b7f950d02c33d09cc4/);
     assert.match(maxPkgSyncSource, /Get-FileHash -LiteralPath \$temporaryPath -Algorithm SHA256/);
     assert.match(maxPkgUninstallSource, /function Get-PackageOwnedNodeProcesses/);
     assert.match(maxPkgUninstallSource, /function Stop-PackageOwnedNodeProcess/);

@@ -125,5 +125,5 @@ Before declaring migration complete, confirm:
 
 Official source material:
 
-- [MaxPkg Adaptation Prompt](https://github.com/maxpkg-dev/max-dev-tool/blob/93ceb0e018b44ca53546cf2c274b196160495699/maxpkg-adaptation-prompt.md)
-- [Recommended MaxScript Coding Rules](https://github.com/maxpkg-dev/max-dev-tool/blob/93ceb0e018b44ca53546cf2c274b196160495699/code-rules.md)
+- [MaxPkg Adaptation Prompt](https://github.com/maxpkg-dev/max-dev-tool/blob/561d0a882ad42eb29dcc04b7f950d02c33d09cc4/maxpkg-adaptation-prompt.md)
+- [Recommended MaxScript Coding Rules](https://github.com/maxpkg-dev/max-dev-tool/blob/561d0a882ad42eb29dcc04b7f950d02c33d09cc4/code-rules.md)
