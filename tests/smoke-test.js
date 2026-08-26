@@ -529,6 +529,13 @@ async function runSmokeTest() {
     assert.match(maxPkgUpstreamSkillSource, /toolingFiles = @\('maxpkg-packager\.ms', '_install\.ms', '_uninstall\.ms'\)/);
     assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/scripts\/get-maxpkg-upstream\.ps1/);
+    const generalSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-mcp")];
+    assert.match(generalSkillDocumentation, /references\/code-rules\.md/);
+    assert.match(generalSkillDocumentation, /Define every helper before/i);
+    assert.match(generalSkillDocumentation, /explicit `return`/i);
+    assert.match(generalSkillDocumentation, /enableAccelerators/);
+    assert.match(generalSkillDocumentation, /never bind the same event repeatedly/i);
+    assert.match(maxPkgFilesSource, /skills\/max-ultra-mcp\/references\/code-rules\.md/);
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {

@@ -91,14 +91,16 @@ Do not write user identity, local paths, machine names, customer data, or other 
 
 Create and save a script file only when the user explicitly asks for a reusable artifact or requests later execution. A one-off operation should normally remain a reviewed `max_run_script` call.
 
-1. Agree on the exact `.ms` destination. Do not author plain source with an `.mse` extension.
-2. Inspect an existing destination before replacement. Default to refusing overwrite.
-3. Prefer the AI client's normal filesystem tools to write UTF-8 source. This keeps file creation separate from scene execution and makes the exact diff reviewable.
-4. When no client filesystem tool is available, use one reviewed `max_run_script` FileStream writer with `createFile ... encoding:#utf8 writeBOM:false`. Escape every embedded string, close the stream on success and failure, and verify that the file exists.
-5. Keep the script self-contained. Avoid globals, startup registration, callbacks, timers, persistent rollouts, external downloads, and environment discovery unless the user explicitly requests them.
-6. Show or summarize the saved path, purpose, parameters, scene effects, and overwrite decision before execution.
-7. Execute an approved `.ms` or `.mse` with `max_run_script_file`; use a bounded timeout and inspect the returned value or exception.
-8. Verify resulting scene state and capture the viewport when visual changes were expected. Save the scene only under a separate explicit request.
+1. Read [code-rules.md](code-rules.md) completely. Inspect and follow any stricter target-project `AGENTS.md`, `.agents/coding-rules.md`, or `code-rules.md` before writing source.
+2. Agree on the exact `.ms` destination. Do not author plain source with an `.mse` extension.
+3. Inspect an existing destination before replacement. Default to refusing overwrite.
+4. Prefer the AI client's normal filesystem tools to write UTF-8 source. This keeps file creation separate from scene execution and makes the exact diff reviewable.
+5. When no client filesystem tool is available, use one reviewed `max_run_script` FileStream writer with `createFile ... encoding:#utf8 writeBOM:false`. Escape every embedded string, close the stream on success and failure, and verify that the file exists.
+6. Apply the coding-rules review before execution: safe identifiers, helper-before-caller order, explicit returns, bounded loops, dynamic paths, actionable errors, and stable .NET event binding.
+7. Keep the script self-contained. Avoid globals, startup registration, callbacks, timers, persistent rollouts, external downloads, and environment discovery unless the user explicitly requests them.
+8. Show or summarize the saved path, purpose, parameters, scene effects, and overwrite decision before execution.
+9. Execute an approved `.ms` or `.mse` with `max_run_script_file`; use a bounded timeout and inspect the returned value or exception.
+10. Verify resulting scene state and capture the viewport when visual changes were expected. Save the scene only under a separate explicit request.
 
 If the script opens a rollout, continue with the Script rollout and UI Automation workflow in [workflows.md](workflows.md). Creating a script does not authorize installing it into startup folders, registering a MacroScript, running it immediately, deleting it afterward, or adding it to the Max Ultra MCP repository.
 

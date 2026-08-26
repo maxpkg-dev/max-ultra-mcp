@@ -34,6 +34,7 @@ Never generate MaxScript merely to recreate an available semantic tool. Never us
 
 ## Conditional references
 
+- Read [references/code-rules.md](references/code-rules.md) completely before creating or editing a persistent MaxScript source file, rollout, MacroScript, callback, generated script, or reusable `max_run_script` body.
 - Read [references/maxscript.md](references/maxscript.md) before authoring MaxScript for `max_run_script` or `max_execute`.
 - Read [references/polygon-modeling.md](references/polygon-modeling.md) when synthesizing custom polygon topology from dimensions, a reference image, or a modeling request.
 - Read [references/scene-files-and-scripts.md](references/scene-files-and-scripts.md) before creating, opening, saving, merging, or resetting scenes; managing XRefs or File Properties; or creating a persistent script file.

@@ -22,6 +22,7 @@ core/tool-catalog.js
 core/tool-runtime.js
 core/windows-ui.js
 skills/max-ultra-mcp/SKILL.md
+skills/max-ultra-mcp/references/code-rules.md
 skills/max-ultra-mcp/references/polygon-modeling.md
 skills/max-ultra-mcp/references/maxscript.md
 skills/max-ultra-mcp/references/scene-files-and-scripts.md

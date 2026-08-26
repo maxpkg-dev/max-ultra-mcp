@@ -129,6 +129,8 @@ The release includes seven portable file-based skills: [`max-ultra-mcp`](skills/
 
 The MaxPkg skill resolves the current official repository commit at execution time, reads its prompts directly from GitHub, and prepares every adapted project with the matching original `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms`. Both standard hooks are mandatory in the stricter Max Ultra workflow.
 
+The general skill loads its packaged MaxScript code rules before creating or editing reusable scripts. Target-project rules take precedence when they are stricter.
+
 The MCP server remains fully usable without these skills. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
 
 ## Security model
