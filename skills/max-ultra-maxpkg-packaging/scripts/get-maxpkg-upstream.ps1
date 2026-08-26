@@ -1,5 +1,5 @@
 # Fetches the current official MaxPkg guidance and optionally prepares a project with its tooling.
-# The prompt and MaxScript contents are downloaded from the exact resolved GitHub commit.
+# The guidance, prompts, API documentation, and MaxScript contents are downloaded from the exact resolved GitHub commit.
 # Copyright (c) 2026 Lukianenko Vasyl
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
@@ -25,6 +25,7 @@ $httpHeaders = @{
 $requiredFiles = @(
     'README.md',
     'code-rules.md',
+    'maxpkg-api.md',
     'maxpkg-adaptation-prompt.md',
     'maxpkg-full-onboarding-prompt.md',
     'maxpkg-packager.ms',
@@ -125,6 +126,7 @@ $result = [ordered]@{
     fetchRoot = $fetchRoot
     readmePath = (Join-Path $fetchRoot 'README.md')
     codingRulesPath = (Join-Path $fetchRoot 'code-rules.md')
+    apiDocumentationPath = (Join-Path $fetchRoot 'maxpkg-api.md')
     adaptationPromptPath = (Join-Path $fetchRoot 'maxpkg-adaptation-prompt.md')
     fullOnboardingPromptPath = (Join-Path $fetchRoot 'maxpkg-full-onboarding-prompt.md')
     selectedPrompt = $Prompt

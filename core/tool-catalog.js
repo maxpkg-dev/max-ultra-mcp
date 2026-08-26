@@ -148,7 +148,7 @@ const tools = [
   tool("max_render_get_result", "Return a completed production render as an MCP image.", schema({ jobId: { type: "string", minLength: 1 } }, ["jobId"]), readOnly),
 
   tool("max_execute", "Execute unrestricted MaxScript. Prefer semantic tools when available.", schema({ script: { type: "string", minLength: 1 }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, ["script"]), openWrite),
-  tool("max_run_script", "Execute MaxScript text and return its value and type.", schema({ script: { type: "string", minLength: 1 }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, ["script"]), openWrite),
+  tool("max_run_script", "Execute MaxScript text and return its value, type, character count, and bounded truncation status up to 500,000 characters.", schema({ script: { type: "string", minLength: 1 }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, ["script"]), openWrite),
   tool("max_run_script_file", "Execute a local .ms or .mse file inside 3ds Max.", schema({ filePath: { type: "string", minLength: 1 }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, ["filePath"]), openWrite),
   tool("max_run_macro", "Run a registered MacroScript by category and name.", schema({ category: { type: "string", minLength: 1 }, name: { type: "string", minLength: 1 } }, ["category", "name"]), openWrite),
   tool("max_run_action", "Run a 3ds Max Action Table command.", schema({ tableId: { type: "integer" }, actionId: { type: ["integer", "string"] } }, ["tableId", "actionId"]), openWrite),

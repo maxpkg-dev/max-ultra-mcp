@@ -1,6 +1,6 @@
 {
   "name": "max-ultra-mcp",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "3DGROUND Max Ultra MCP bridge for already-running 3ds Max instances",
   "main": "server.js",

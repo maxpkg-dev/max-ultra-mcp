@@ -1,6 +1,6 @@
 # Third-party notices
 
-The following source-controlled MaxPkg release-tooling files are synchronized from [maxpkg-dev/max-dev-tool](https://github.com/maxpkg-dev/max-dev-tool) revision `561d0a882ad42eb29dcc04b7f950d02c33d09cc4`:
+The following source-controlled MaxPkg release-tooling files are synchronized from [maxpkg-dev/max-dev-tool](https://github.com/maxpkg-dev/max-dev-tool) revision `4412adcf06b1f62b27fc42fc7a252a4a96b95402`:
 
 - `maxpkg-packager.ms`
 - `_install.ms`

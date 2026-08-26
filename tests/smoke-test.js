@@ -533,6 +533,11 @@ async function runSmokeTest() {
     assert.match(maxPkgSkillDocumentation, /Both hooks are mandatory/i);
     assert.match(maxPkgSkillDocumentation, /<slug>@<major\.minor\.patch>@<guid>\.mzp/);
     assert.match(maxPkgSkillDocumentation, /original `maxpkg-packager\.ms`/i);
+    assert.match(maxPkgSkillDocumentation, /MaxPkgPackerApi\.ping\(\)/);
+    assert.match(maxPkgSkillDocumentation, /MaxPkgPackerApi\.validate\(\)/);
+    assert.match(maxPkgSkillDocumentation, /MaxPkgPackerApi\.build\(\)/);
+    assert.match(maxPkgSkillDocumentation, /data\.exists == true/);
+    assert.match(maxPkgSkillDocumentation, /compatibility fallback[\s\S]*older packager/i);
     assert.match(maxPkgSkillDocumentation, /maxpkg-marketplace-listing\.md/);
     assert.match(maxPkgSkillDocumentation, /long description must not contain an H1/i);
     assert.match(maxPkgSkillDocumentation, /FAQ must not use Markdown headings/i);
@@ -541,6 +546,8 @@ async function runSmokeTest() {
     assert.equal(fs.existsSync(path.join(skillsRoot, "max-ultra-maxpkg-packaging", "references", "maxpkg-full-onboarding-prompt.md")), false);
     assert.match(maxPkgUpstreamSkillSource, /api\.github\.com\/repos\/maxpkg-dev\/max-dev-tool\/commits\/HEAD/);
     assert.match(maxPkgUpstreamSkillSource, /maxpkg-adaptation-prompt\.md/);
+    assert.match(maxPkgUpstreamSkillSource, /maxpkg-api\.md/);
+    assert.match(maxPkgUpstreamSkillSource, /apiDocumentationPath/);
     assert.match(maxPkgUpstreamSkillSource, /maxpkg-full-onboarding-prompt\.md/);
     assert.match(maxPkgUpstreamSkillSource, /toolingFiles = @\('maxpkg-packager\.ms', '_install\.ms', '_uninstall\.ms'\)/);
     assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
@@ -751,7 +758,7 @@ async function runSmokeTest() {
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);
     assert.match(maxPkgPrepareSource, /compileEntry=false/);
     assert.match(maxPkgPrepareSource, /customUninstallScript=/);
-    assert.match(maxPkgSyncSource, /561d0a882ad42eb29dcc04b7f950d02c33d09cc4/);
+    assert.match(maxPkgSyncSource, /4412adcf06b1f62b27fc42fc7a252a4a96b95402/);
     assert.match(maxPkgSyncSource, /Get-FileHash -LiteralPath \$temporaryPath -Algorithm SHA256/);
     assert.match(maxPkgUninstallSource, /function Get-PackageOwnedNodeProcesses/);
     assert.match(maxPkgUninstallSource, /function Stop-PackageOwnedNodeProcess/);
@@ -1000,6 +1007,12 @@ async function runSmokeTest() {
     assert.match(viewportScreenshotBody, /viewportBitmap\.filename = screenshotPath[\s\S]*save viewportBitmap/);
     assert.match(viewportScreenshotBody, /if \(not \(doesFileExist screenshotPath\)\) do throw "3ds Max did not write the viewport PNG"/);
     assert.doesNotMatch(viewportScreenshotBody, /save viewportBitmap screenshotPath/);
+    const executeRequestBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleExecuteRequest"), bootstrapSource.indexOf("fn uiHandleText"));
+    assert.match(executeRequestBody, /maximumResultCharacters = 500000/);
+    assert.match(executeRequestBody, /resultCharacterCount/);
+    assert.match(executeRequestBody, /resultTruncated/);
+    assert.doesNotMatch(executeRequestBody, /> 16000/);
+    assert.match(getMcpTools("core").find((toolDefinition) => toolDefinition.name === "max_run_script").description, /500,000 characters/);
     assert.match(bootstrapSource, /serverShutdownHelperPath/);
     assert.match(bootstrapSource, /stop-owned-server\.bat/);
     assert.match(bootstrapSource, /fn launchDetachedShutdownHelper/);

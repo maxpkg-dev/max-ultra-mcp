@@ -8,14 +8,13 @@ The v1 architecture and mock-tested MCP surface are implemented. The current aut
 
 The first production-foundations increment adds session-owned common jobs and read-only material diagnostics. The remaining workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
 
-### Recent changes in 1.2.0
+### Recent changes in 1.2.1
 
-- Added deterministic release preparation and publishing safeguards driven by `version.ini`.
-- Added hidden curl-based update checks, verified GitHub Release downloads, MaxPkg installation, and automatic bootstrap restart.
-- Added MaxPkg marketplace guidance that prepares listing copy, FAQ content, sanitized screenshots and assets, and upload steps from current official sources.
-- Updated the main panel title to include the product version and removed the First Step label.
-- Fixed automatic update-check startup in supported 3ds Max versions.
-- Completed the MaxPkg production archive with required Node package metadata and linked user and AI-agent documentation.
+- Updated release tooling to the official MaxPkg Packager 1.2.0 revision and exact SHA-256.
+- Added official `MaxPkgPackerApi` automation guidance for validation, configuration, and MZP builds through MCP.
+- Expanded bounded MaxScript results to 500,000 characters with explicit truncation metadata so complete MaxPkg state responses remain valid JSON.
+- Fixed quoted update-helper paths that end in a backslash and improved startup failure diagnostics.
+- Matched update and onboarding status backgrounds to the active ColorMan rollout background.
 ## What users can do
 
 - Start the bridge and configure ChatGPT Desktop, Codex, Claude Code, or another STDIO client from one MaxScript entry point.
@@ -127,7 +126,7 @@ Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
 The release includes seven portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control, [`max-ultra-camera-composition`](skills/max-ultra-camera-composition/SKILL.md) for Safe Frame-aware camera placement, [`max-ultra-character-object-modeling`](skills/max-ultra-character-object-modeling/SKILL.md) for reference-driven single-mesh subdivision modeling, [`max-ultra-renderer-settings`](skills/max-ultra-renderer-settings/SKILL.md) for runtime-inspected renderer configuration, [`max-ultra-spline-modeling`](skills/max-ultra-spline-modeling/SKILL.md) for paths/profiles and non-destructive modifier sources, [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved wall spline, and [`max-ultra-maxpkg-packaging`](skills/max-ultra-maxpkg-packaging/SKILL.md) for adapting new or existing 3ds Max scripts to the official MaxPkg workflow.
 
-The MaxPkg skill resolves the current official repository commit at execution time, reads its prompts directly from GitHub, and prepares every adapted project with the matching original `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms`. Both standard hooks are mandatory in the stricter Max Ultra workflow.
+The MaxPkg skill resolves the current official repository commit at execution time, reads its prompts and automation API documentation directly from GitHub, and prepares every adapted project with the matching original `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms`. Both standard hooks are mandatory in the stricter Max Ultra workflow.
 
 The general skill loads its packaged MaxScript code rules before creating or editing reusable scripts. Target-project rules take precedence when they are stricter.
 

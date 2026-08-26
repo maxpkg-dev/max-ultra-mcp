@@ -22,6 +22,8 @@ The three `.ms` files are mandatory in the project root even when the current pr
 
 Fetch the current official repository through `scripts/get-maxpkg-upstream.ps1`. Read the returned official prompt instead of a local prompt snapshot. Do not mix packager and hook files from unrelated revisions, overwrite a different local revision without review, or strip upstream headers.
 
+Before API-assisted configuration or building, also read the returned official `maxpkg-api.md` from that same immutable commit. Use its current method signatures and safety rules together with the live `MaxPkgPackerApi.getSchema()` response; do not rely on a remembered API surface.
+
 Project-local configuration includes `maxpkg-packager.ini`, `maxpkg-changelog.ini`, and `maxpkg-icon.svg`; normal output defaults to `dist`. These files and the MZP are added alongside the user's sources. Generated manifests and `mzp.run` files exist inside build output and never replace the root authoring files or the original project.
 
 ## Configure the packager automatically
@@ -71,10 +73,15 @@ Do not stop at a table of recommended values when the selected packager can be c
 2. Call `max_get_info` and record the real 3ds Max version used for testing.
 3. Test the adapted entry with `max_run_script_file` before packaging. Verify expected UI or scene post-state without modifying a real user scene unexpectedly.
 4. Run the target project's `maxpkg-packager.ms` with `max_run_script_file`.
-5. Use `max_ui_wait`, `max_ui_inspect`, stable selectors, and other process-scoped UI tools only inside the selected `3dsmax.exe`. Reinspect controls after a rollout or floater is recreated.
-6. Use the packager's own validation. Do not reimplement its archive generator as an unverified substitute.
-7. When required metadata is complete and validation passes, invoke the real Build MZP action for the user.
-8. Wait for completion, inspect the packager status and log, and verify that a new expected MZP exists without altering source files.
+5. Call `MaxPkgPackerApi.ping()` through `max_run_script` and parse the returned MaxScript string as JSON. Require `ok == true`; record `data.apiVersion`, `data.packagerVersion`, and `data.projectRoot`. Confirm that `projectRoot` is the intended target before any API mutation.
+6. Call `MaxPkgPackerApi.getSchema()` when the packager version or available methods are uncertain. Call `MaxPkgPackerApi.reload()` before validation so the build uses persisted project-local configuration.
+7. Call `MaxPkgPackerApi.validate()`, parse its inner JSON, and resolve every returned error. Do not continue a dependent operation when `ok` is false.
+8. Call `MaxPkgPackerApi.build()` serially. Require `ok == true`, `data.exists == true`, and a package path in `data.outputFile`; inspect `data.log` when present. Do not infer success merely because MaxScript execution completed.
+9. Call `MaxPkgPackerApi.getState()` after the build and verify the final persisted configuration. Inspect the returned MZP and ensure that source files were not altered unexpectedly.
+
+Use `max_ui_wait`, `max_ui_inspect`, stable selectors, and other process-scoped UI tools only as a compatibility fallback when the loaded official packager predates `MaxPkgPackerApi`. Keep UI access inside the selected `3dsmax.exe` process and reinspect controls after a rollout or floater is recreated. Do not fall back to a custom archive generator.
+
+The API returns a JSON string inside the normal MCP tool result. Parse both envelopes: first the MCP response, then the MaxPkg response. Run mutations serially, use 1-based indexes for MaxPkg collections, prefer `setOptions` to repeated `setOption` calls, and use `force: true` only after deciding that dependent entry-file or extra-macro references may be cleared.
 
 Do not guess at a localized label or use coordinates when a stable control or project-local configuration format is available. Any operation that installs, uninstalls, replaces existing generated configuration, or launches arbitrary scripts remains a write requiring normal approval.
 
@@ -90,7 +97,7 @@ Before handoff, confirm that the project is usable without the AI agent:
 4. the packager reaches its ready state after required metadata is supplied;
 5. the user can invoke Build MZP and receive the archive below `dist`.
 
-Attempt the build for the user when the selected 3ds Max instance and stable packager controls are available. The build must be performed by the fetched original `maxpkg-packager.ms`, not by a custom archive generator. If 3ds Max is unavailable, leave the fully configured authoring project and state the single manual action: run `maxpkg-packager.ms` in 3ds Max and choose Build MZP.
+Attempt the build for the user when the selected 3ds Max instance and the packager API or stable compatibility controls are available. The build must be performed by the fetched original `maxpkg-packager.ms`, not by a custom archive generator. If 3ds Max is unavailable, leave the fully configured authoring project and state the single manual action: run `maxpkg-packager.ms` in 3ds Max and choose Build MZP.
 
 
 ## Static archive verification

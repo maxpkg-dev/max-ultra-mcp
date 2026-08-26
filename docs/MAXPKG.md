@@ -20,7 +20,9 @@ Max Ultra MCP is adapted for the standard [MaxPkg Packager](https://github.com/m
 
 3. Run `maxpkg-packager.ms` in 3ds Max.
 4. Review all four packager tabs and resolve every validation issue.
-5. Choose **Build MZP** and test the archive in a clean 3ds Max profile.
+5. Choose **Build MZP**, or call the public `MaxPkgPackerApi.validate()` and `MaxPkgPackerApi.build()` methods through Max Ultra MCP, then test the archive in a clean 3ds Max profile.
+
+MaxPkg Packager 1.2.0 exposes `MaxPkgPackerApi` specifically for AI-agent automation. Max Ultra MCP loads the project-local packager with `max_run_script_file`, invokes the API with `max_run_script`, and parses the inner JSON response after every operation. Automated builds require successful `ping()`, `reload()`, `validate()`, and `build()` calls, plus `data.exists == true` and a verified `data.outputFile`. Process-scoped UI automation is retained only as a compatibility fallback for older packager versions without the API.
 
 ## Prepare a versioned release
 
@@ -43,7 +45,7 @@ The launcher delegates to `scripts\publish-github-release.ps1`. It requires an a
 
 The three compared sources are `version.ini` (cross-checked against `core\package.json`), the version parsed from the newest MZP filename below `dist`, and stable GitHub Release tags.
 
-`scripts/sync-maxpkg-tooling.ps1` downloads the MaxPkg Packager and standard hooks from pinned revision `561d0a882ad42eb29dcc04b7f950d02c33d09cc4`. Every downloaded file is checked against a committed SHA-256 value before it replaces a local tooling file.
+`scripts/sync-maxpkg-tooling.ps1` downloads the MaxPkg Packager and standard hooks from pinned revision `4412adcf06b1f62b27fc42fc7a252a4a96b95402`. Every downloaded file is checked against a committed SHA-256 value before it replaces a local tooling file.
 
 Pinned `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` live in the project root and are source controlled. Generated `maxpkg-packager.ini`, `maxpkg-changelog.ini`, `maxpkg-icon.svg`, and build output are machine-local release artifacts and are not committed.
 
@@ -67,7 +69,7 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 
 - `maxpkg-files.txt` is the reviewed production file allowlist.
 - `skills\max-ultra-mcp`, `skills\max-ultra-camera-composition`, `skills\max-ultra-character-object-modeling`, `skills\max-ultra-renderer-settings`, `skills\max-ultra-spline-modeling`, `skills\max-ultra-floor-plan`, and `skills\max-ultra-maxpkg-packaging` are the optional file-based agent skills shipped with the package; MCP operation does not depend on installing them.
-- The MaxPkg adaptation skill fetches the current official README, coding rules, both official prompts, `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` from one resolved `maxpkg-dev/max-dev-tool` commit. Prompt content is not embedded in Max Ultra MCP. Its stricter workflow requires both standard hooks in every adapted project.
+- The MaxPkg adaptation skill fetches the current official README, coding rules, both official prompts, API documentation, `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` from one resolved `maxpkg-dev/max-dev-tool` commit. Prompt content is not embedded in Max Ultra MCP. Its stricter workflow requires both standard hooks in every adapted project.
 - `assets/max-ultra-mcp.svg` is the square package icon source.
 - `scripts/prepare-maxpkg.ps1` creates machine-local packager INI files with absolute source paths.
 - `scripts/sync-maxpkg-tooling.ps1` provides reproducible MaxPkg tooling.

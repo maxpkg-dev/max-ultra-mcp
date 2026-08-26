@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.2.1 - 2026-08-26
+
+- Changed: Release tooling is pinned to the official MaxPkg Packager 1.2.0 revision and exact SHA-256.
+- Improved: MaxPkg-assisted builds now use the official automation API through MCP and retain UI automation only for older packager compatibility.
+- Improved: MaxScript results preserve valid large MaxPkg API responses up to 500,000 characters and report explicit truncation metadata.
+
 - Fixed: Update checks preserve quoted package-root paths that end in a backslash, allowing the hidden helper to receive its result-file argument.
 - Improved: Update-check startup failures now report the helper exit code when no result file was produced.
 - Fixed: Update and onboarding status labels now use the ColorMan rollout background instead of the rollout-title color.
