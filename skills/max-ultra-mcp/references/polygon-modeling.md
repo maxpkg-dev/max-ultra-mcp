@@ -2,6 +2,8 @@
 
 Use the semantic polygon tools when a requested object cannot be represented accurately by a primitive or the floor-plan builder.
 
+For a reference-driven character, creature, product, or prop that requires professional subdivision topology and a live TurboSmooth cage, use `max-ultra-character-object-modeling` instead of this general reference.
+
 ## Preferred workflow
 
 1. Call `max_get_info` and read the current scene units. Do not change system or display units.

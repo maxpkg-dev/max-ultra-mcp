@@ -70,6 +70,7 @@ The daemon is shared. Instance selection and jobs belong to the individual MCP s
 | Optional agent skills | `skills/` |
 | Release/runtime tooling | `scripts/prepare-portable-node.ps1`, `scripts/build-release.ps1`, `scripts/build-sea.ps1` |
 | MaxPkg packaging | `docs/MAXPKG.md`, `maxpkg-files.txt`, `scripts/prepare-maxpkg.ps1`, `scripts/sync-maxpkg-tooling.ps1` |
+| GitHub MZP release | `RELEASE_MZP_TO_GITHUB.bat`, `scripts/publish-github-release.ps1`, `scripts/release-mzp-utils.ps1` |
 
 ## Adding or changing an MCP tool
 

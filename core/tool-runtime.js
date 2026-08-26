@@ -24,6 +24,7 @@ function activityLabelForTool(toolName, args = {}) {
     max_build_floor_plan: "Build floor plan",
     max_material_find_unassigned: "Find material issues",
     max_add_normal_modifier: "Add Normal modifier",
+    max_add_smooth_modifier: "Add Smooth modifier",
     max_capture_viewport: "Capture viewport",
     max_render_start: `Start ${args.mode || "production"} render`,
     max_render_settings_set: "Update render settings",
@@ -438,6 +439,29 @@ undo "Max Ultra MCP: Normal review" on addModifier n m
 ((getHandleByAnim n) as string)+"|"+n.name+"|"+m.name+"|flip="+(m.flip as string)
 )`;
     const evidence = { modifierName, flip, unify: false, comparisonRequiresImmediateScreenshot: true };
+    return args.dryRun ? dryRunResult(toolName, instance, script, evidence) : executeMutation(bridge, instance, script, 30000, evidence);
+  }
+  if (toolName === "max_add_smooth_modifier") {
+    const expression = nodeExpression(args.node, bridge, instance.instanceId);
+    const threshold = finite(args.threshold, 30, "threshold");
+    if (threshold < 0 || threshold > 180) throw new Error("threshold must be from 0 to 180 degrees");
+    const preventIndirect = args.preventIndirect === true;
+    const modifierName = "Max Ultra MCP Auto Smooth";
+    const script = `(
+local n=${expression}
+if n==undefined do throw "NodeRef not found"
+local marker=${maxString(modifierName)}
+local existing=for modifierValue in n.modifiers where ((classOf modifierValue)==Smooth and modifierValue.name==marker) collect modifierValue
+if existing.count>0 do throw "Auto Smooth modifier already exists"
+local m=Smooth()
+m.name=marker
+m.autosmooth=true
+m.threshold=${threshold}
+m.preventIndirect=${preventIndirect}
+undo "Max Ultra MCP: Auto Smooth" on addModifier n m
+((getHandleByAnim n) as string)+"|"+n.name+"|"+m.name+"|autosmooth="+(m.autosmooth as string)+"|threshold="+(m.threshold as string)+"|preventIndirect="+(m.preventIndirect as string)
+)`;
+    const evidence = { modifierName, autoSmooth: true, threshold, preventIndirect };
     return args.dryRun ? dryRunResult(toolName, instance, script, evidence) : executeMutation(bridge, instance, script, 30000, evidence);
   }
   if (toolName === "max_material_find_unassigned") {

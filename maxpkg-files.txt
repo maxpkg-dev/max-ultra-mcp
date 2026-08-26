@@ -29,6 +29,10 @@ skills/max-ultra-mcp/references/workflows.md
 skills/max-ultra-mcp/references/capabilities-and-boundaries.md
 skills/max-ultra-floor-plan/SKILL.md
 skills/max-ultra-floor-plan/references/plan-schema.md
+skills/max-ultra-camera-composition/SKILL.md
+skills/max-ultra-camera-composition/references/composition-workflow.md
+skills/max-ultra-character-object-modeling/SKILL.md
+skills/max-ultra-character-object-modeling/references/subdivision-topology.md
 skills/max-ultra-spline-modeling/SKILL.md
 skills/max-ultra-spline-modeling/references/maxscript-patterns.md
 scripts/agent-integration.ps1

@@ -80,6 +80,8 @@ function validatePolygonMesh(input) {
     layer,
     select: input.select !== false,
     allowNonManifold: input.allowNonManifold === true,
+    subdivisionReady: input.subdivisionReady === true,
+    requireSingleShell: input.requireSingleShell === true,
   };
 
   const warnings = [];
@@ -102,11 +104,18 @@ function validatePolygonMesh(input) {
   const referencedVertices = new Set();
   const faceKeys = new Set();
   const edgeUses = new Map();
+  const vertexNeighbors = Array.from({ length: vertices.length }, () => new Set());
   let faceVertexReferences = 0;
   let nonPlanarFaces = 0;
+  let triangles = 0;
+  let quads = 0;
+  let ngons = 0;
 
   faces.forEach((face, faceIndex) => {
     faceVertexReferences += face.vertices.length;
+    if (face.vertices.length === 3) triangles += 1;
+    else if (face.vertices.length === 4) quads += 1;
+    else ngons += 1;
     const uniqueIndices = new Set(face.vertices);
     if (uniqueIndices.size !== face.vertices.length) blockers.push(`Face ${faceIndex} repeats a vertex index`);
     const invalidIndices = face.vertices.filter((vertexIndex) => vertexIndex >= vertices.length);
@@ -138,10 +147,13 @@ function validatePolygonMesh(input) {
       const low = Math.min(from, to);
       const high = Math.max(from, to);
       const key = `${low}:${high}`;
-      const edge = edgeUses.get(key) || { count: 0, directions: [] };
+      const edge = edgeUses.get(key) || { count: 0, directions: [], faceIndices: [], low, high };
       edge.count += 1;
       edge.directions.push(from === low ? 1 : -1);
+      edge.faceIndices.push(faceIndex);
       edgeUses.set(key, edge);
+      vertexNeighbors[from].add(to);
+      vertexNeighbors[to].add(from);
     }
   });
 
@@ -152,15 +164,55 @@ function validatePolygonMesh(input) {
   const nonManifoldEdges = [...edgeUses.values()].filter((edge) => edge.count > 2).length;
   const inconsistentEdges = [...edgeUses.values()].filter((edge) => edge.count === 2 && edge.directions[0] === edge.directions[1]).length;
   const isolatedVertices = vertices.length - referencedVertices.size;
+  const faceParents = faces.map((face, faceIndex) => faceIndex);
+  const findFaceRoot = (faceIndex) => {
+    let root = faceIndex;
+    while (faceParents[root] !== root) root = faceParents[root];
+    while (faceParents[faceIndex] !== faceIndex) {
+      const parent = faceParents[faceIndex];
+      faceParents[faceIndex] = root;
+      faceIndex = parent;
+    }
+    return root;
+  };
+  const unionFaces = (leftFace, rightFace) => {
+    const leftRoot = findFaceRoot(leftFace);
+    const rightRoot = findFaceRoot(rightFace);
+    if (leftRoot !== rightRoot) faceParents[rightRoot] = leftRoot;
+  };
+  for (const edge of edgeUses.values()) {
+    for (let faceUseIndex = 1; faceUseIndex < edge.faceIndices.length; faceUseIndex += 1) {
+      unionFaces(edge.faceIndices[0], edge.faceIndices[faceUseIndex]);
+    }
+  }
+  const elements = new Set(faces.map((face, faceIndex) => findFaceRoot(faceIndex))).size;
+  const maximumValence = Math.max(...vertexNeighbors.map((neighbors) => neighbors.size));
+  const highValenceVertices = vertexNeighbors.filter((neighbors) => neighbors.size >= 6).length;
+  const quadRatio = faces.length ? quads / faces.length : 0;
   if (boundaryEdges) warnings.push(`Mesh has ${boundaryEdges} boundary edges and is open`);
   if (nonManifoldEdges) {
     const message = `Mesh has ${nonManifoldEdges} non-manifold edges used by more than two faces`;
     if (normalizedMesh.allowNonManifold) warnings.push(message);
     else blockers.push(`${message}; set allowNonManifold only when this topology is intentional`);
   }
-  if (inconsistentEdges) warnings.push(`Mesh has ${inconsistentEdges} shared edges with inconsistent face winding`);
-  if (isolatedVertices) warnings.push(`Mesh has ${isolatedVertices} isolated vertices`);
+  if (inconsistentEdges) {
+    const message = `Mesh has ${inconsistentEdges} shared edges with inconsistent face winding`;
+    if (normalizedMesh.subdivisionReady) blockers.push(message);
+    else warnings.push(message);
+  }
+  if (isolatedVertices) {
+    const message = `Mesh has ${isolatedVertices} isolated vertices`;
+    if (normalizedMesh.subdivisionReady) blockers.push(message);
+    else warnings.push(message);
+  }
   if (nonPlanarFaces) warnings.push(`Mesh has ${nonPlanarFaces} non-planar n-gons; triangulate them when exact tessellation matters`);
+  if (normalizedMesh.requireSingleShell && elements !== 1) blockers.push(`Mesh has ${elements} edge-connected polygon Elements; one continuous shell is required`);
+  if (normalizedMesh.subdivisionReady) {
+    if (ngons) blockers.push(`Subdivision-ready mesh has ${ngons} n-gons; use quads or controlled triangles`);
+    if (triangles) warnings.push(`Subdivision-ready mesh has ${triangles} triangles; verify each diagonal and pole placement`);
+    if (quadRatio < 0.8) warnings.push(`Subdivision-ready mesh is ${Math.round(quadRatio * 100)}% quads; review edge flow before creation`);
+    if (highValenceVertices) warnings.push(`Subdivision-ready mesh has ${highValenceVertices} vertices with valence 6 or higher; keep them away from deformation and silhouette regions`);
+  }
 
   const boundingBox = { min: minimum, max: maximum, size };
   const counts = {
@@ -171,6 +223,13 @@ function validatePolygonMesh(input) {
     nonManifoldEdges,
     isolatedVertices,
     faceVertexReferences,
+    triangles,
+    quads,
+    ngons,
+    quadRatio,
+    elements,
+    maximumValence,
+    highValenceVertices,
   };
   const validationToken = hashCanonical(normalizedMesh);
   return { normalizedMesh, validationToken, warnings, blockers, boundingBox, counts, valid: blockers.length === 0 };

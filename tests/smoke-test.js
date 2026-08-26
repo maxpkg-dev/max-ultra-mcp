@@ -467,12 +467,16 @@ async function runSmokeTest() {
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
     const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "max-ultra-mcp.svg"), "utf8");
+    const gitIgnoreSource = fs.readFileSync(path.join(PROJECT_ROOT, ".gitignore"), "utf8");
+    const githubReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "publish-github-release.ps1"), "utf8");
+    const releaseVersionSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "release-mzp-utils.ps1"), "utf8");
+    const githubReleaseBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "RELEASE_MZP_TO_GITHUB.bat"), "utf8");
     const skillsRoot = path.join(PROJECT_ROOT, "skills");
     const skillNames = fs.readdirSync(skillsRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
       .map((entry) => entry.name)
       .sort();
-    assert.deepEqual(skillNames, ["max-ultra-floor-plan", "max-ultra-mcp", "max-ultra-spline-modeling"]);
+    assert.deepEqual(skillNames, ["max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-mcp", "max-ultra-spline-modeling"]);
     const skillReferenceNamesBySkill = new Map();
     const skillDocumentationParts = [];
     for (const skillName of skillNames) {
@@ -494,6 +498,18 @@ async function runSmokeTest() {
       skillDocumentationParts.push(currentSkillDocumentation);
     }
     const skillDocumentation = skillDocumentationParts.join("\n");
+    const cameraSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-camera-composition")];
+    assert.match(cameraSkillDocumentation, /displaySafeFrames = true/);
+    assert.match(cameraSkillDocumentation, /single-object framing/i);
+    assert.match(cameraSkillDocumentation, /world bounding box/i);
+    assert.match(cameraSkillDocumentation, /maximized[\s\S]*Safe Frame/i);
+    const modelingSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-character-object-modeling")];
+    assert.match(modelingSkillDocumentation, /Do not call `max_create_primitive`/);
+    assert.match(modelingSkillDocumentation, /quad-dominant/i);
+    assert.match(modelingSkillDocumentation, /TurboSmooth[\s\S]*one iteration/i);
+    assert.match(modelingSkillDocumentation, /Do not collapse/i);
+    assert.match(modelingSkillDocumentation, /overlay Elements/i);
+    assert.match(modelingSkillDocumentation, /coplanar[\s\S]*z-fighting/i);
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {
@@ -633,6 +649,16 @@ async function runSmokeTest() {
       }
     }
     assert.doesNotMatch(maxPkgFilesSource, /smoke-test|mock-max-client|runtime\/state/);
+    assert.doesNotMatch(maxPkgFilesSource, /publish-github-release|release-mzp-utils|RELEASE_MZP_TO_GITHUB/);
+    assert.match(gitIgnoreSource, /^dist\/$/m);
+    assert.match(githubReleaseBatSource, /scripts\\publish-github-release\.ps1/);
+    assert.match(releaseVersionSource, /max-ultra-mcp@\(\?<version>/);
+    assert.match(githubReleaseSource, /Assert-MzpArchive/);
+    assert.match(githubReleaseSource, /git[\s\S]*ls-remote/);
+    assert.match(githubReleaseSource, /release create \$releaseTag \$releasePackage\.FullName \$checksumPath/);
+    assert.match(githubReleaseSource, /--target \$headCommit/);
+    assert.match(githubReleaseSource, /--generate-notes/);
+    assert.doesNotMatch(githubReleaseSource, /--clobber|release delete|tag -d|push --force/);
     assert.match(maxPkgPrepareSource, /packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'/);
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);
     assert.match(maxPkgPrepareSource, /compileEntry=false/);

@@ -73,6 +73,8 @@ The subject can be the current selection, explicit NodeRefs, a layer, a group, o
 
 The planner evaluates multiple camera candidates using subject coverage, clipping, empty space, horizon, and verticals. Apply updates or creates a camera, activates it, captures the viewport, and returns composition metrics and the camera NodeRef.
 
+Until these dedicated semantic tools are implemented, the packaged `max-ultra-camera-composition` skill uses existing camera, transform, render-setting, script, and viewport tools. It requires the final render aspect, enables Safe Frame before composition decisions, and verifies every accepted camera through a maximized viewport screenshot.
+
 ## 5. Create tree masks and render elements
 
 Tools:

@@ -5,9 +5,11 @@ description: Control and inspect already-open Autodesk 3ds Max scenes through Ma
 
 # Max Ultra MCP
 
+Use the dedicated `max-ultra-camera-composition` skill for camera placement, Safe Frame, lens, and visual-composition tasks. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
+
 Use the semantic MCP surface to produce a verified result in the selected 3ds Max process. Keep raw MaxScript and UI automation as explicit fallbacks, not the default implementation path.
 
-For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. For dimensional architectural floor plans, use `max-ultra-floor-plan` so its stricter wall-source preservation workflow is loaded.
+For reference-driven character, creature, product, or prop subdivision modeling, use `max-ultra-character-object-modeling`. For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. For dimensional architectural floor plans, use `max-ultra-floor-plan` so its stricter wall-source preservation workflow is loaded.
 
 ## Operating workflow
 

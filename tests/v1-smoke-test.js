@@ -111,6 +111,8 @@ const POLYGON_CUBE = {
   ],
   position: [0, 0, 500],
   layer: "MCP_MODELING",
+  subdivisionReady: true,
+  requireSingleShell: true,
 };
 
 async function run() {
@@ -125,6 +127,7 @@ async function run() {
   assert.equal(coreTools.some((entry) => entry.name === "max_validate_polygon_mesh"), true);
   assert.equal(coreTools.some((entry) => entry.name === "max_create_polygon_mesh"), true);
   assert.equal(archvizTools.some((entry) => entry.name === "max_validate_floor_plan"), true);
+  assert.equal(archvizTools.some((entry) => entry.name === "max_add_smooth_modifier"), true);
   assert.equal(fullTools.find((entry) => entry.name === "max_execute").annotations.openWorldHint, true);
 
   const validation = validateFloorPlan(PLAN);
@@ -195,6 +198,8 @@ async function run() {
   assert.deepEqual(polygonValidation.counts, {
     vertices: 8, faces: 6, edges: 12, boundaryEdges: 0,
     nonManifoldEdges: 0, isolatedVertices: 0, faceVertexReferences: 24,
+    triangles: 0, quads: 6, ngons: 0, quadRatio: 1,
+    elements: 1, maximumValence: 3, highValenceVertices: 0,
   });
   assert.deepEqual(polygonValidation.boundingBox, { min: [-500, -500, -500], max: [500, 500, 500], size: [1000, 1000, 1000] });
   const polygonScript = generatePolygonMeshScript(polygonValidation.normalizedMesh).script;
@@ -210,6 +215,19 @@ async function run() {
   const invalidPolygon = structuredClone(POLYGON_CUBE);
   invalidPolygon.faces[0] = [0, 3, 2, 99];
   assert.match(validatePolygonMesh(invalidPolygon).blockers[0], /highest valid index is 7/);
+  const multiElementMesh = {
+    name: "MCP_MultiElement",
+    units: "mm",
+    vertices: [[0, 0, 0], [10, 0, 0], [0, 10, 0], [20, 0, 0], [30, 0, 0], [20, 10, 0]],
+    faces: [[0, 1, 2], [3, 4, 5]],
+    subdivisionReady: true,
+  };
+  const multiElementValidation = validatePolygonMesh(multiElementMesh);
+  assert.equal(multiElementValidation.valid, true);
+  assert.equal(multiElementValidation.counts.elements, 2);
+  const singleShellValidation = validatePolygonMesh({ ...multiElementMesh, requireSingleShell: true });
+  assert.equal(singleShellValidation.valid, false);
+  assert.match(singleShellValidation.blockers.join("\n"), /2 edge-connected polygon Elements/);
 
   const planBinding = {
     operation: "fixture_operation",
@@ -343,6 +361,23 @@ async function run() {
     assert.match(normalPreview.result.structuredContent.data.script, /Normalmodifier\(\)/);
     assert.match(normalPreview.result.structuredContent.data.script, /m\.unify=false/);
     assert.match(normalPreview.result.structuredContent.data.script, /m\.flip=true/);
+
+    const smoothPreview = await rpc(hostA, {
+      jsonrpc: "2.0",
+      id: 112,
+      method: "tools/call",
+      params: {
+        name: "max_add_smooth_modifier",
+        arguments: { node: build.result.structuredContent.data.wallMesh, threshold: 30, dryRun: true },
+      },
+    });
+    assert.equal(smoothPreview.result.isError, false, JSON.stringify(smoothPreview.result.structuredContent));
+    assert.equal(smoothPreview.result.structuredContent.data.autoSmooth, true);
+    assert.equal(smoothPreview.result.structuredContent.data.threshold, 30);
+    assert.equal(smoothPreview.result.structuredContent.data.preventIndirect, false);
+    assert.match(smoothPreview.result.structuredContent.data.script, /local m=Smooth\(\)/);
+    assert.match(smoothPreview.result.structuredContent.data.script, /m\.autosmooth=true/);
+    assert.match(smoothPreview.result.structuredContent.data.script, /m\.threshold=30/);
 
     const screenshot = await rpc(hostA, { jsonrpc: "2.0", id: 12, method: "tools/call", params: { name: "max_capture_viewport", arguments: { width: 64, height: 32 } } });
     assert.equal(screenshot.result.content[1].type, "image");

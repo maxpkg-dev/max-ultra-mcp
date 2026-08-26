@@ -32,15 +32,24 @@ Do not replace this workflow with Box walls, destructive edits to the source spl
 7. Call `max_build_floor_plan` with the unchanged payload and validation token.
 8. Verify the reported workflow, source spline name, wall mesh name, wall/opening counts, bounds, and scene revision.
 9. Set a top view, frame the result, and call `max_capture_viewport` with `reviewPreset:"clean-shaded"`. Then use a perspective view, frame the same wall mesh, and capture a baseline image with the same preset.
-10. Inspect exterior faces, interior faces, opening reveals, wall junctions, and the floor perimeter. The floor must reach at least the outside faces of perimeter walls, and a branch wall must stop at the receiving wall face instead of penetrating it.
-11. If the walls appear consistently inside-out, call `max_add_normal_modifier` with `flip:true` on the returned wall mesh NodeRef and capture the exact same view. Immediately call `max_undo` after the comparison. Keep the baseline when it is correct; reapply the modifier only when the flipped screenshot is clearly correct across exterior, interior, and opening faces.
-12. Compare the final top and perspective images with the source plan. If geometry is clearly wrong, call `max_undo`, correct the structured payload, validate again, and rebuild.
+10. Inspect exterior faces, interior faces, opening reveals, wall junctions, floor perimeter, and every custom roof or gable created for the plan. The floor must reach at least the outside faces of perimeter walls, and a branch wall must stop at the receiving wall face instead of penetrating it.
+11. For any wall, gable, roof, slab, or other custom shell that appears inside-out, call `max_add_normal_modifier` with `flip:true` and capture the exact same view. Immediately call `max_undo` after the comparison. Reapply Flip only when the second image is consistently correct across the complete shell, including its exterior and underside.
+12. After normal orientation is accepted, check custom geometry for false gradients, diagonal bands, faceting, or broken planar highlights. Call `max_add_smooth_modifier` with `threshold:30` and capture the identical view. Keep Auto Smooth only when it removes the artifact without softening intended hard edges.
+13. Compare the final top and perspective images with the source plan. If geometry is clearly wrong, call `max_undo`, correct the structured payload, validate again, and rebuild.
 
 ## Normal-orientation review
 
 The builder returns `normalOrientation: "outward"` and creates wall faces with outward winding. Dark shading alone is not proof of flipped normals because viewport lighting, material settings, and backface display can produce similar results.
 
-Use the Normal modifier only as an A/B diagnostic. Keep camera/view, framing, viewport mode, and lighting unchanged between screenshots. The comparison must include both sides of walls and opening reveals, not one bright exterior face. `max_add_normal_modifier` deliberately sets `unify:false`: Autodesk documents that Normal-modifier Unify does not work on Editable Poly. If only some faces remain reversed, treat that as a topology defect and rebuild; do not leave a global Flip modifier as a partial repair.
+Use the Normal modifier only as an A/B diagnostic. Keep camera/view, framing, viewport mode, and lighting unchanged between screenshots. Review every generated custom shell, not only the wall mesh. A roof comparison must include the exterior slopes, eaves, gables, and underside; a wall comparison must include both sides and opening reveals. `max_add_normal_modifier` deliberately sets `unify:false`: Autodesk documents that Normal-modifier Unify does not work on Editable Poly. If only some faces remain reversed, treat that as a topology defect and rebuild; do not leave a global Flip modifier as a partial repair.
+
+## Shading review
+
+Correct normals before evaluating smoothing. Dark or missing faces indicate orientation or topology; Smooth cannot repair a flipped shell.
+
+For manually generated non-primitive geometry, compare the same clean-shaded view before and after `max_add_smooth_modifier`. The default uses Auto Smooth with a 30-degree threshold and keeps Prevent Indirect Smoothing off. This assigns smoothing groups by the angle between adjacent faces and is appropriate for the planar and folded custom meshes common in roofs, gables, slabs, and architectural details.
+
+Keep the modifier only when planar faces shade cleanly and intended corners remain sharp. If smoothing leaks across a corner, retry with `preventIndirect:true` or correct the topology/smoothing groups. Never use Smooth to hide overlapping faces, non-planar n-gons, duplicate geometry, or wrong normals.
 
 ## Dimension source precedence
 

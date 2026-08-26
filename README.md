@@ -56,6 +56,8 @@ Closing onboarding dismisses its automatic display without stopping the bridge. 
 
 > The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1`, then prepare the pinned MaxPkg Packager project with `scripts\prepare-maxpkg.ps1`.
 
+Maintainers publish a tested MZP with `RELEASE_MZP_TO_GITHUB.bat`. The guarded workflow compares `core\package.json`, the newest versioned package below ignored `dist/`, and GitHub Releases before creating a `v<VERSION>` release and uploading the MZP plus its SHA-256 file. See [MaxPkg packaging](docs/MAXPKG.md#publish-the-mzp-to-github-releases).
+
 ## Development checkout
 
 Requirements:
@@ -123,7 +125,7 @@ Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
 ## Optional agent skills
 
-The release includes three portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control, [`max-ultra-spline-modeling`](skills/max-ultra-spline-modeling/SKILL.md) for paths/profiles and non-destructive modifier sources, and [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved wall spline.
+The release includes five portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control, [`max-ultra-camera-composition`](skills/max-ultra-camera-composition/SKILL.md) for Safe Frame-aware camera placement, [`max-ultra-character-object-modeling`](skills/max-ultra-character-object-modeling/SKILL.md) for reference-driven single-mesh subdivision modeling, [`max-ultra-spline-modeling`](skills/max-ultra-spline-modeling/SKILL.md) for paths/profiles and non-destructive modifier sources, and [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved wall spline.
 
 The MCP server remains fully usable without these skills. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
 
@@ -162,6 +164,8 @@ Before a production release, also test real 3ds Max versions and installed Coron
 - [MaxPkg packaging and lifecycle](docs/MAXPKG.md)
 - [Instructions for AI coding agents](AGENTS.md)
 - [Optional Max Ultra MCP agent skill](skills/max-ultra-mcp/SKILL.md)
+- [Optional Max Ultra camera-composition agent skill](skills/max-ultra-camera-composition/SKILL.md)
+- [Optional Max Ultra character/object-modeling agent skill](skills/max-ultra-character-object-modeling/SKILL.md)
 - [Optional Max Ultra spline-modeling agent skill](skills/max-ultra-spline-modeling/SKILL.md)
 - [Optional Max Ultra floor-plan agent skill](skills/max-ultra-floor-plan/SKILL.md)
 
