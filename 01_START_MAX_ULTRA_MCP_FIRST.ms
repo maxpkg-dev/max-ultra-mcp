@@ -1080,7 +1080,7 @@ global MaxUltraMcpActiveClient
         fn refreshUpdateStatusControl = (
             if (not (settingsDialogIsOpen())) do return false
             try (
-                local rolloutBackground = themeDrawingColor #rollupTitleFace 81 81 81
+                local rolloutBackground = themeDrawingColor #background 68 68 68
                 local statusColor = themeDrawingColor #text 225 225 225
                 if (updateState == #current or updateState == #ready) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 72 210 130
                 if (updateState == #checking) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 247 185 85
@@ -1431,7 +1431,7 @@ global MaxUltraMcpActiveClient
         fn configureOnboardingSetupDialog = (
             if (not (onboardingDialogIsOpen()) or not onboardingSetupDialog.open) do return false
             try (
-                local rolloutBackground = themeDrawingColor #rollupTitleFace 81 81 81
+                local rolloutBackground = themeDrawingColor #background 68 68 68
                 local onboardingTextColor = themeDrawingColor #text 225 225 225
                 onboardingSetupDialog.txtManual.Multiline = true
                 onboardingSetupDialog.txtManual.ReadOnly = true

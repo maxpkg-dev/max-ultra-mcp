@@ -661,7 +661,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /addRollout onboardingSetupDialog onboardingFloater rolledUp: false border: false/);
     assert.match(bootstrapSource, /removeRollout onboardingSetupDialog onboardingFloater/);
     assert.doesNotMatch(bootstrapSource, /btnSetupPage|btnTestPage|txtTestPrompt\.Visible|txtTestPrompt\.BringToFront/);
-    assert.match(bootstrapSource, /themeDrawingColor #rollupTitleFace 81 81 81/);
+    assert.equal((bootstrapSource.match(/local rolloutBackground = themeDrawingColor #background 68 68 68/g) || []).length, 2);
     assert.match(bootstrapSource, /lblOpenAIStatus\.BackColor = rolloutBackground/);
     assert.match(bootstrapSource, /clipboardFeedbackButton\.text = "Copied"/);
     assert.match(bootstrapSource, /clipboardFeedbackTimer\.Interval = 1600/);
@@ -729,6 +729,7 @@ async function runSmokeTest() {
     );
     assert.match(bootstrapSource, /trailingBackslashCount[\s\S]*argumentContent \+= "\\\\"/);
     assert.match(bootstrapSource, /Update helper exited before writing a result \(exit code/);
+    assert.doesNotMatch(bootstrapSource, /rolloutBackground = themeDrawingColor #rollupTitleFace/);
     assert.match(updateManagerSource, /Get-FileHash[\s\S]*SHA256/);
     assert.match(maxPkgFilesSource, /version\.ini/);
     assert.match(maxPkgFilesSource, /CHANGELOG\.md/);

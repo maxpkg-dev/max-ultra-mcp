@@ -4,6 +4,7 @@
 
 - Fixed: Update checks preserve quoted package-root paths that end in a backslash, allowing the hidden helper to receive its result-file argument.
 - Improved: Update-check startup failures now report the helper exit code when no result file was produced.
+- Fixed: Update and onboarding status labels now use the ColorMan rollout background instead of the rollout-title color.
 
 ## 1.2.0 - 2026-08-26
 
