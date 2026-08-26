@@ -23,6 +23,7 @@ function activityLabelForTool(toolName, args = {}) {
     max_create_polygon_mesh: "Create polygon mesh",
     max_build_floor_plan: "Build floor plan",
     max_material_find_unassigned: "Find material issues",
+    max_add_normal_modifier: "Add Normal modifier",
     max_capture_viewport: "Capture viewport",
     max_render_start: `Start ${args.mode || "production"} render`,
     max_render_settings_set: "Update render settings",
@@ -418,6 +419,26 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     const script = `(local m=for candidate in sceneMaterials where candidate.name==${maxString(args.materialName)} collect candidate; if m.count==0 do throw "Material not found"; local nodes=#(${expressions.join(",")}); if findItem nodes undefined>0 do throw "NodeRef not found"; undo "Max Ultra MCP: Material" on for n in nodes do n.material=m[1]; nodes.count)`;
     return args.dryRun ? dryRunResult(toolName, instance, script) : executeMutation(bridge, instance, script);
   }
+  if (toolName === "max_add_normal_modifier") {
+    const expression = nodeExpression(args.node, bridge, instance.instanceId);
+    const flip = args.flip !== false;
+    const modifierName = "Max Ultra MCP Normal Review";
+    const script = `(
+local n=${expression}
+if n==undefined do throw "NodeRef not found"
+local marker=${maxString(modifierName)}
+local existing=for modifierValue in n.modifiers where ((classOf modifierValue)==Normalmodifier and modifierValue.name==marker) collect modifierValue
+if existing.count>0 do throw "Normal review modifier already exists"
+local m=Normalmodifier()
+m.name=marker
+m.unify=false
+m.flip=${flip}
+undo "Max Ultra MCP: Normal review" on addModifier n m
+((getHandleByAnim n) as string)+"|"+n.name+"|"+m.name+"|flip="+(m.flip as string)
+)`;
+    const evidence = { modifierName, flip, unify: false, comparisonRequiresImmediateScreenshot: true };
+    return args.dryRun ? dryRunResult(toolName, instance, script, evidence) : executeMutation(bridge, instance, script, 30000, evidence);
+  }
   if (toolName === "max_material_find_unassigned") {
     const script = generateMaterialDiagnosticsScript(args);
     const execution = await bridge.request(instance.instanceId, "execute", script, 120000);
@@ -595,12 +616,28 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
       boundingBox: validation.boundingBox,
       segmentCount: generated.segmentCount,
       placeholderCount: generated.placeholderCount,
+      openingHelperCount: generated.openingHelperCount,
       sourceSplineName: generated.sourceSplineName,
       wallMeshName: generated.wallMeshName,
       modelingWorkflow: generated.modelingWorkflow,
+      normalOrientation: generated.normalOrientation,
+      junctions: generated.junctions,
     };
     if (args.dryRun) return dryRunResult(toolName, instance, generated.script, { validation, ...buildEvidence });
-    return executeMutation(bridge, instance, generated.script, 600000, buildEvidence);
+    const result = await executeMutation(bridge, instance, generated.script, 600000, buildEvidence);
+    const resultText = String(result.execution?.result || "");
+    const parsed = /sourceHandle=(\d+);sourceSpline=([^;]+);wallHandle=(\d+);wallMesh=([^;]+)/.exec(resultText);
+    result.sourceSpline = {
+      ...(parsed ? { handle: Number(parsed[1]) } : {}),
+      name: parsed?.[2] || generated.sourceSplineName,
+      sceneRevision: result.sceneRevision,
+    };
+    result.wallMesh = {
+      ...(parsed ? { handle: Number(parsed[3]) } : {}),
+      name: parsed?.[4] || generated.wallMeshName,
+      sceneRevision: result.sceneRevision,
+    };
+    return result;
   }
 
   return NOT_HANDLED;

@@ -25,6 +25,7 @@
   "floor": {
     "enabled": true,
     "thickness": 200,
+    "outlineMode": "wall_centerline",
     "outline": [[0, 0], [10000, 0], [10000, 8000], [0, 8000]]
   }
 }

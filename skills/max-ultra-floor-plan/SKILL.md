@@ -19,20 +19,37 @@ The wall model must follow this order:
 
 `max_build_floor_plan` implements this sequence. Its returned `modelingWorkflow` must be `spline-copy-extrude-meshop`. Retain `sourceSplineName` and `wallMeshName` as post-state evidence. The source spline is hidden to keep the viewport clean, but it remains in the scene as the recoverable two-dimensional source of truth.
 
-Do not replace this workflow with Box walls, destructive edits to the source spline, or Boolean cutters. Named door and window placeholders are references; the wall mesh must already contain the corresponding openings.
+Do not replace this workflow with Box walls, destructive edits to the source spline, or Boolean cutters. The wall mesh must contain the openings directly. No door/window Dummy helpers should remain after the build.
 
 ## Operating sequence
 
 1. Call `max_list_instances`; explicitly select an instance when several are connected.
 2. Call `max_get_info` and read scene units. Never change system or display units.
-3. Interpret the supplied plan into structured millimeter data. Ask one concrete question when a critical dimension cannot be determined reliably.
+3. Resolve dimensions using the precedence rules below, then interpret the supplied plan into structured millimeter data. Ask one concrete question when a critical dimension cannot be determined reliably.
 4. Read [references/plan-schema.md](references/plan-schema.md) before assembling the payload.
 5. Call `max_validate_floor_plan`. Resolve every blocker and review warnings.
 6. Optionally call `max_build_floor_plan` with `dryRun:true` to inspect the intended script and post-state without changing the scene.
 7. Call `max_build_floor_plan` with the unchanged payload and validation token.
 8. Verify the reported workflow, source spline name, wall mesh name, wall/opening counts, bounds, and scene revision.
-9. Set a top view, frame the result, and call `max_capture_viewport`. Then inspect a perspective view and capture again.
-10. Compare both images with the source plan. If the geometry is clearly wrong, call `max_undo`, correct the structured payload, validate again, and rebuild.
+9. Set a top view, frame the result, and call `max_capture_viewport`. Then use a shaded perspective view, frame the same wall mesh, and capture a baseline image.
+10. Inspect exterior faces, interior faces, opening reveals, wall junctions, and the floor perimeter. The floor must reach at least the outside faces of perimeter walls, and a branch wall must stop at the receiving wall face instead of penetrating it.
+11. If the walls appear consistently inside-out, call `max_add_normal_modifier` with `flip:true` on the returned wall mesh NodeRef and capture the exact same view. Immediately call `max_undo` after the comparison. Keep the baseline when it is correct; reapply the modifier only when the flipped screenshot is clearly correct across exterior, interior, and opening faces.
+12. Compare the final top and perspective images with the source plan. If geometry is clearly wrong, call `max_undo`, correct the structured payload, validate again, and rebuild.
+
+## Normal-orientation review
+
+The builder returns `normalOrientation: "outward"` and creates wall faces with outward winding. Dark shading alone is not proof of flipped normals because viewport lighting, material settings, and backface display can produce similar results.
+
+Use the Normal modifier only as an A/B diagnostic. Keep camera/view, framing, viewport mode, and lighting unchanged between screenshots. The comparison must include both sides of walls and opening reveals, not one bright exterior face. `max_add_normal_modifier` deliberately sets `unify:false`: Autodesk documents that Normal-modifier Unify does not work on Editable Poly. If only some faces remain reversed, treat that as a topology defect and rebuild; do not leave a global Flip modifier as a partial repair.
+
+## Dimension source precedence
+
+1. A dimension or constraint explicitly stated by the user in the current prompt overrides the attached drawing.
+2. Otherwise, readable dimension labels, grids, legends, and scale marks in the attached plan image are the source of truth.
+3. Derive an unlabelled distance from a complete labelled dimension chain or a clearly stated image scale only when that derivation is unambiguous.
+4. Use workflow defaults only for values genuinely absent from both the prompt and the drawing, such as wall height when the plan contains only two-dimensional dimensions.
+
+Never replace a readable printed dimension with a pixel-proportion estimate. If labels conflict, a dimension chain does not close, the image is cropped, or a critical label is unreadable, stop before validation and ask one specific question. Record which values came from the prompt, drawing labels, derived chains, and defaults in the final summary.
 
 ## Boundaries
 
@@ -40,6 +57,6 @@ Do not replace this workflow with Box walls, destructive edits to the source spl
 - Never infer a critical wall, opening, or scale dimension merely to avoid asking the user.
 - Do not bake the plan origin into every interpreted wall when the structured `origin` field expresses it correctly.
 - Do not modify or delete the preserved source spline during later material, modifier, or furnishing work.
+- Do not leave opening helpers, comparison-only modifiers, or other temporary diagnostic nodes in the accepted result.
 - Do not claim a visual match until top and perspective screenshots have been inspected.
 - Do not save the scene unless the user explicitly requests it.
-

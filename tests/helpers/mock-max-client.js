@@ -113,6 +113,12 @@ class MockMaxClient {
         const nodeNameMatch = /local nodeName = ("(?:\\.|[^"\\])*")/.exec(actionPayload);
         const nodeName = nodeNameMatch ? JSON.parse(nodeNameMatch[1]) : "MockPolygonMesh";
         executionResult = `42001|${nodeName}|8|12|6|0|Editable_Poly`;
+      } else if (actionPayload.includes("Max Ultra MCP: Build floor plan")) {
+        const sourceNameMatch = /local sourceSplineName = ("(?:\\.|[^"\\])*")/.exec(actionPayload);
+        const wallNameMatch = /local wallMeshName = ("(?:\\.|[^"\\])*")/.exec(actionPayload);
+        const sourceName = sourceNameMatch ? JSON.parse(sourceNameMatch[1]) : "MCP_WallPlan_SOURCE";
+        const wallName = wallNameMatch ? JSON.parse(wallNameMatch[1]) : "MCP_Walls";
+        executionResult = `sourceHandle=52001;sourceSpline=${sourceName};wallHandle=52002;wallMesh=${wallName};walls=4;segments=8;openings=2;helpers=0;floor=1`;
       } else if (actionPayload.includes("Max Ultra MCP: Find material diagnostics")) {
         executionResult = JSON.stringify({
           scanned: 3,

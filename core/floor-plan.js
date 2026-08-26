@@ -82,11 +82,15 @@ function validateFloorPlan(input) {
     enabled: floorInput.enabled !== false,
     thickness: finite(floorInput.thickness ?? 200, "floor.thickness", { positive: true }),
     outline: Array.isArray(floorInput.outline) ? floorInput.outline.map((point, index) => point2(point, `floor.outline[${index}]`)) : [],
+    outlineMode: String(floorInput.outlineMode ?? floorInput.outline_mode ?? "wall_centerline"),
   };
   if (floor.enabled && floor.outline.length > 0 && floor.outline.length < 3) throw new Error("floor.outline must contain at least three points");
+  if (!["wall_centerline", "finished"].includes(floor.outlineMode)) throw new Error("floor.outlineMode must be 'wall_centerline' or 'finished'");
 
   const normalizedPlan = { units: "mm", origin, wallHeight, walls: walls.map(({ length: _length, ...wall }) => wall), openings, floor };
-  const allPoints = walls.flatMap((wall) => [wall.start, wall.end]).concat(floor.outline);
+  const junctions = buildWallJoinProfiles(normalizedPlan).summary;
+  if (junctions.complexJunctions > 0) warnings.push(`${junctions.complexJunctions} complex wall junction(s) require visual review`);
+  const allPoints = walls.flatMap((wall) => [wall.start, wall.end]).concat(floor.enabled ? buildFloorOutline(normalizedPlan) : floor.outline);
   const xs = allPoints.map((point) => point[0] + origin[0]);
   const ys = allPoints.map((point) => point[1] + origin[1]);
   const boundingBox = { min: [Math.min(...xs), Math.min(...ys), -floor.thickness], max: [Math.max(...xs), Math.max(...ys), wallHeight] };
@@ -96,6 +100,7 @@ function validateFloorPlan(input) {
     validationToken,
     warnings,
     blockers: [],
+    junctions,
     boundingBox,
     counts: { walls: walls.length, openings: openings.length, doors: openings.filter((item) => item.type === "door").length, windows: openings.filter((item) => item.type === "window").length },
   };
@@ -120,6 +125,247 @@ function wallFrame(wall) {
   return { length, along: [dx / length, dy / length], normal: [-dy / length, dx / length] };
 }
 
+const JOIN_EPSILON = 1e-5;
+
+function add2(left, right) {
+  return [left[0] + right[0], left[1] + right[1]];
+}
+
+function subtract2(left, right) {
+  return [left[0] - right[0], left[1] - right[1]];
+}
+
+function scale2(value, scale) {
+  return [value[0] * scale, value[1] * scale];
+}
+
+function dot2(left, right) {
+  return left[0] * right[0] + left[1] * right[1];
+}
+
+function cross2(left, right) {
+  return left[0] * right[1] - left[1] * right[0];
+}
+
+function leftNormal2(direction) {
+  return [-direction[1], direction[0]];
+}
+
+function lineIntersection(pointA, directionA, pointB, directionB) {
+  const denominator = cross2(directionA, directionB);
+  if (Math.abs(denominator) < JOIN_EPSILON) return null;
+  const factor = cross2(subtract2(pointB, pointA), directionB) / denominator;
+  return add2(pointA, scale2(directionA, factor));
+}
+
+function pointKey(point) {
+  return point.map((value) => Number(value).toFixed(5)).join("|");
+}
+
+function pointOnWallInterior(point, wall, frame) {
+  const relative = subtract2(point, wall.start);
+  const distance = dot2(relative, frame.along);
+  const lateral = Math.abs(dot2(relative, frame.normal));
+  return lateral <= JOIN_EPSILON && distance > JOIN_EPSILON && distance < frame.length - JOIN_EPSILON;
+}
+
+function buildWallJoinProfiles(normalizedPlan) {
+  const frames = new Map(normalizedPlan.walls.map((wall) => [wall.id, wallFrame(wall)]));
+  const profiles = new Map();
+  const endpoints = [];
+  const endpointGroups = new Map();
+  for (const wall of normalizedPlan.walls) {
+    const frame = frames.get(wall.id);
+    profiles.set(wall.id, {
+      start: { negative: 0, positive: 0, kind: "cap" },
+      end: { negative: frame.length, positive: frame.length, kind: "cap" },
+    });
+    for (const endpoint of ["start", "end"]) {
+      const record = { wall, frame, endpoint, point: wall[endpoint], key: `${wall.id}:${endpoint}` };
+      endpoints.push(record);
+      const key = pointKey(record.point);
+      if (!endpointGroups.has(key)) endpointGroups.set(key, []);
+      endpointGroups.get(key).push(record);
+    }
+  }
+
+  const resolved = new Set();
+  const summary = { miteredJunctions: 0, buttedEnds: 0, cappedEnds: 0, complexJunctions: 0 };
+  const baseDistance = (record) => record.endpoint === "start" ? 0 : record.frame.length;
+  const awayDirection = (record) => record.endpoint === "start" ? record.frame.along : scale2(record.frame.along, -1);
+  const travelDirection = (record) => scale2(awayDirection(record), -1);
+  const projectedDistance = (record, point) => dot2(subtract2(point, record.wall.start), record.frame.along);
+  const joinDistanceIsBounded = (record, otherWall, distance) => (
+    Math.abs(distance - baseDistance(record)) <= Math.max(record.wall.thickness, otherWall.thickness) * 8
+  );
+
+  const applyButt = (record, hostWall) => {
+    const hostFrame = frames.get(hostWall.id);
+    const away = awayDirection(record);
+    const hostSide = dot2(hostFrame.normal, away);
+    if (Math.abs(hostSide) < JOIN_EPSILON) return false;
+    const boundaryPoint = add2(record.point, scale2(hostFrame.normal, Math.sign(hostSide) * hostWall.thickness / 2));
+    const negativePoint = add2(record.point, scale2(record.frame.normal, -record.wall.thickness / 2));
+    const positivePoint = add2(record.point, scale2(record.frame.normal, record.wall.thickness / 2));
+    const negativeIntersection = lineIntersection(negativePoint, record.frame.along, boundaryPoint, hostFrame.along);
+    const positiveIntersection = lineIntersection(positivePoint, record.frame.along, boundaryPoint, hostFrame.along);
+    if (!negativeIntersection || !positiveIntersection) return false;
+    const negative = projectedDistance(record, negativeIntersection);
+    const positive = projectedDistance(record, positiveIntersection);
+    if (!joinDistanceIsBounded(record, hostWall, negative) || !joinDistanceIsBounded(record, hostWall, positive)) return false;
+    Object.assign(profiles.get(record.wall.id)[record.endpoint], { negative, positive, kind: "butt", hostWallId: hostWall.id });
+    return true;
+  };
+
+  const applyMiter = (record, other) => {
+    const travel = travelDirection(record);
+    const otherAway = awayDirection(other);
+    const currentLeft = leftNormal2(travel);
+    const otherLeft = leftNormal2(otherAway);
+    const leftIntersection = lineIntersection(
+      add2(record.point, scale2(currentLeft, record.wall.thickness / 2)),
+      travel,
+      add2(other.point, scale2(otherLeft, other.wall.thickness / 2)),
+      otherAway,
+    );
+    const rightIntersection = lineIntersection(
+      add2(record.point, scale2(currentLeft, -record.wall.thickness / 2)),
+      travel,
+      add2(other.point, scale2(otherLeft, -other.wall.thickness / 2)),
+      otherAway,
+    );
+    if (!leftIntersection || !rightIntersection) return false;
+    const leftDistance = projectedDistance(record, leftIntersection);
+    const rightDistance = projectedDistance(record, rightIntersection);
+    if (!joinDistanceIsBounded(record, other.wall, leftDistance) || !joinDistanceIsBounded(record, other.wall, rightDistance)) return false;
+    const positiveIsLeft = dot2(record.frame.normal, currentLeft) > 0;
+    Object.assign(profiles.get(record.wall.id)[record.endpoint], {
+      negative: positiveIsLeft ? rightDistance : leftDistance,
+      positive: positiveIsLeft ? leftDistance : rightDistance,
+      kind: "miter",
+      joinedWallId: other.wall.id,
+    });
+    return true;
+  };
+
+  for (const record of endpoints) {
+    const hosts = normalizedPlan.walls
+      .filter((wall) => wall.id !== record.wall.id && pointOnWallInterior(record.point, wall, frames.get(wall.id)))
+      .sort((left, right) => right.thickness - left.thickness);
+    if (hosts.length === 0) continue;
+    if (applyButt(record, hosts[0])) {
+      resolved.add(record.key);
+      summary.buttedEnds += 1;
+    }
+    if (hosts.length > 1) summary.complexJunctions += 1;
+  }
+
+  for (const group of endpointGroups.values()) {
+    const pending = group.filter((record) => !resolved.has(record.key));
+    if (pending.length === 2 && group.length === 2) {
+      const firstApplied = applyMiter(pending[0], pending[1]);
+      const secondApplied = applyMiter(pending[1], pending[0]);
+      if (firstApplied && secondApplied) {
+        resolved.add(pending[0].key);
+        resolved.add(pending[1].key);
+        summary.miteredJunctions += 1;
+      }
+      continue;
+    }
+    if (pending.length < 3) continue;
+    let hostPair = null;
+    for (let leftIndex = 0; leftIndex < pending.length && hostPair === null; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < pending.length; rightIndex += 1) {
+        if (dot2(awayDirection(pending[leftIndex]), awayDirection(pending[rightIndex])) < -0.9999) {
+          hostPair = [pending[leftIndex], pending[rightIndex]];
+          break;
+        }
+      }
+    }
+    if (!hostPair) {
+      summary.complexJunctions += 1;
+      continue;
+    }
+    resolved.add(hostPair[0].key);
+    resolved.add(hostPair[1].key);
+    const hostWall = hostPair[0].wall.thickness >= hostPair[1].wall.thickness ? hostPair[0].wall : hostPair[1].wall;
+    for (const branch of pending.filter((record) => !hostPair.includes(record))) {
+      if (applyButt(branch, hostWall)) {
+        resolved.add(branch.key);
+        summary.buttedEnds += 1;
+      } else {
+        summary.complexJunctions += 1;
+      }
+    }
+  }
+
+  summary.cappedEnds = endpoints.length - resolved.size;
+  return { profiles, summary };
+}
+
+function polygonSignedArea(points) {
+  let twiceArea = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    twiceArea += current[0] * next[1] - next[0] * current[1];
+  }
+  return twiceArea / 2;
+}
+
+function floorEdgeThickness(start, end, walls) {
+  const edge = subtract2(end, start);
+  const edgeLength = Math.hypot(edge[0], edge[1]);
+  if (edgeLength < JOIN_EPSILON) return 0;
+  const edgeDirection = scale2(edge, 1 / edgeLength);
+  const matching = walls.filter((wall) => {
+    const frame = wallFrame(wall);
+    if (Math.abs(cross2(edgeDirection, frame.along)) > JOIN_EPSILON) return false;
+    const startLateral = Math.abs(dot2(subtract2(start, wall.start), frame.normal));
+    const endLateral = Math.abs(dot2(subtract2(end, wall.start), frame.normal));
+    return startLateral <= JOIN_EPSILON && endLateral <= JOIN_EPSILON;
+  });
+  if (matching.length > 0) return Math.max(...matching.map((wall) => wall.thickness));
+  return Math.max(...walls.map((wall) => wall.thickness));
+}
+
+function offsetFloorOutline(points, walls) {
+  if (points.length < 3) return points;
+  const orientation = polygonSignedArea(points) >= 0 ? 1 : -1;
+  const edges = points.map((start, index) => {
+    const end = points[(index + 1) % points.length];
+    const delta = subtract2(end, start);
+    const length = Math.hypot(delta[0], delta[1]);
+    const direction = scale2(delta, 1 / length);
+    const outward = orientation > 0 ? [direction[1], -direction[0]] : [-direction[1], direction[0]];
+    const offset = floorEdgeThickness(start, end, walls) / 2;
+    return { direction, offset, point: add2(start, scale2(outward, offset)), outward };
+  });
+  return points.map((point, index) => {
+    const previous = edges[(index - 1 + edges.length) % edges.length];
+    const current = edges[index];
+    const intersection = lineIntersection(previous.point, previous.direction, current.point, current.direction);
+    const maximumMiter = Math.max(previous.offset, current.offset, 1) * 8;
+    if (intersection && Math.hypot(...subtract2(intersection, point)) <= maximumMiter) return intersection;
+    const averageOutward = add2(scale2(previous.outward, previous.offset), scale2(current.outward, current.offset));
+    return add2(point, scale2(averageOutward, 0.5));
+  });
+}
+
+function buildFloorOutline(normalizedPlan) {
+  const baseOutline = normalizedPlan.floor.outline.length >= 3
+    ? normalizedPlan.floor.outline
+    : (() => {
+      const points = normalizedPlan.walls.flatMap((wall) => [wall.start, wall.end]);
+      const xs = points.map((point) => point[0]);
+      const ys = points.map((point) => point[1]);
+      return [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)], [Math.min(...xs), Math.max(...ys)]];
+    })();
+  return normalizedPlan.floor.outlineMode === "finished"
+    ? baseOutline.map((point) => [...point])
+    : offsetFloorOutline(baseOutline, normalizedPlan.walls);
+}
+
 function wallPoint(normalizedPlan, wall, frame, distance, lateral, height) {
   return [
     normalizedPlan.origin[0] + wall.start[0] + frame.along[0] * distance + frame.normal[0] * lateral,
@@ -128,27 +374,29 @@ function wallPoint(normalizedPlan, wall, frame, distance, lateral, height) {
   ];
 }
 
-function buildWallFootprints(normalizedPlan) {
+function buildWallFootprints(normalizedPlan, joinProfiles = buildWallJoinProfiles(normalizedPlan).profiles) {
   return normalizedPlan.walls.map((wall) => {
     const frame = wallFrame(wall);
     const halfThickness = wall.thickness / 2;
+    const profile = joinProfiles.get(wall.id);
     return [
-      wallPoint(normalizedPlan, wall, frame, -halfThickness, -halfThickness, 0),
-      wallPoint(normalizedPlan, wall, frame, frame.length + halfThickness, -halfThickness, 0),
-      wallPoint(normalizedPlan, wall, frame, frame.length + halfThickness, halfThickness, 0),
-      wallPoint(normalizedPlan, wall, frame, -halfThickness, halfThickness, 0),
+      wallPoint(normalizedPlan, wall, frame, profile.start.negative, -halfThickness, 0),
+      wallPoint(normalizedPlan, wall, frame, profile.end.negative, -halfThickness, 0),
+      wallPoint(normalizedPlan, wall, frame, profile.end.positive, halfThickness, 0),
+      wallPoint(normalizedPlan, wall, frame, profile.start.positive, halfThickness, 0),
     ];
   });
 }
 
-function buildOpeningAwareWallTopology(normalizedPlan) {
+function buildOpeningAwareWallTopology(normalizedPlan, joinProfiles = buildWallJoinProfiles(normalizedPlan).profiles) {
   const vertices = [];
   const faces = [];
   const pieces = [];
   for (const wall of normalizedPlan.walls) {
     const frame = wallFrame(wall);
+    const profile = joinProfiles.get(wall.id);
     const openings = normalizedPlan.openings.filter((opening) => opening.wallId === wall.id);
-    const bounds = [-wall.thickness / 2, 0, frame.length, frame.length + wall.thickness / 2];
+    const bounds = [0, frame.length];
     for (const opening of openings) bounds.push(opening.offsetFromStart, opening.offsetFromStart + opening.width);
     const sortedBounds = [...new Set(bounds.map((value) => Number(value.toFixed(6))))].sort((left, right) => left - right);
     for (let index = 0; index < sortedBounds.length - 1; index += 1) {
@@ -164,19 +412,23 @@ function buildOpeningAwareWallTopology(normalizedPlan) {
         if (zTo - zFrom < 1e-6) continue;
         const halfThickness = wall.thickness / 2;
         const baseVertex = vertices.length;
+        const positiveFrom = Math.abs(from) < JOIN_EPSILON ? profile.start.positive : from;
+        const negativeFrom = Math.abs(from) < JOIN_EPSILON ? profile.start.negative : from;
+        const positiveTo = Math.abs(to - frame.length) < JOIN_EPSILON ? profile.end.positive : to;
+        const negativeTo = Math.abs(to - frame.length) < JOIN_EPSILON ? profile.end.negative : to;
         vertices.push(
-          wallPoint(normalizedPlan, wall, frame, from, halfThickness, zFrom),
-          wallPoint(normalizedPlan, wall, frame, to, halfThickness, zFrom),
-          wallPoint(normalizedPlan, wall, frame, to, -halfThickness, zFrom),
-          wallPoint(normalizedPlan, wall, frame, from, -halfThickness, zFrom),
-          wallPoint(normalizedPlan, wall, frame, from, halfThickness, zTo),
-          wallPoint(normalizedPlan, wall, frame, to, halfThickness, zTo),
-          wallPoint(normalizedPlan, wall, frame, to, -halfThickness, zTo),
-          wallPoint(normalizedPlan, wall, frame, from, -halfThickness, zTo),
+          wallPoint(normalizedPlan, wall, frame, positiveFrom, halfThickness, zFrom),
+          wallPoint(normalizedPlan, wall, frame, positiveTo, halfThickness, zFrom),
+          wallPoint(normalizedPlan, wall, frame, negativeTo, -halfThickness, zFrom),
+          wallPoint(normalizedPlan, wall, frame, negativeFrom, -halfThickness, zFrom),
+          wallPoint(normalizedPlan, wall, frame, positiveFrom, halfThickness, zTo),
+          wallPoint(normalizedPlan, wall, frame, positiveTo, halfThickness, zTo),
+          wallPoint(normalizedPlan, wall, frame, negativeTo, -halfThickness, zTo),
+          wallPoint(normalizedPlan, wall, frame, negativeFrom, -halfThickness, zTo),
         );
         const localFaces = [
-          [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4],
-          [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7],
+          [0, 1, 2, 3], [4, 7, 6, 5], [0, 4, 5, 1],
+          [1, 5, 6, 2], [2, 6, 7, 3], [3, 7, 4, 0],
         ];
         faces.push(...localFaces.map((face) => face.map((vertexIndex) => baseVertex + vertexIndex)));
         pieces.push({ wallId: wall.id, openingId: opening?.id || null, from, to, zFrom, zTo });
@@ -191,11 +443,11 @@ function generateFloorPlanScript(normalizedPlan, options = {}) {
   const layerName = String(options.layer || "MCP_ARCHVIZ");
   const sourceSplineName = `${prefix}_WallPlan_SOURCE`;
   const wallMeshName = `${prefix}_Walls`;
-  const wallFootprints = buildWallFootprints(normalizedPlan);
-  const wallTopology = buildOpeningAwareWallTopology(normalizedPlan);
+  const joinAnalysis = buildWallJoinProfiles(normalizedPlan);
+  const wallFootprints = buildWallFootprints(normalizedPlan, joinAnalysis.profiles);
+  const wallTopology = buildOpeningAwareWallTopology(normalizedPlan, joinAnalysis.profiles);
   const statements = [];
   const segmentCount = wallTopology.pieces.length;
-  let placeholderCount = 0;
   statements.push("(");
   statements.push("  fn mm value = units.decodeValue ((value as string) + \"mm\")");
   statements.push("  fn addWallPolygon targetMesh polygonIndices = (");
@@ -214,6 +466,7 @@ function generateFloorPlanScript(normalizedPlan, options = {}) {
   statements.push(`  local wallPolygonValues = #(${wallTopology.faces.map((face) => `#(${face.map((vertexIndex) => vertexIndex + 1).join(",")})`).join(",")})`);
   statements.push("  local createdNodes = #()");
   statements.push("  local visibleNodes = #()");
+  statements.push("  local buildResult = \\");
   statements.push("  undo \"Max Ultra MCP: Build floor plan\" on (");
   statements.push("    local wallPlanSource = splineShape name:sourceSplineName");
   for (let footprintIndex = 0; footprintIndex < wallFootprints.length; footprintIndex += 1) {
@@ -248,34 +501,8 @@ function generateFloorPlanScript(normalizedPlan, options = {}) {
   statements.push("    wallPlanSource.isHidden = true");
   statements.push("    wallMesh.isHidden = false");
 
-  for (const wall of normalizedPlan.walls) {
-    const frame = wallFrame(wall);
-    const angle = Math.atan2(frame.along[1], frame.along[0]) * 180 / Math.PI;
-    const openings = normalizedPlan.openings.filter((opening) => opening.wallId === wall.id);
-    for (const opening of openings) {
-      placeholderCount += 1;
-      const centerDistance = opening.offsetFromStart + opening.width / 2;
-      const centerX = normalizedPlan.origin[0] + wall.start[0] + frame.along[0] * centerDistance;
-      const centerY = normalizedPlan.origin[1] + wall.start[1] + frame.along[1] * centerDistance;
-      const centerZ = opening.sillHeight + opening.height / 2;
-      const name = `${prefix}_${opening.type === "door" ? "Door" : "Window"}_${safeName(opening.id)}`;
-      statements.push(`    local p = dummy name:${quoteMax(name)} boxsize:[${mm(opening.width)},${mm(wall.thickness)},${mm(opening.height)}] pos:[${mm(centerX)},${mm(centerY)},${mm(centerZ)}]`);
-      statements.push(`    p.rotation = eulerAngles 0 0 ${angle.toFixed(6)}`);
-      statements.push("    targetLayer.addNode p");
-      statements.push("    append createdNodes p");
-      statements.push("    append visibleNodes p");
-    }
-  }
-
   if (normalizedPlan.floor.enabled) {
-    const outline = normalizedPlan.floor.outline.length >= 3
-      ? normalizedPlan.floor.outline
-      : (() => {
-        const points = normalizedPlan.walls.flatMap((wall) => [wall.start, wall.end]);
-        const xs = points.map((point) => point[0]);
-        const ys = points.map((point) => point[1]);
-        return [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)], [Math.min(...xs), Math.max(...ys)]];
-      })();
+    const outline = buildFloorOutline(normalizedPlan);
     statements.push(`    local floorShape = splineShape name:${quoteMax(`${prefix}_Floor`)}`);
     statements.push("    addNewSpline floorShape");
     for (const point of outline) {
@@ -290,17 +517,28 @@ function generateFloorPlanScript(normalizedPlan, options = {}) {
   }
 
   statements.push("    select visibleNodes");
+  statements.push(`    buildResult = "sourceHandle=" + ((getHandleByAnim wallPlanSource) as string) + ";sourceSpline=" + sourceSplineName + ";wallHandle=" + ((getHandleByAnim wallMesh) as string) + ";wallMesh=" + wallMeshName + ";walls=${normalizedPlan.walls.length};segments=${segmentCount};openings=${normalizedPlan.openings.length};helpers=0;floor=${normalizedPlan.floor.enabled ? 1 : 0}"`);
   statements.push("  )");
-  statements.push(`  ${quoteMax(`sourceSpline=${sourceSplineName};wallMesh=${wallMeshName};walls=${normalizedPlan.walls.length};segments=${segmentCount};openings=${placeholderCount};floor=${normalizedPlan.floor.enabled ? 1 : 0}`)}`);
+  statements.push("  buildResult");
   statements.push(")");
   return {
     script: statements.join("\n"),
     segmentCount,
-    placeholderCount,
+    placeholderCount: 0,
+    openingHelperCount: 0,
     sourceSplineName,
     wallMeshName,
     modelingWorkflow: "spline-copy-extrude-meshop",
+    normalOrientation: "outward",
+    junctions: joinAnalysis.summary,
   };
 }
 
-module.exports = { canonicalString, generateFloorPlanScript, validateFloorPlan };
+module.exports = {
+  buildOpeningAwareWallTopology,
+  buildFloorOutline,
+  buildWallJoinProfiles,
+  canonicalString,
+  generateFloorPlanScript,
+  validateFloorPlan,
+};

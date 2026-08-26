@@ -8,7 +8,13 @@ const { MockMaxClient } = require("./helpers/mock-max-client");
 const { BridgeControlClient } = require("../core/bridge-control-client");
 const { StdioHost } = require("../core/stdio-host");
 const { getMcpTools } = require("../core/tool-catalog");
-const { generateFloorPlanScript, validateFloorPlan } = require("../core/floor-plan");
+const {
+  buildFloorOutline,
+  buildOpeningAwareWallTopology,
+  buildWallJoinProfiles,
+  generateFloorPlanScript,
+  validateFloorPlan,
+} = require("../core/floor-plan");
 const { JobRegistry } = require("../core/job-registry");
 const { generateMaterialDiagnosticsScript } = require("../core/material-diagnostics");
 const { createPlanToken, verifyPlanToken } = require("../core/plan-token");
@@ -34,6 +40,26 @@ function assertBalancedGeneratedMaxScript(source) {
   }
   assert.equal(inString, false, "Generated MaxScript contains an unterminated string");
   assert.deepEqual(stack, []);
+}
+
+function assertOutwardPieceNormals(topology) {
+  const subtract = (left, right) => left.map((value, index) => value - right[index]);
+  const dot = (left, right) => left.reduce((sum, value, index) => sum + value * right[index], 0);
+  const cross = (left, right) => [
+    left[1] * right[2] - left[2] * right[1],
+    left[2] * right[0] - left[0] * right[2],
+    left[0] * right[1] - left[1] * right[0],
+  ];
+  const average = (points) => points[0].map((_, axis) => points.reduce((sum, point) => sum + point[axis], 0) / points.length);
+  for (let pieceIndex = 0; pieceIndex < topology.pieces.length; pieceIndex += 1) {
+    const pieceVertices = topology.vertices.slice(pieceIndex * 8, pieceIndex * 8 + 8);
+    const pieceCenter = average(pieceVertices);
+    for (const face of topology.faces.slice(pieceIndex * 6, pieceIndex * 6 + 6)) {
+      const faceVertices = face.map((vertexIndex) => topology.vertices[vertexIndex]);
+      const faceNormal = cross(subtract(faceVertices[1], faceVertices[0]), subtract(faceVertices[2], faceVertices[0]));
+      assert.ok(dot(faceNormal, subtract(average(faceVertices), pieceCenter)) > 0, `Piece ${pieceIndex} contains an inward face`);
+    }
+  }
 }
 
 function waitFor(predicate, timeoutMs = 3000) {
@@ -108,8 +134,28 @@ async function run() {
   changed.wallHeight = 3100;
   const exampleValidation = validateFloorPlan(EXAMPLE_PLAN);
   assert.deepEqual(exampleValidation.counts, { walls: 7, openings: 9, doors: 4, windows: 5 });
+  assert.equal(exampleValidation.normalizedPlan.floor.outlineMode, "wall_centerline");
+  assert.deepEqual(exampleValidation.boundingBox, { min: [-150, -150, -200], max: [10150, 8150, 3000] });
+  assert.deepEqual(exampleValidation.junctions, { miteredJunctions: 4, buttedEnds: 6, cappedEnds: 0, complexJunctions: 0 });
   const generatedExample = generateFloorPlanScript(exampleValidation.normalizedPlan, { prefix: "MCP", layer: "MCP_ARCHVIZ" });
+  const exampleJoins = buildWallJoinProfiles(exampleValidation.normalizedPlan);
+  const exampleTopology = buildOpeningAwareWallTopology(exampleValidation.normalizedPlan, exampleJoins.profiles);
+  const exampleFloorOutline = buildFloorOutline(exampleValidation.normalizedPlan);
   assertBalancedGeneratedMaxScript(generatedExample.script);
+  assertOutwardPieceNormals(exampleTopology);
+  assert.deepEqual(exampleJoins.summary, { miteredJunctions: 4, buttedEnds: 6, cappedEnds: 0, complexJunctions: 0 });
+  assert.deepEqual(exampleJoins.profiles.get("W_HALL_LEFT"), {
+    start: { negative: 150, positive: 150, kind: "butt", hostWallId: "W_BOTTOM" },
+    end: { negative: 7850, positive: 7850, kind: "butt", hostWallId: "W_TOP" },
+  });
+  assert.deepEqual(exampleJoins.profiles.get("W_ROOMS"), {
+    start: { negative: 75, positive: 75, kind: "butt", hostWallId: "W_HALL_RIGHT" },
+    end: { negative: 3750, positive: 3750, kind: "butt", hostWallId: "W_RIGHT" },
+  });
+  assert.deepEqual(exampleFloorOutline, [[-150, -150], [10150, -150], [10150, 8150], [-150, 8150]]);
+  const finishedFloorPlan = structuredClone(exampleValidation.normalizedPlan);
+  finishedFloorPlan.floor.outlineMode = "finished";
+  assert.deepEqual(buildFloorOutline(finishedFloorPlan), [[0, 0], [10000, 0], [10000, 8000], [0, 8000]]);
   assert.match(generatedExample.script, /units\.decodeValue/);
   assert.match(generatedExample.script, /Max Ultra MCP: Build floor plan/);
   assert.match(generatedExample.script, /splineShape name:sourceSplineName/);
@@ -129,12 +175,15 @@ async function run() {
   const meshOpIndex = generatedExample.script.indexOf("meshop.deleteFaces wallMesh");
   assert.ok(sourceSplineIndex < copiedWallIndex && copiedWallIndex < extrudeIndex && extrudeIndex < collapseIndex && collapseIndex < meshOpIndex);
   assert.doesNotMatch(generatedExample.script, /addModifier wallPlanSource|convertToMesh wallPlanSource|convertToPoly wallPlanSource/);
-  assert.match(generatedExample.script, /dummy name:"MCP_Door_DOOR_MAIN"/);
+  assert.doesNotMatch(generatedExample.script, /\bdummy\b|MCP_Door_|MCP_Window_/);
   assert.doesNotMatch(generatedExample.script, /box name:/i);
   assert.doesNotMatch(generatedExample.script, /boolean|ProBoolean/i);
   assert.equal(generatedExample.sourceSplineName, "MCP_WallPlan_SOURCE");
   assert.equal(generatedExample.wallMeshName, "MCP_Walls");
   assert.equal(generatedExample.modelingWorkflow, "spline-copy-extrude-meshop");
+  assert.equal(generatedExample.normalOrientation, "outward");
+  assert.equal(generatedExample.openingHelperCount, 0);
+  assert.equal(generatedExample.placeholderCount, 0);
   assert.ok(generatedExample.segmentCount > exampleValidation.counts.walls);
 
   assert.notEqual(validateFloorPlan(changed).validationToken, validation.validationToken);
@@ -269,11 +318,31 @@ async function run() {
     assert.equal(build.result.structuredContent.data.counts.walls, 4);
     assert.equal(build.result.structuredContent.data.sourceSplineName, "MCP_WallPlan_SOURCE");
     assert.equal(build.result.structuredContent.data.wallMeshName, "MCP_Walls");
+    assert.deepEqual(build.result.structuredContent.data.sourceSpline, { handle: 52001, name: "MCP_WallPlan_SOURCE", sceneRevision: build.result.structuredContent.sceneRevision });
+    assert.deepEqual(build.result.structuredContent.data.wallMesh, { handle: 52002, name: "MCP_Walls", sceneRevision: build.result.structuredContent.sceneRevision });
     assert.equal(build.result.structuredContent.data.modelingWorkflow, "spline-copy-extrude-meshop");
+    assert.equal(build.result.structuredContent.data.normalOrientation, "outward");
+    assert.equal(build.result.structuredContent.data.openingHelperCount, 0);
+    assert.equal(build.result.structuredContent.data.placeholderCount, 0);
+    assert.deepEqual(build.result.structuredContent.data.junctions, { miteredJunctions: 4, buttedEnds: 0, cappedEnds: 0, complexJunctions: 0 });
     assert.match(max2022.executeRequests.at(-1), /Max Ultra MCP: Build floor plan/);
     assert.match(max2022.executeRequests.at(-1), /local wallMesh = copy wallPlanSource/);
     assert.match(max2022.executeRequests.at(-1), /meshop\.createPolygon targetMesh/);
-    assert.match(max2022.executeRequests.at(-1), /MCP_Door_D1/);
+    assert.doesNotMatch(max2022.executeRequests.at(-1), /\bdummy\b|MCP_Door_|MCP_Window_/);
+
+    const normalPreview = await rpc(hostA, {
+      jsonrpc: "2.0",
+      id: 111,
+      method: "tools/call",
+      params: {
+        name: "max_add_normal_modifier",
+        arguments: { node: build.result.structuredContent.data.wallMesh, flip: true, dryRun: true },
+      },
+    });
+    assert.equal(normalPreview.result.isError, false, JSON.stringify(normalPreview.result.structuredContent));
+    assert.match(normalPreview.result.structuredContent.data.script, /Normalmodifier\(\)/);
+    assert.match(normalPreview.result.structuredContent.data.script, /m\.unify=false/);
+    assert.match(normalPreview.result.structuredContent.data.script, /m\.flip=true/);
 
     const screenshot = await rpc(hostA, { jsonrpc: "2.0", id: 12, method: "tools/call", params: { name: "max_capture_viewport", arguments: { width: 64, height: 32 } } });
     assert.equal(screenshot.result.content[1].type, "image");

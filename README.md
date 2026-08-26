@@ -15,6 +15,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Added privacy-safe semantic activity labels to the in-Max panel, with a shortened request identifier retained for troubleshooting.
 - Reused validation tokens for destructive plan/apply workflows so payload, selected Max instance, scene revision, targets, and detected capabilities stay bound together.
 - Corrected viewport framing commands: selection framing now affects only the active viewport, and scene extents use the documented `max tool zoomextents` command.
+- Corrected floor-plan wall winding, added mitered corners and trimmed T-junctions, expanded floor slabs to the outside wall envelope, removed opening Dummy helpers, and added a guarded Normal-modifier screenshot comparison tool.
 - Expanded mock, contract, CLI, packaging, and agent-reference coverage for the new behavior.
 
 ## What users can do
@@ -103,8 +104,8 @@ The complete image-to-scene example is in [examples/house-plan-from-image](examp
 2. Send the English prompt from `PROMPT.md`.
 3. The model interprets dimensions into structured JSON.
 4. MCP validates the plan and returns a validation token.
-5. MCP creates and preserves a wall-plan source spline, extrudes a separate copy, builds opening-aware wall topology through `meshOp`, and adds placeholders and the floor in one undo transaction.
-6. The model captures top and perspective viewport screenshots and verifies the result.
+5. MCP creates and preserves a wall-plan source spline, extrudes a separate copy, builds outward-facing opening-aware wall topology through `meshOp`, joins walls without penetration, and adds the expanded floor in one undo transaction.
+6. The model captures top and perspective viewport screenshots, optionally performs a reversible Normal-modifier A/B comparison, and verifies the result without leaving opening helpers.
 
 The source image is interpreted by the model. Raw image bytes are not passed to 3ds Max.
 

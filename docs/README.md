@@ -52,7 +52,7 @@ The compact panel shows two status/context rows above a tall log.
 ## Concise MCP tools
 
 The mandatory production workflow backlog and acceptance contracts are defined in [USE_CASES.md](USE_CASES.md).
-The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 54–65 tools; see [V1.md](V1.md).
+The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 59–72 tools; see [V1.md](V1.md).
 
 
 | Tool | Purpose |
@@ -179,4 +179,4 @@ Or with Node 22+:
 node .\tests\smoke-test.js
 ```
 
-The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 54-65 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.
+The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 59-72 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.
