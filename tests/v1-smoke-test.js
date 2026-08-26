@@ -4,6 +4,7 @@
 
 const assert = require("node:assert/strict");
 const { MaxBridge } = require("../core/server");
+const { version: PACKAGE_VERSION } = require("../core/package.json");
 const { MockMaxClient } = require("./helpers/mock-max-client");
 const { BridgeControlClient } = require("../core/bridge-control-client");
 const { StdioHost } = require("../core/stdio-host");
@@ -270,7 +271,7 @@ async function run() {
     await waitFor(() => bridge.listInstances().length === 2);
 
     const initialize = await rpc(hostA, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
-    assert.equal(initialize.result.serverInfo.version, "1.1.0");
+    assert.equal(initialize.result.serverInfo.version, PACKAGE_VERSION);
     assert.match(initialize.result.instructions, /floor-plan images/);
 
     const list = await rpc(hostA, { jsonrpc: "2.0", id: 2, method: "tools/list" });

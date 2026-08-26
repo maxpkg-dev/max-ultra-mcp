@@ -8,18 +8,14 @@ The v1 architecture and mock-tested MCP surface are implemented. The current aut
 
 The first production-foundations increment adds session-owned common jobs and read-only material diagnostics. The remaining workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
 
-### Recent changes in 1.1.0
+### Recent changes in 1.2.0
 
-- Added a session-owned common job API for listing, monitoring, waiting for, cancelling, and retrieving long-operation results without leaking jobs between MCP clients.
-- Added read-only material diagnostics for missing assignments, invalid materials, incomplete Multi/Sub materials, and missing bitmap files.
-- Added privacy-safe semantic activity labels to the in-Max panel, with a shortened request identifier retained for troubleshooting.
-- Added an identity-verified first-step restart: a re-run stops the previous unshared daemon, waits for its loopback endpoint to close, and then launches the replacement; connected client-owned STDIO hosts exit when that verified daemon connection closes.
-- Reused validation tokens for destructive plan/apply workflows so payload, selected Max instance, scene revision, targets, and detected capabilities stay bound together.
-- Corrected viewport framing commands: selection framing now affects only the active viewport, and scene extents use the documented `max tool zoomextents` command.
-- Added clean visual-review captures: the viewport is maximized, temporary Realistic/Shaded review settings remove grid and selection noise, Nitrous anti-aliasing is raised to 8X, and the user's display settings are restored after the image is saved.
-- Corrected floor-plan wall winding, added mitered corners and trimmed T-junctions, expanded floor slabs to the outside wall envelope, removed opening Dummy helpers, and added a guarded Normal-modifier screenshot comparison tool.
-- Expanded mock, contract, CLI, packaging, and agent-reference coverage for the new behavior.
-
+- Added deterministic release preparation and publishing safeguards driven by `version.ini`.
+- Added hidden curl-based update checks, verified GitHub Release downloads, MaxPkg installation, and automatic bootstrap restart.
+- Added MaxPkg marketplace guidance that prepares listing copy, FAQ content, sanitized screenshots and assets, and upload steps from current official sources.
+- Updated the main panel title to include the product version and removed the First Step label.
+- Fixed automatic update-check startup in supported 3ds Max versions.
+- Completed the MaxPkg production archive with required Node package metadata and linked user and AI-agent documentation.
 ## What users can do
 
 - Start the bridge and configure ChatGPT Desktop, Codex, Claude Code, or another STDIO client from one MaxScript entry point.

@@ -2,9 +2,15 @@
 
 ## Unreleased
 
-- Added: Repository release rules and deterministic release preparation from one version source.
-- Added: Hidden curl-based update checks, verified GitHub Release downloads, MaxPkg installation, and automatic bootstrap restart.
+## 1.2.0 - 2026-08-26
+
+- Added: Deterministic release preparation and publishing safeguards from one version source.
+- Added: Verified automatic updates from stable GitHub Releases through MaxPkg with automatic restart.
+- Added: MaxPkg marketplace preparation guidance for listing copy, FAQ, sanitized assets, and upload workflow.
 - Changed: The main panel title now includes the product version and no longer uses the First Step label.
+- Fixed: Automatic update checks now start correctly in supported 3ds Max versions.
+- Fixed: MaxPkg production archives include required Node package metadata and linked user and agent documentation.
+- Fixed: Release preparation can be rerun safely after a verification failure without duplicating its changelog section.
 
 ## 1.1.0 - 2026-08-26
 

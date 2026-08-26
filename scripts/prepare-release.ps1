@@ -51,7 +51,16 @@ if (-not $unreleasedMatch.Success) {
     throw 'CHANGELOG.md must contain a top-level ## Unreleased section.'
 }
 $unreleasedBody = $unreleasedMatch.Groups['body'].Value.Trim()
-if ([string]::IsNullOrWhiteSpace($unreleasedBody)) {
+$existingReleaseMatch = [regex]::Match(
+    $changelogContent,
+    "(?m)^## $([regex]::Escape($releaseVersion)) - [0-9]{4}-[0-9]{2}-[0-9]{2}\s*$"
+)
+$isPreparedRetry = (
+    $currentInfo.Version -eq $releaseVersion -and
+    $existingReleaseMatch.Success -and
+    [string]::IsNullOrWhiteSpace($unreleasedBody)
+)
+if ([string]::IsNullOrWhiteSpace($unreleasedBody) -and -not $isPreparedRetry) {
     throw 'CHANGELOG.md Unreleased is empty. Add factual release notes before preparing a release.'
 }
 foreach ($entryLine in $unreleasedBody -split '\r?\n') {
@@ -60,16 +69,20 @@ foreach ($entryLine in $unreleasedBody -split '\r?\n') {
         throw "Unsupported changelog entry: $entryLine"
     }
 }
-if ($changelogContent -match "(?m)^## $([regex]::Escape($releaseVersion))(?:\s|$)") {
+if ($existingReleaseMatch.Success -and -not $isPreparedRetry) {
     throw "CHANGELOG.md already contains version $releaseVersion."
 }
 
 $versionIniContent = "[MaxUltraMCP]`r`nVersion=$releaseVersion`r`nChannel=$Channel`r`n"
 [IO.File]::WriteAllText($versionIniPath, $versionIniContent, $utf8WithoutBom)
 
-$packageData = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$packageData.version = $releaseVersion
-$packageJsonContent = ($packageData | ConvertTo-Json -Depth 20) + "`n"
+$packageJsonContent = [IO.File]::ReadAllText($packageJsonPath)
+try { $packageJsonContent | ConvertFrom-Json | Out-Null } catch { throw 'core\package.json is not valid JSON.' }
+$packageVersionMatches = [regex]::Matches($packageJsonContent, '(?m)^(?<prefix>\s*"version"\s*:\s*")[^"]+(?<suffix>",?\s*)$')
+if ($packageVersionMatches.Count -ne 1) { throw 'core\package.json must contain exactly one top-level version line.' }
+$packageVersionMatch = $packageVersionMatches[0]
+$packageVersionLine = $packageVersionMatch.Groups['prefix'].Value + $releaseVersion + $packageVersionMatch.Groups['suffix'].Value
+$packageJsonContent = $packageJsonContent.Remove($packageVersionMatch.Index, $packageVersionMatch.Length).Insert($packageVersionMatch.Index, $packageVersionLine)
 [IO.File]::WriteAllText($packageJsonPath, $packageJsonContent, $utf8WithoutBom)
 
 $bootstrapContent = [IO.File]::ReadAllText($bootstrapPath)
@@ -93,13 +106,15 @@ if ($bootstrapContent -notmatch "lblAboutVersion `"Version: $([regex]::Escape($r
 }
 [IO.File]::WriteAllText($bootstrapPath, $bootstrapContent, $utf8WithoutBom)
 
-$releasedSection = "## $releaseVersion - $releaseDate`r`n`r`n$unreleasedBody`r`n`r`n"
-$newUnreleasedSection = "## Unreleased`r`n`r`n"
-$newChangelogContent = $changelogContent.Remove($unreleasedMatch.Index, $unreleasedMatch.Length).Insert(
-    $unreleasedMatch.Index,
-    $newUnreleasedSection + $releasedSection
-)
-[IO.File]::WriteAllText($changelogPath, $newChangelogContent, $utf8WithoutBom)
+if (-not $isPreparedRetry) {
+    $releasedSection = "## $releaseVersion - $releaseDate`r`n`r`n$unreleasedBody`r`n`r`n"
+    $newUnreleasedSection = "## Unreleased`r`n`r`n"
+    $newChangelogContent = $changelogContent.Remove($unreleasedMatch.Index, $unreleasedMatch.Length).Insert(
+        $unreleasedMatch.Index,
+        $newUnreleasedSection + $releasedSection
+    )
+    [IO.File]::WriteAllText($changelogPath, $newChangelogContent, $utf8WithoutBom)
+}
 
 if (-not $SkipMaxPkgPreparation) {
     & (Join-Path $PSScriptRoot 'prepare-maxpkg.ps1') -License $License

@@ -53,13 +53,13 @@ try {
     Assert-ReleaseTest $invalidVersionRejected 'Incomplete versions must be rejected.'
 
     $projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath (Join-Path $projectRoot 'version.ini')
-    Assert-ReleaseTest ($projectVersion.Version -eq '1.1.0') 'version.ini project metadata was not parsed.'
+    Assert-ReleaseTest ($projectVersion.Version -match '^\d+\.\d+\.\d+$') 'version.ini project metadata was not parsed.'
     Assert-ReleaseTest ($projectVersion.Channel -eq 'stable') 'Only the stable project channel should be accepted.'
 
     $releaseMetadataPath = Join-Path $temporaryRoot 'release.json'
     $updateResultPath = Join-Path $temporaryRoot 'update-result.ini'
     $releaseMetadata = @{
-        tag_name = 'v1.1.0'
+        tag_name = "v$($projectVersion.Version)"
         draft = $false
         prerelease = $false
         assets = @()

@@ -8,6 +8,7 @@ const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { version: PACKAGE_VERSION } = require("../core/package.json");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const CORE_ROOT = path.join(PROJECT_ROOT, "core");
@@ -94,7 +95,7 @@ async function run() {
     await waitForLines(hostLines, 3);
 
     const responses = hostLines.map((line) => JSON.parse(line));
-    assert.equal(responses[0].result.serverInfo.version, "1.1.0");
+    assert.equal(responses[0].result.serverInfo.version, PACKAGE_VERSION);
     assert.ok(responses[1].result.tools.length >= 56);
     assert.equal(responses[2].result.structuredContent.ok, true, JSON.stringify(responses[2].result.structuredContent));
     assert.equal(responses[2].result.structuredContent.data.count, 1);
