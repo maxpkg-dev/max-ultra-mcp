@@ -133,7 +133,10 @@ class StdioHost {
     this.profile = normalizeProfile(options.profile || process.env.MAX_ULTRA_MCP_TOOL_PROFILE || "archviz");
     this.tools = getMcpTools(this.profile);
     this.toolByName = new Map(this.tools.map((entry) => [entry.name, entry]));
-    this.client = options.client || new BridgeControlClient({ timeoutMs: Number(process.env.MAX_ULTRA_MCP_TIMEOUT_MS || 600000) });
+    this.client = options.client || new BridgeControlClient({
+      timeoutMs: Number(process.env.MAX_ULTRA_MCP_TIMEOUT_MS || 600000),
+      onDisconnect: options.onBridgeDisconnect,
+    });
   }
 
   async ensureConnected() {
@@ -187,8 +190,17 @@ class StdioHost {
 }
 
 async function main() {
-  const host = new StdioHost();
-  const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  let shuttingDown = false;
+  let input;
+  const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    if (input) input.close();
+    host.close();
+    process.exit(0);
+  };
+  const host = new StdioHost({ onBridgeDisconnect: shutdown });
+  input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   input.on("line", (line) => {
     if (!line.trim()) return;
     try {
@@ -197,8 +209,7 @@ async function main() {
       writeRpc({ jsonrpc: "2.0", id: null, error: { code: -32700, message: `Parse error: ${error.message}` } });
     }
   });
-  input.on("close", () => host.close());
-  const shutdown = () => { host.close(); process.exit(0); };
+  input.on("close", shutdown);
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 }

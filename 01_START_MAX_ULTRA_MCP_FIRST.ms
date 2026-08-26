@@ -8,6 +8,7 @@ global MaxUltraMcpActiveClient
 
 (
     local bridgeClient
+    local restartServerForReload = MaxUltraMcpActiveClient != undefined
     if (MaxUltraMcpActiveClient != undefined) do (
         try (
             MaxUltraMcpActiveClient.disposeForReload()
@@ -141,9 +142,11 @@ global MaxUltraMcpActiveClient
         serverLauncherPath = "",
         serverWorkingDirectory = "",
         serverShutdownHelperPath = "",
+        controlTokenFilePath = "",
         serverOwnershipDirectory = "",
         serverOwnerToken = "",
         shutdownHelperStarted = false,
+        restartExistingServer = false,
         uiStateDirectory = "",
         uiStateFilePath = "",
         lifecycleMutexName = @"Local\3DGround.MaxUltraMCP.ServerLifecycle",
@@ -251,6 +254,7 @@ global MaxUltraMcpActiveClient
             serverLauncherPath = ""
             serverWorkingDirectory = ""
             serverShutdownHelperPath = ""
+            controlTokenFilePath = ""
             uiStateDirectory = (ensureSlash (getDir #userScripts)) + @"MaxUltraMCP\"
             uiStateFilePath = uiStateDirectory + "panel-ui.ini"
             serverOwnershipDirectory = uiStateDirectory + @"ownership\"
@@ -269,6 +273,12 @@ global MaxUltraMcpActiveClient
                     local helperCandidate = serverWorkingDirectory + "stop-owned-server.bat"
                     if (doesFileExist helperCandidate) do serverShutdownHelperPath = helperCandidate
                 )
+            )
+            local configuredTokenFile = environmentClass.GetEnvironmentVariable "MAX_ULTRA_MCP_TOKEN_FILE"
+            if (configuredTokenFile != undefined and configuredTokenFile != "") then (
+                try (controlTokenFilePath = (dotNetClass "System.IO.Path").GetFullPath configuredTokenFile) catch (controlTokenFilePath = "")
+            ) else if (serverWorkingDirectory != "") do (
+                try (controlTokenFilePath = (dotNetClass "System.IO.Path").GetFullPath (serverWorkingDirectory + @"..\runtime\state\control-token")) catch (controlTokenFilePath = "")
             )
             return serverLauncherPath != ""
         ),
@@ -2305,6 +2315,8 @@ global MaxUltraMcpActiveClient
                     addActivity "success" ("Connected to " + hostAddress + ":" + (hostPort as string))
                 )
                 "server_ready": addActivity "info" "Healthy Max Ultra MCP server already running"
+                "server_restarting": addActivity "warning" "First-step file re-run: stopping the verified previous server before replacement"
+                "server_restart_shared": addActivity "warning" "Previous server is shared by another 3ds Max process; reused without interrupting it"
                 "legacy_server": addActivity "warning" "Compatible legacy Max Ultra MCP server detected; attached without terminating its process"
                 "port_changed": (
                     local portChangeFields = filterString eventMessage "|"
@@ -2391,7 +2403,7 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn workerControlRequest workerHost workerPort operationName timeoutMilliseconds requestPayload: "" = (
+        fn workerControlRequest workerHost workerPort operationName timeoutMilliseconds requestPayload: "" controlToken: "" = (
             local controlReply = MaxUltraMcpControlReply()
             local controlClient = undefined
             local controlStream = undefined
@@ -2412,6 +2424,7 @@ global MaxUltraMcpActiveClient
                 controlWriter.AutoFlush = true
                 local requestLine = "CONTROL\t1\tbootstrap-control\t" + operationName
                 if (requestPayload != "") do requestLine += "\t" + encodeWireField(requestPayload)
+                if (controlToken != "") do requestLine += "\t" + encodeWireField(controlToken)
                 controlWriter.WriteLine requestLine
                 local responseLine = controlReader.ReadLine()
                 if (responseLine == undefined) do throw "Endpoint closed without a control response"
@@ -2444,6 +2457,33 @@ global MaxUltraMcpActiveClient
             return controlReply
         ),
 
+        fn workerReadControlToken workerTokenFilePath = (
+            local environmentClass = dotNetClass "System.Environment"
+            local controlToken = environmentClass.GetEnvironmentVariable "MAX_ULTRA_MCP_CONTROL_TOKEN"
+            if (controlToken == undefined) do controlToken = ""
+            controlToken = trimLeft (trimRight (controlToken as string))
+            if (controlToken == "" and workerTokenFilePath != undefined and workerTokenFilePath != "") do (
+                try (controlToken = trimLeft (trimRight ((dotNetClass "System.IO.File").ReadAllText workerTokenFilePath))) catch (controlToken = "")
+            )
+            if (controlToken.count != 64) do return ""
+            local hexadecimalCharacters = "0123456789abcdefABCDEF"
+            for characterIndex in 1 to controlToken.count do (
+                if ((findString hexadecimalCharacters (substring controlToken characterIndex 1)) == undefined) do return ""
+            )
+            return toLower controlToken
+        ),
+
+        fn workerConnectedInstanceCount workerInventoryPayload = (
+            if (workerInventoryPayload == undefined or workerInventoryPayload == "") do return -1
+            try (
+                local countMatch = (dotNetClass "System.Text.RegularExpressions.Regex").Match workerInventoryPayload "\"count\":([0-9]+)"
+                if (not countMatch.Success) do return -1
+                return countMatch.Groups.Item[1].Value as integer
+            ) catch (
+                return -1
+            )
+        ),
+
         fn workerProbeEndpoint workerHost workerPort timeoutMilliseconds = (
             local probeReply = workerControlRequest workerHost workerPort "probe" timeoutMilliseconds
             if (probeReply.controlState == #verified) do (
@@ -2462,6 +2502,19 @@ global MaxUltraMcpActiveClient
                 )
             )
             return probeReply
+        ),
+
+        fn workerWaitForEndpointClose workerHost workerPort timeoutMilliseconds = (
+            local closeRetryDelays = #(50, 100, 150, 250, 350, 500, 750, 1000, 1000)
+            local closeProbe = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
+            if (closeProbe.controlState == #closed) do return closeProbe
+            for closeRetryDelay in closeRetryDelays do (
+                (dotNetClass "System.Threading.Thread").Sleep closeRetryDelay
+                closeProbe = workerProbeEndpoint workerHost workerPort timeoutMilliseconds
+                if (closeProbe.controlState == #closed) do return closeProbe
+                if (closeProbe.controlState == #occupied) do return closeProbe
+            )
+            return closeProbe
         ),
 
         fn workerHostIsLoopback workerHost = (
@@ -2516,6 +2569,8 @@ global MaxUltraMcpActiveClient
             local workerOwnerToken = workerArguments.Item[9]
             local workerMaxPid = workerArguments.Item[10]
             local workerServerConsoleVisible = workerArguments.Item[11]
+            local workerControlTokenFilePath = workerArguments.Item[12]
+            local workerRestartExistingServer = workerArguments.Item[13]
             local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000)
             local probeTimeoutMilliseconds = 500
             local lifecycleMutex = undefined
@@ -2528,7 +2583,31 @@ global MaxUltraMcpActiveClient
 
             try (
                 local probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
-                local needsFallbackPort = probeReply.controlState == #occupied
+                if (workerRestartExistingServer and probeReply.controlState == #healthy) do (
+                    if (not workerHostIsLoopback workerHost) do throw "Automatic server restart is allowed only for a configured loopback endpoint"
+                    lifecycleMutex = dotNetObject "System.Threading.Mutex" false workerMutexName
+                    try (ownsLifecycleMutex = lifecycleMutex.WaitOne 3000 false) catch (ownsLifecycleMutex = false)
+                    if (not ownsLifecycleMutex) do throw "Another Max Ultra MCP lifecycle operation is still running; retry after its bounded restart completes"
+                    probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
+                    if (probeReply.controlState == #healthy) do (
+                        local inventoryReply = workerControlRequest workerHost workerPort "list" probeTimeoutMilliseconds
+                        local connectedInstanceCount = if (inventoryReply.controlState == #verified) then workerConnectedInstanceCount inventoryReply.responsePayload else -1
+                        if (connectedInstanceCount < 0) then (
+                            throw "The connected 3ds Max count could not be verified; the existing server was left running"
+                        ) else if (connectedInstanceCount > 1) then (
+                            workerEncodeEvent workerInboundQueue "server_restart_shared" ""
+                        ) else (
+                            local workerControlToken = workerReadControlToken workerControlTokenFilePath
+                            if (workerControlToken == "") do throw "The Max Ultra MCP control token is unavailable; the verified server was left running"
+                            workerEncodeEvent workerInboundQueue "server_restarting" ""
+                            local shutdownReply = workerControlRequest workerHost workerPort "shutdown_owned" probeTimeoutMilliseconds requestPayload: probeReply.responsePayload controlToken: workerControlToken
+                            if (shutdownReply.controlState != #verified) do throw ("Verified server restart was refused: " + shutdownReply.failureMessage)
+                            probeReply = workerWaitForEndpointClose workerHost workerPort probeTimeoutMilliseconds
+                            if (probeReply.controlState != #closed) do throw "The verified Max Ultra MCP server did not exit within the bounded restart timeout"
+                        )
+                    )
+                )
+                local needsFallbackPort = probeReply.controlState == #occupied or (workerRestartExistingServer and probeReply.controlState == #legacy)
                 local fallbackReason = ""
 
                 if (needsFallbackPort) do (
@@ -2537,7 +2616,7 @@ global MaxUltraMcpActiveClient
                     try (ownsLifecycleMutex = lifecycleMutex.WaitOne 3000 false) catch (ownsLifecycleMutex = false)
                     if (not ownsLifecycleMutex) do throw "Another Max Ultra MCP lifecycle operation is still running; retry after its bounded startup completes"
                     probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
-                    needsFallbackPort = probeReply.controlState == #occupied
+                    needsFallbackPort = probeReply.controlState == #occupied or (workerRestartExistingServer and probeReply.controlState == #legacy)
                 )
 
                 if (needsFallbackPort) do (
@@ -2674,6 +2753,9 @@ global MaxUltraMcpActiveClient
             workerArguments.Add serverOwnerToken
             workerArguments.Add processId
             workerArguments.Add (loadServerConsoleVisibleSetting())
+            workerArguments.Add controlTokenFilePath
+            workerArguments.Add restartExistingServer
+            restartExistingServer = false
             transportWorkerArguments = workerArguments
             outboundQueue.Enqueue (buildHelloLine())
             sendSceneStatus()
@@ -2832,7 +2914,7 @@ global MaxUltraMcpActiveClient
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog
+    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog restartExistingServer: restartServerForReload
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient

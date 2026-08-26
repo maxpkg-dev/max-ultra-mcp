@@ -455,6 +455,8 @@ async function runSmokeTest() {
     assert.doesNotMatch(screenshotExampleSource, /cleanup-after-process|startCleanupWatcher|removeScreenshotAfterProcessExit/);
     const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
     const serverSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "server.js"), "utf8");
+    const stdioHostSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "stdio-host.js"), "utf8");
+    const bridgeControlClientSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "bridge-control-client.js"), "utf8");
     const shutdownHelperSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.ps1"), "utf8");
     const shutdownHelperBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "stop-owned-server.bat"), "utf8");
     const agentIntegrationSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "agent-integration.ps1"), "utf8");
@@ -893,9 +895,14 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /--owner-max-pid/);
     assert.match(bootstrapSource, /startTransport allowServerLaunch: true/);
     assert.match(bootstrapSource, /startTransport allowServerLaunch: false/);
-    assert.doesNotMatch(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown/);
+    assert.match(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown_owned"[\s\S]*requestPayload: probeReply\.responsePayload[\s\S]*controlToken: workerControlToken/);
+    assert.match(bootstrapSource, /workerWaitForEndpointClose/);
+    assert.match(bootstrapSource, /restartExistingServer: restartServerForReload/);
+    assert.match(bootstrapSource, /MAX_ULTRA_MCP_TOKEN_FILE/);
+    assert.match(bootstrapSource, /runtime\\state\\control-token/);
     assert.doesNotMatch(bootstrapSource, /workerRequestOwnedShutdown|workerWaitForOwnedServerExit|ownedServerProcess\.Kill/);
-    assert.doesNotMatch(bootstrapSource, /workerArguments\.Item\[12\]/);
+    assert.match(bootstrapSource, /workerArguments\.Item\[12\]/);
+    assert.match(bootstrapSource, /workerArguments\.Item\[13\]/);
     assert.match(bootstrapSource, /if \(workerSender\.CancellationPending\) do throw "Server startup cancelled"[\s\S]*workerLaunchServer/);
     assert.doesNotMatch(bootstrapSource, /mod tickCount 20[^\n]*startTransport/);
     const timerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleTimerTick"), bootstrapSource.indexOf("fn startBridge"));
@@ -933,7 +940,11 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /Initial server connection ended before this Max registered/);
     assert.match(bootstrapSource, /Server connection ended\. Run 01_START_MAX_ULTRA_MCP_FIRST\.ms to start it again\./);
     assert.match(bootstrapSource, /Connect-only retry requested; a stopped server will not be launched/);
-    assert.doesNotMatch(bootstrapSource, /restartServerForReload|restartServerOnNextConnect/);
+    assert.doesNotMatch(bootstrapSource, /restartServerOnNextConnect/);
+    assert.match(bridgeControlClientSource, /onDisconnect/);
+    assert.match(bridgeControlClientSource, /if \(!this\.closing && this\.onDisconnect\) this\.onDisconnect\(\)/);
+    assert.match(stdioHostSource, /new StdioHost\(\{ onBridgeDisconnect: shutdown \}\)/);
+    assert.match(stdioHostSource, /input\.on\("close", shutdown\)/);
     assert.match(bootstrapSource, /#preSystemShutdown/);
     assert.match(bootstrapSource, /workerFindFreeFallbackPort/);
     assert.match(bootstrapSource, /#legacyCandidate/);

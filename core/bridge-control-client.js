@@ -27,6 +27,8 @@ class BridgeControlClient {
     this.timeoutMs = Number(options.timeoutMs ?? process.env.MAX_ULTRA_MCP_TIMEOUT_MS ?? 5000);
     this.controlToken = options.controlToken || readControlToken();
     this.reloadControlToken = options.controlToken === undefined;
+    this.onDisconnect = typeof options.onDisconnect === "function" ? options.onDisconnect : null;
+    this.closing = false;
     this.socket = null;
     this.buffer = "";
     this.pendingRequests = new Map();
@@ -34,6 +36,7 @@ class BridgeControlClient {
 
   connect() {
     if (this.socket) return Promise.resolve();
+    this.closing = false;
     return new Promise((resolve, reject) => {
       const socket = net.createConnection({ host: this.host, port: this.port });
       socket.setEncoding("utf8");
@@ -47,6 +50,7 @@ class BridgeControlClient {
         socket.on("close", () => {
           this.rejectAll(new Error("Max Ultra MCP control connection closed"));
           this.socket = null;
+          if (!this.closing && this.onDisconnect) this.onDisconnect();
         });
         resolve();
       });
@@ -54,6 +58,7 @@ class BridgeControlClient {
   }
 
   close() {
+    this.closing = true;
     if (this.socket) this.socket.end();
   }
 

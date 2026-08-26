@@ -111,10 +111,18 @@ async function run() {
     const control = new BridgeControlClient({ port, timeoutMs: 5000 });
     await control.connect();
     const daemonExit = daemon.exitCode === null ? new Promise((resolve) => daemon.once("exit", resolve)) : Promise.resolve();
+    const hostExit = host.exitCode === null ? new Promise((resolve) => host.once("exit", resolve)) : Promise.resolve(host.exitCode);
     await control.shutdownServer();
     control.close();
     await daemonExit;
     daemon = null;
+    const hostExitCode = await Promise.race([
+      hostExit,
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000)),
+    ]);
+    assert.notEqual(hostExitCode, "timeout", "STDIO host remained alive after its verified daemon connection closed");
+    assert.equal(hostExitCode, 0, `STDIO host exited with code ${hostExitCode}: ${hostError}`);
+    host = null;
   } finally {
     if (host && host.exitCode === null) host.kill();
     if (mock && mock.exitCode === null) mock.kill();

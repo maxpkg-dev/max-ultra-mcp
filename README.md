@@ -13,6 +13,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Added a session-owned common job API for listing, monitoring, waiting for, cancelling, and retrieving long-operation results without leaking jobs between MCP clients.
 - Added read-only material diagnostics for missing assignments, invalid materials, incomplete Multi/Sub materials, and missing bitmap files.
 - Added privacy-safe semantic activity labels to the in-Max panel, with a shortened request identifier retained for troubleshooting.
+- Added an identity-verified first-step restart: a re-run stops the previous unshared daemon, waits for its loopback endpoint to close, and then launches the replacement; connected client-owned STDIO hosts exit when that verified daemon connection closes.
 - Reused validation tokens for destructive plan/apply workflows so payload, selected Max instance, scene revision, targets, and detected capabilities stay bound together.
 - Corrected viewport framing commands: selection framing now affects only the active viewport, and scene extents use the documented `max tool zoomextents` command.
 - Added clean visual-review captures: the viewport is maximized, temporary Realistic/Shaded review settings remove grid and selection noise, Nitrous anti-aliasing is raised to 8X, and the user's display settings are restored after the image is saved.
@@ -96,6 +97,8 @@ MaxScript bootstrap in each 3ds Max process
 ```
 
 One daemon can serve several MCP clients and several Max processes. Selection is stored per MCP client. Exactly one connected Max routes automatically; multiple connected instances require `max_list_instances` followed by `max_select_instance`.
+
+Each connected AI-client session normally owns one `core/server.js --stdio` process. These are not extra daemons. Re-running the first-step file replaces the previous daemon only when it is not shared by another open Max; connected STDIO hosts then exit with that daemon and the AI client may start a fresh host. Max Ultra MCP never terminates `node_repl.exe`, unrelated Node.js processes, or an endpoint whose identity cannot be verified.
 
 ## First AI-assisted house plan
 
@@ -181,6 +184,7 @@ AGENTS.md                         repository contract for AI coding agents
 
 - If several Max instances are connected, select one explicitly.
 - If the daemon was stopped, rerun `01_START_MAX_ULTRA_MCP_FIRST.ms`. Automatic launches are hidden by default; enable the visible server console in Settings when diagnosing startup.
+- Seeing one `node.exe --stdio` per connected ChatGPT, Codex, Claude Code, or other MCP session is expected. `node_repl.exe` processes belong to the AI client, not Max Ultra MCP. Close/reconnect the corresponding AI task to remove an idle client-owned host.
 - `BRIDGE_DOWN` means the local daemon is unavailable.
 - `MAX_NOT_CONNECTED` means no live bootstrap is connected.
 - `RENDERER_UNSUPPORTED` means the active renderer or plugin version lacks a verified adapter for the requested operation.
