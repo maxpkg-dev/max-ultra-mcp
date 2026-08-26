@@ -7,6 +7,11 @@
 param([Parameter(Mandatory = $true)][string]$PackageRoot)
 
 $ErrorActionPreference = 'Stop'
+trap {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 1
+}
+
 $resolvedPackageRoot = [IO.Path]::GetFullPath($PackageRoot)
 $serverPath = [IO.Path]::GetFullPath((Join-Path $resolvedPackageRoot 'core\server.js'))
 $manifestPath = Join-Path $resolvedPackageRoot 'manifest.ini'
@@ -52,20 +57,47 @@ Invoke-OptionalClientRemoval 'openai' 'codex' @('mcp','remove','max-ultra-mcp')
 Invoke-OptionalClientRemoval 'claudeCode' 'claude' @('mcp','remove','max-ultra-mcp','--scope','user')
 
 $escapedServerPath = [Regex]::Escape($serverPath)
-$ownedProcesses = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.CommandLine) -and [Regex]::IsMatch([string]$_.CommandLine, $escapedServerPath, [Text.RegularExpressions.RegexOptions]::IgnoreCase) })
-foreach ($ownedProcess in $ownedProcesses) {
-    $currentProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($ownedProcess.ProcessId)" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($null -eq $currentProcess -or -not [Regex]::IsMatch([string]$currentProcess.CommandLine, $escapedServerPath, [Text.RegularExpressions.RegexOptions]::IgnoreCase)) { continue }
-    Stop-Process -Id $ownedProcess.ProcessId -Force -ErrorAction Stop
+
+function Get-PackageOwnedNodeProcesses {
+    return @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not [string]::IsNullOrWhiteSpace([string]$_.CommandLine) -and
+            [Regex]::IsMatch([string]$_.CommandLine, $escapedServerPath, [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        })
 }
 
-$deadline = [DateTime]::UtcNow.AddSeconds(5)
+function Stop-PackageOwnedNodeProcess($OwnedProcess) {
+    $currentProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($OwnedProcess.ProcessId)" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $currentProcess -or
+        -not [Regex]::IsMatch([string]$currentProcess.CommandLine, $escapedServerPath, [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        return
+    }
+
+    try {
+        Stop-Process -Id $currentProcess.ProcessId -Force -ErrorAction Stop
+    } catch {
+        $recheckedProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($currentProcess.ProcessId)" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -ne $recheckedProcess -and
+            [Regex]::IsMatch([string]$recheckedProcess.CommandLine, $escapedServerPath, [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+            throw "Could not stop a package-owned Max Ultra MCP process. Close connected AI clients and try again."
+        }
+    }
+}
+
+$deadline = [DateTime]::UtcNow.AddSeconds(10)
+$quietSince = $null
 do {
-    $remaining = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.CommandLine) -and [Regex]::IsMatch([string]$_.CommandLine, $escapedServerPath, [Text.RegularExpressions.RegexOptions]::IgnoreCase) })
-    if ($remaining.Count -eq 0) { exit 0 }
+    $ownedProcesses = @(Get-PackageOwnedNodeProcesses)
+    if ($ownedProcesses.Count -eq 0) {
+        if ($null -eq $quietSince) { $quietSince = [DateTime]::UtcNow }
+        if (([DateTime]::UtcNow - $quietSince).TotalMilliseconds -ge 750) { exit 0 }
+    } else {
+        $quietSince = $null
+        foreach ($ownedProcess in $ownedProcesses) {
+            Stop-PackageOwnedNodeProcess $ownedProcess
+        }
+    }
     Start-Sleep -Milliseconds 100
 } while ([DateTime]::UtcNow -lt $deadline)
 
-throw 'Package-owned Max Ultra MCP processes did not stop within five seconds.'
+throw 'Package-owned Max Ultra MCP processes keep restarting. Close ChatGPT Desktop, Codex, and Claude Code, then try again.'

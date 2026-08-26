@@ -602,9 +602,14 @@ async function runSmokeTest() {
     assert.match(maxPkgPrepareSource, /customUninstallScript=/);
     assert.match(maxPkgSyncSource, /93ceb0e018b44ca53546cf2c274b196160495699/);
     assert.match(maxPkgSyncSource, /Get-FileHash -LiteralPath \$temporaryPath -Algorithm SHA256/);
-    assert.match(maxPkgUninstallSource, /Get-CimInstance Win32_Process -Filter "Name = 'node\.exe'"/);
+    assert.match(maxPkgUninstallSource, /function Get-PackageOwnedNodeProcesses/);
+    assert.match(maxPkgUninstallSource, /function Stop-PackageOwnedNodeProcess/);
+    assert.match(maxPkgUninstallSource, /Close ChatGPT Desktop, Codex, and Claude Code/);
+    assert.match(maxPkgUninstallSource, /\[Console\]::Error\.WriteLine\(\$_\.Exception\.Message\)/);
     assert.match(maxPkgUninstallSource, /\[Regex\]::IsMatch\(\[string\]\$currentProcess\.CommandLine, \$escapedServerPath/);
-    assert.match(maxPkgUninstallHookSource, /WaitForExit 15000/);
+    assert.match(maxPkgUninstallHookSource, /WaitForExit 30000/);
+    assert.match(maxPkgUninstallHookSource, /RedirectStandardError = true/);
+    assert.match(maxPkgUninstallHookSource, /cleanup failed: /);
     assert.match(maxPkgUninstallHookSource, /maxpkg-uninstall\.ps1/);
     assert.doesNotMatch(maxPkgIconSource, /<rect\b/);
     assert.match(maxPkgIconSource, /<circle cx="8" cy="8"/);
