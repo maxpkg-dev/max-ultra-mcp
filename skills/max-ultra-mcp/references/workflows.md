@@ -16,8 +16,11 @@ Do not reacquire a stale node by name after `STALE_NODE_REF`. Query again and us
 
 1. Set or activate the requested view with `max_set_view` or `max_activate_camera`.
 2. Use `max_frame_selection` or `max_zoom_extents` when the subject is not already framed.
-3. Call `max_redraw_viewports` after a scene or display-mode change.
-4. Call `max_capture_viewport` and inspect the returned image, viewport type, camera metadata, and dimensions.
+3. If a free perspective angle is needed, switch to `perspective`, frame the subject, and use the reviewed `viewport.rotate` fallback in [maxscript.md](maxscript.md). Use small yaw/pitch steps and never orbit an active camera view; move or rotate the camera explicitly instead.
+4. Call `max_redraw_viewports` after changing the view or display mode.
+5. Call `max_capture_viewport` and inspect the returned image, viewport type, camera metadata, and dimensions. Capture automatically runs `max tool maximize`, detects and reverses an accidental minimize toggle, and leaves the active viewport maximized.
+
+For visual composition, capture after each meaningful angle adjustment. Compare the image with the requested subject placement, then apply another small orbit rather than guessing a large correction.
 
 ## Production render
 

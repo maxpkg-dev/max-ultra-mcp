@@ -70,14 +70,17 @@ global MaxUltraMcpActiveClient
         on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
-    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 150 (
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 218 (
         groupBox grpAutostart "Autostart" pos: [12,10] width: 356 height: 58
         checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
-        groupBox grpAgents "AI client integration" pos: [12,78] width: 356 height: 60
-        button btnAgentSetup "Open AI client setup..." pos: [24,100] width: 210 height: 26
+        groupBox grpServerConsole "Server console" pos: [12,78] width: 356 height: 58
+        checkbox chkShowServerConsole "Show server console when starting" pos: [24,102] width: 300 height: 20
+        groupBox grpAgents "AI client integration" pos: [12,146] width: 356 height: 60
+        button btnAgentSetup "Open AI client setup..." pos: [24,168] width: 210 height: 26
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
+        on chkShowServerConsole changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleServerConsoleVisibilityChanged isChecked
         on btnAgentSetup pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
     )
 
@@ -815,6 +818,31 @@ global MaxUltraMcpActiveClient
             return storedSetting == "true" and autostartFileExists
         ),
 
+        fn persistServerConsoleVisibleSetting isVisible = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "settings" "showServerConsole" (if (isVisible) then "true" else "false")
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn loadServerConsoleVisibleSetting = (
+            local storedSetting = ""
+            try (
+                if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do (
+                    storedSetting = toLower (getINISetting uiStateFilePath "settings" "showServerConsole")
+                )
+            ) catch (storedSetting = "")
+            if (storedSetting != "true" and storedSetting != "false") do (
+                persistServerConsoleVisibleSetting false
+                return false
+            )
+            return storedSetting == "true"
+        ),
+
         fn writeAutostartScript = (
             if (bootstrapFilePath == undefined or bootstrapFilePath == "" or not (doesFileExist bootstrapFilePath)) do return false
             local autostartFilePath = autostartScriptFilePath()
@@ -893,6 +921,7 @@ global MaxUltraMcpActiveClient
             if (not (settingsDialogIsOpen())) do return false
             settingsRefreshInProgress = true
             try (settingsDialog.chkAutostart.checked = loadAutostartSetting()) catch ()
+            try (settingsDialog.chkShowServerConsole.checked = loadServerConsoleVisibleSetting()) catch ()
             settingsRefreshInProgress = false
             return true
         ),
@@ -907,11 +936,24 @@ global MaxUltraMcpActiveClient
             return false
         ),
 
+        fn handleServerConsoleVisibilityChanged isVisible = (
+            if (settingsRefreshInProgress) do return true
+            if (persistServerConsoleVisibleSetting isVisible) do (
+                addActivity "info" (if (isVisible) then "Future server launches will use a visible console" else "Future server launches will be hidden")
+                return true
+            )
+            settingsRefreshInProgress = true
+            try (if (settingsDialogIsOpen()) do settingsDialog.chkShowServerConsole.checked = not isVisible) catch ()
+            settingsRefreshInProgress = false
+            messageBox "Could not update the server console visibility setting." title: "Max Ultra MCP Settings"
+            return false
+        ),
+
         fn showSettingsDialog = (
             if (isDisposed) do return false
             if (settingsDialogIsOpen()) do return true
             try (
-                createDialog settingsDialog width: 380 height: 150 style: #(#style_titlebar, #style_sysmenu)
+                createDialog settingsDialog width: 380 height: 218 style: #(#style_titlebar, #style_sysmenu)
                 return settingsDialogIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)
@@ -1897,6 +1939,18 @@ global MaxUltraMcpActiveClient
             local viewportBitmap = undefined
             try (
                 if (screenshotPath == undefined or screenshotPath == "") do throw "The screenshot file path is empty"
+                local originalViewportSize = getViewSize()
+                local originalViewportArea = originalViewportSize.x * originalViewportSize.y
+                max tool maximize
+                completeRedraw()
+                local toggledViewportSize = getViewSize()
+                local toggledViewportArea = toggledViewportSize.x * toggledViewportSize.y
+                if (toggledViewportArea < originalViewportArea) do (
+                    max tool maximize
+                    completeRedraw()
+                )
+                local captureViewportSize = getViewSize()
+                if ((captureViewportSize.x * captureViewportSize.y) < originalViewportArea) do throw "The active viewport could not be maximized"
                 viewportBitmap = gw.getViewportDib()
                 if (viewportBitmap == undefined) do throw "The active viewport did not provide a bitmap"
                 local bitmapWidth = viewportBitmap.width
@@ -2185,7 +2239,7 @@ global MaxUltraMcpActiveClient
                 )
                 "server_launching": (
                     connectionState = #starting
-                    addActivity "info" ("Starting local server in a minimized console: " + eventMessage)
+                    addActivity "info" ("Starting local server with " + eventMessage)
                 )
                 "server_waiting": (
                     connectionState = #starting
@@ -2348,16 +2402,22 @@ global MaxUltraMcpActiveClient
             return 0
         ),
 
-        fn workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid = (
+        fn workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid workerServerConsoleVisible = (
             if (workerLauncherPath == undefined or workerLauncherPath == "") do throw "scripts\\start-server.bat was not found below the project root; set MAX_ULTRA_MCP_ROOT if the first-step script was copied"
             local ownershipFilePath = workerOwnershipDirectory + "max-ultra-mcp-owned-" + (workerPort as string) + ".json"
             local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
             startInfo.FileName = "cmd.exe"
             startInfo.Arguments = "/d /c \"\"" + workerLauncherPath + "\" --no-pause --port " + (workerPort as string) + " --owner-file \"" + ownershipFilePath + "\" --owner-token \"" + workerOwnerToken + "\" --owner-max-pid " + (workerMaxPid as string) + "\""
             startInfo.WorkingDirectory = workerWorkingDirectory
-            startInfo.UseShellExecute = true
-            startInfo.CreateNoWindow = false
-            startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Minimized
+            if (workerServerConsoleVisible) then (
+                startInfo.UseShellExecute = true
+                startInfo.CreateNoWindow = false
+                startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Normal
+            ) else (
+                startInfo.UseShellExecute = false
+                startInfo.CreateNoWindow = true
+                startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
+            )
             local serverProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
             if (serverProcess == undefined) do throw "Windows did not start the Max Ultra MCP launcher"
             serverProcess.Dispose()
@@ -2377,6 +2437,7 @@ global MaxUltraMcpActiveClient
             local workerOwnershipDirectory = workerArguments.Item[8]
             local workerOwnerToken = workerArguments.Item[9]
             local workerMaxPid = workerArguments.Item[10]
+            local workerServerConsoleVisible = workerArguments.Item[11]
             local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000)
             local probeTimeoutMilliseconds = 500
             local lifecycleMutex = undefined
@@ -2423,8 +2484,9 @@ global MaxUltraMcpActiveClient
                         if (probeReply.controlState == #occupied) do throw "The chosen loopback endpoint became occupied by an unverified service; no process was terminated"
                         if (probeReply.controlState == #closed) do (
                             if (workerSender.CancellationPending) do throw "Server startup cancelled"
-                            workerEncodeEvent workerInboundQueue "server_launching" (workerLauncherPath + "|automatic minimized console")
-                            workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid
+                            local launchModeLabel = if (workerServerConsoleVisible) then "a visible console" else "a hidden console"
+                            workerEncodeEvent workerInboundQueue "server_launching" launchModeLabel
+                            workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid workerServerConsoleVisible
                             launchedServer = true
                         )
                     ) else (
@@ -2533,6 +2595,7 @@ global MaxUltraMcpActiveClient
             workerArguments.Add serverOwnershipDirectory
             workerArguments.Add serverOwnerToken
             workerArguments.Add processId
+            workerArguments.Add (loadServerConsoleVisibleSetting())
             transportWorkerArguments = workerArguments
             outboundQueue.Enqueue (buildHelloLine())
             sendSceneStatus()

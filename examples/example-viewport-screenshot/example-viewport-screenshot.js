@@ -14,15 +14,6 @@ const { spawn } = require("node:child_process");
 const { BridgeControlClient } = require("../../core/bridge-control-client");
 
 const PRODUCT_TEMP_DIRECTORY = path.resolve(os.tmpdir(), "3DGROUND-Max-Ultra-MCP-Examples");
-const MAXIMIZE_VIEWPORT_MAXSCRIPT = `(
-  local originalViewportSize = getViewSize()
-  max tool maximize
-  local toggledViewportSize = getViewSize()
-  if ((toggledViewportSize.x * toggledViewportSize.y) < (originalViewportSize.x * originalViewportSize.y)) do max tool maximize
-  completeRedraw()
-  "Active viewport maximized"
-)`;
-
 function openImageFile(imageFilePath) {
   if (process.platform !== "win32") return false;
   const imageViewer = spawn("rundll32.exe", ["url.dll,FileProtocolHandler", imageFilePath], {
@@ -39,7 +30,6 @@ async function captureViewportScreenshotExample(options = {}) {
   const ownsClient = options.client === undefined;
   try {
     await client.connect();
-    await client.callTool("max_execute", { script: MAXIMIZE_VIEWPORT_MAXSCRIPT, timeout_ms: 10000 });
     const toolResponse = await client.callTool("max_viewport_screenshot", {});
     const sourceFilePath = path.resolve(String(toolResponse.screenshot?.filePath || ""));
     if (!sourceFilePath || !fs.statSync(sourceFilePath).isFile()) throw new Error("3ds Max did not create the viewport PNG");
@@ -65,7 +55,6 @@ if (require.main === module) void captureViewportScreenshotExample().catch((erro
 });
 
 module.exports = {
-  MAXIMIZE_VIEWPORT_MAXSCRIPT,
   PRODUCT_TEMP_DIRECTORY,
   captureViewportScreenshotExample,
 };

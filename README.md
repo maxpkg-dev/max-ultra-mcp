@@ -14,7 +14,7 @@ The required production workflow backlog includes asset relinking and collection
 - Connect one or more already-open 3ds Max instances to one local bridge.
 - Let each connected MCP client select its own Max instance.
 - Inspect and modify scenes through structured MCP tools.
-- Capture viewport screenshots and return them directly to the model.
+- Maximize the active viewport, capture it, and return the screenshot directly to the model.
 - Start, monitor, cancel, and retrieve renders.
 - Run MaxScript text, files, macros, and Action Table commands.
 - Inspect and operate UI controls only inside the selected `3dsmax.exe` process.
@@ -163,7 +163,7 @@ AGENTS.md                         repository contract for AI coding agents
 ## Troubleshooting
 
 - If several Max instances are connected, select one explicitly.
-- If the daemon console was closed manually, rerun `01_START_MAX_ULTRA_MCP_FIRST.ms`.
+- If the daemon was stopped, rerun `01_START_MAX_ULTRA_MCP_FIRST.ms`. Automatic launches are hidden by default; enable the visible server console in Settings when diagnosing startup.
 - `BRIDGE_DOWN` means the local daemon is unavailable.
 - `MAX_NOT_CONNECTED` means no live bootstrap is connected.
 - `RENDERER_UNSUPPORTED` means the active renderer or plugin version lacks a verified adapter for the requested operation.

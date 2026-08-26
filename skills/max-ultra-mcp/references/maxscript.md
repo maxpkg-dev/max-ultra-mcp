@@ -50,10 +50,33 @@ Use one block, descriptive locals, a bounded undo transaction for scene writes, 
 | Convert a physical value | `units.decodeValue "250mm"` | Preserve the existing system and display unit settings. |
 | Redraw viewports | `redrawViews()` | Prefer `max_redraw_viewports`. |
 | Zoom extents | `max tool zoomextents all` | Prefer `max_zoom_extents`; Max commands can display UI in other cases. |
-| Capture active viewport | `viewport.getViewportDib()` | Prefer `max_capture_viewport`, which returns MCP image content. |
+| Orbit active viewport | `viewport.rotate rotationQuat` | Perspective/user views only; use the reviewed pattern below. |
+| Capture active viewport | `viewport.getViewportDib()` | Prefer `max_capture_viewport`, which maximizes first and returns MCP image content. |
 | Run a MacroScript | `macros.run categoryName macroName` | Prefer `max_run_macro`. |
 | Run an Action Table item | `actionMan.executeAction tableId persistentId` | Use only verified IDs; prefer `max_run_action`. |
 | Run a script file | `executeScriptFile absolutePath errormessage:&errorText` | Prefer `max_run_script_file`; use an approved absolute path. |
+
+## Orbit before capture
+
+Use `max_set_view` for standard top/front/side/perspective views and `max_activate_camera` for a camera. When a free perspective angle is necessary, first frame the subject, then run a small reviewed orbit:
+
+```maxscript
+(
+    if (viewport.getType() != #view_persp_user and viewport.getType() != #view_iso_user) do (
+        if (not (viewport.setType #view_persp_user)) do throw "Could not activate a perspective viewport"
+    )
+
+    local yawDegrees = 15.0
+    local pitchDegrees = -10.0
+    if (not (viewport.rotate (quat yawDegrees [0,0,1]))) do throw "Viewport yaw failed"
+    local viewRightAxis = normalize (viewport.getTM()).row1
+    if (not (viewport.rotate (quat pitchDegrees viewRightAxis))) do throw "Viewport pitch failed"
+    completeRedraw()
+    true
+)
+```
+
+Positive/negative values turn in opposite directions. Keep each change small, call `max_capture_viewport`, inspect the image, and repeat if needed. `viewport.rotate` does not operate on camera/light object views; transform the camera or light intentionally instead. Do not use mouse coordinates or UI Automation for normal viewport orbiting.
 
 ## Values, strings, and paths
 
@@ -79,4 +102,5 @@ Do not call a blocking raw `render()` when the user needs status, cancellation, 
 - [Action Manager](https://help.autodesk.com/cloudhelp/2022/ENU/MAXScript-Help/files/MAXScript-Tools-and-Interaction/Interacting-with-the-3ds-Max/Action-Manager-and-Shortcut/GUID-38CB8317-6EB2-49D1-A086-B06BA2A141AE.html)
 - [Running script files](https://help.autodesk.com/cloudhelp/2026/ENU/MAXScript-Help/files/MAXScript-Introduction/Accessing-MAXScript/GUID-86D82FCE-B88F-4487-9B34-B6222EDA1C71.html)
 - [Viewport bitmap capture](https://help.autodesk.com/cloudhelp/2024/ENU/MAXScript-Help/files/MAXScript-Language-Reference/Values/Bitmap-Values/GUID-9F6ABEE1-0728-4B39-8903-D909634C1304.html)
+- [Active viewport transforms and `viewport.rotate`](https://help.autodesk.com/cloudhelp/2023/ENU/MAXScript-Help/files/MAXScript-Tools-and-Interaction/Interacting-with-the-3ds-Max/Viewports/GUID-8AA71F9E-F4F0-4437-A44E-9683619E89DE.html)
 - [String and path literals](https://help.autodesk.com/cloudhelp/2022/ENU/MAXScript-Help/files/MAXScript-Language-Reference/Names-Literal-Constants-and/Literal-Constants/GUID-7F17449E-C377-445C-AC15-CD3BA88A975B.html)

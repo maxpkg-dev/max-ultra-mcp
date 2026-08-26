@@ -25,7 +25,6 @@ const { listInstancesExample } = require("../examples/example-list-instances/exa
 const { QUICK_RENDER_MAXSCRIPT, pressRenderButtonExample } = require("../examples/example-press-render-button/example-press-render-button");
 const { sceneSummaryExample } = require("../examples/example-scene-summary/example-scene-summary");
 const {
-  MAXIMIZE_VIEWPORT_MAXSCRIPT,
   captureViewportScreenshotExample,
 } = require("../examples/example-viewport-screenshot/example-viewport-screenshot");
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -357,10 +356,6 @@ async function runSmokeTest() {
       assert.equal(fs.existsSync(exampleScreenshot.savedFilePath), true);
       assert.equal(path.dirname(exampleScreenshot.savedFilePath), screenshotOutputDirectory);
       assert.equal(path.basename(exampleScreenshot.savedFilePath), "viewport-current.png");
-      assert.equal(max2027.executeRequests.at(-1), MAXIMIZE_VIEWPORT_MAXSCRIPT);
-      assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /max tool maximize/);
-      assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /getViewSize\(\)/);
-      assert.match(MAXIMIZE_VIEWPORT_MAXSCRIPT, /toggledViewportSize\.x \* toggledViewportSize\.y/);
     } finally {
       fs.rmSync(screenshotOutputDirectory, { recursive: true, force: true });
     }
@@ -542,8 +537,11 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /groupBox grpAutostart "Autostart" pos: \[12,10\] width: 356 height: 58/);
     assert.match(bootstrapSource, /checkbox chkAutostart "Autostart with 3ds Max"/);
     assert.match(bootstrapSource, /on chkAutostart changed isChecked do if \(bridgeClient != undefined\) do bridgeClient\.handleAutostartSettingChanged isChecked/);
+    assert.match(bootstrapSource, /groupBox grpServerConsole "Server console" pos: \[12,78\] width: 356 height: 58/);
+    assert.match(bootstrapSource, /checkbox chkShowServerConsole "Show server console when starting"/);
+    assert.match(bootstrapSource, /on chkShowServerConsole changed isChecked do if \(bridgeClient != undefined\) do bridgeClient\.handleServerConsoleVisibilityChanged isChecked/);
     assert.doesNotMatch(bootstrapSource, /btnSave|on btnSave pressed|btnClose|on btnClose pressed/);
-    assert.match(bootstrapSource, /createDialog settingsDialog width: 380 height: 150/);
+    assert.match(bootstrapSource, /createDialog settingsDialog width: 380 height: 218/);
     assert.match(bootstrapSource, /button btnAgentSetup "Open AI client setup\.\.\."/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingTabsDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingSetupDialog ""/);
@@ -630,6 +628,12 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /deleteFile autostartFilePath/);
     assert.match(bootstrapSource, /if \(doesFileExist autostartFilePath\) do deleteFile autostartFilePath/);
     assert.match(bootstrapSource, /persistAutostartSetting false/);
+    assert.match(bootstrapSource, /setINISetting uiStateFilePath "settings" "showServerConsole"/);
+    assert.match(bootstrapSource, /getINISetting uiStateFilePath "settings" "showServerConsole"/);
+    assert.match(bootstrapSource, /fn handleServerConsoleVisibilityChanged isVisible/);
+    assert.match(bootstrapSource, /persistServerConsoleVisibleSetting false[\s\S]*return false/);
+    assert.match(bootstrapSource, /workerArguments\.Add \(loadServerConsoleVisibleSetting\(\)\)/);
+    assert.match(bootstrapSource, /local workerServerConsoleVisible = workerArguments\.Item\[11\]/);
     assert.match(bootstrapSource, /disposeSettingsDialog\(\)/);
     assert.match(bootstrapSource, /settingsDialog: MaxUltraMcpSettingsDialog/);
     assert.match(bootstrapSource, /3DGROUND - Max Ultra MCP \| First Step/);
@@ -821,8 +825,16 @@ async function runSmokeTest() {
     assert.match(closeForLifecycleBody, /if \(panelIsOpen\(\)\) then \([\s\S]*destroyDialog statusDialog/);
     assert.doesNotMatch(closeForLifecycleBody, /panelForm\.Close\(\)/);
     assert.doesNotMatch(restorePanelBody + restoreClickBody + restoreMiniPanelBody, /CancelAsync|shutdown_owned|shutdown_when_idle|startTransport|stopBridge|closeForLifecycle/);
-    assert.match(bootstrapSource, /ProcessWindowStyle"\)\.Minimized/);
+    const workerLaunchServerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn workerLaunchServer"), bootstrapSource.indexOf("fn transportDoWork"));
+    assert.match(workerLaunchServerBody, /if \(workerServerConsoleVisible\) then \([\s\S]*UseShellExecute = true[\s\S]*CreateNoWindow = false[\s\S]*ProcessWindowStyle"\)\.Normal/);
+    assert.match(workerLaunchServerBody, /else \([\s\S]*UseShellExecute = false[\s\S]*CreateNoWindow = true[\s\S]*ProcessWindowStyle"\)\.Hidden/);
+    assert.doesNotMatch(workerLaunchServerBody, /ProcessWindowStyle"\)\.Minimized/);
+    assert.match(bootstrapSource, /if \(workerServerConsoleVisible\) then "a visible console" else "a hidden console"/);
     const viewportScreenshotBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleViewportScreenshot"), bootstrapSource.indexOf("fn handleExecuteRequest"));
+    assert.match(viewportScreenshotBody, /max tool maximize/);
+    assert.match(viewportScreenshotBody, /originalViewportArea/);
+    assert.match(viewportScreenshotBody, /if \(toggledViewportArea < originalViewportArea\)[\s\S]*max tool maximize/);
+    assert.ok(viewportScreenshotBody.indexOf("max tool maximize") < viewportScreenshotBody.indexOf("viewportBitmap = gw.getViewportDib()"), "The active viewport must be maximized before capture");
     assert.match(viewportScreenshotBody, /viewportBitmap = gw\.getViewportDib\(\)/);
     assert.match(viewportScreenshotBody, /viewportBitmap\.filename = screenshotPath[\s\S]*save viewportBitmap/);
     assert.match(viewportScreenshotBody, /if \(not \(doesFileExist screenshotPath\)\) do throw "3ds Max did not write the viewport PNG"/);
@@ -839,7 +851,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /startTransport allowServerLaunch: false/);
     assert.doesNotMatch(bootstrapSource, /workerControlRequest workerHost workerPort "shutdown/);
     assert.doesNotMatch(bootstrapSource, /workerRequestOwnedShutdown|workerWaitForOwnedServerExit|ownedServerProcess\.Kill/);
-    assert.doesNotMatch(bootstrapSource, /workerArguments\.Item\[11\]/);
+    assert.doesNotMatch(bootstrapSource, /workerArguments\.Item\[12\]/);
     assert.match(bootstrapSource, /if \(workerSender\.CancellationPending\) do throw "Server startup cancelled"[\s\S]*workerLaunchServer/);
     assert.doesNotMatch(bootstrapSource, /mod tickCount 20[^\n]*startTransport/);
     const timerBody = bootstrapSource.slice(bootstrapSource.indexOf("fn handleTimerTick"), bootstrapSource.indexOf("fn startBridge"));

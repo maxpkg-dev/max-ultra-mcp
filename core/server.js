@@ -604,7 +604,7 @@ const mcpTools = [
     inputSchema: { type: "object", properties: { ...targetProperties, target_hwnd: { type: "string", pattern: "^[0-9]+[LP]?$" }, action: { type: "string", enum: ["press_button", "set_window_text", "send_message"] }, expected_text: { type: "string" }, expected_class: { type: "string" }, value: { type: "string" }, message: { type: "integer", minimum: 0, maximum: 4294967295 }, wparam: { type: "integer", default: 0 }, lparam: { type: "integer", default: 0 }, ...detailsProperty }, required: ["target_hwnd", "action"], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
-  { name: "max_viewport_screenshot", description: "Capture the selected Max active viewport as an MCP image.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
+  { name: "max_viewport_screenshot", description: "Maximize the selected Max active viewport and capture it as an MCP image. The viewport remains maximized.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
 ];
 function writeRpcMessage(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);

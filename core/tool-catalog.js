@@ -85,7 +85,7 @@ const tools = [
   tool("max_animation_set_time", "Set the current animation frame.", schema({ frame: { type: "number" } }, ["frame"]), write, "full"),
   tool("max_animation_key_transform", "Create transform keys for a guarded node at a frame.", schema({ node: objectRef, frame: { type: "number" }, position: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, rotation: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, scale: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 } }, ["node", "frame"]), write, "full"),
 
-  tool("max_capture_viewport", "Capture the active viewport as an MCP image.", schema({ width: { type: "integer", minimum: 1, maximum: 8192 }, height: { type: "integer", minimum: 1, maximum: 8192 } }), readOnly),
+  tool("max_capture_viewport", "Maximize the active viewport and capture it as an MCP image. The viewport remains maximized.", schema({ width: { type: "integer", minimum: 1, maximum: 8192 }, height: { type: "integer", minimum: 1, maximum: 8192 } }), readOnly),
   tool("max_set_view", "Set active viewport to top, bottom, front, back, left, right, perspective, or user.", schema({ view: { type: "string", enum: ["top", "bottom", "front", "back", "left", "right", "perspective", "user"] } }, ["view"]), control),
   tool("max_activate_camera", "Activate a camera node in the current viewport.", schema({ camera: objectRef }, ["camera"]), control),
   tool("max_frame_selection", "Frame the current selection in the active viewport.", schema(), control),
