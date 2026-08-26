@@ -46,6 +46,8 @@ Windows environment variables such as `%LOCALAPPDATA%` are preferred over expand
 
 Runtime logs may contain operational paths and process ids because local diagnostics require them. They must remain local and must not be copied into documentation, issues, fixtures, or commits without sanitization.
 
+AI onboarding status files may contain local executable and repository paths. They stay in the per-user Max Ultra MCP state directory, must never include CLI output or client configuration contents, and must be sanitized before sharing.
+
 When returning diagnostics through MCP:
 
 - Bound output length.

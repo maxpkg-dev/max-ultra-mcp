@@ -25,8 +25,9 @@ global MaxUltraMcpActiveClient
     )
 
     rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP | First Step" width: 680 height: 500 (
-        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 560 height: 20
+        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 480 height: 20
         dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
+        button btnAgents "AI setup" pos: [516,8] width: 72 height: 22
         button btnHide "Hide panel" pos: [596,8] width: 72 height: 22
 
         dotNetControl pnlLogOutline "System.Windows.Forms.Panel" pos: [4,62] width: 672 height: 386
@@ -51,16 +52,63 @@ global MaxUltraMcpActiveClient
         on btnReconnect pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
         on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
+        on btnAgents pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
         on btnHide pressed do if (bridgeClient != undefined) do bridgeClient.hidePanel()
         on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
-    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 360 height: 82 (
-        groupBox grpAutostart "Autostart" pos: [12,10] width: 336 height: 58
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 150 (
+        groupBox grpAutostart "Autostart" pos: [12,10] width: 356 height: 58
         checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
+        groupBox grpAgents "AI client integration" pos: [12,78] width: 356 height: 60
+        button btnAgentSetup "Open AI client setup..." pos: [24,100] width: 210 height: 26
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
+        on btnAgentSetup pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
+    )
+
+    rollout MaxUltraMcpOnboardingTabsDialog "" width: 540 height: 36 (
+        dotNetControl dncPages "System.Windows.Forms.TabControl" pos: [8,2] width: 524 height: 30
+
+        on MaxUltraMcpOnboardingTabsDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingTabsDialog()
+        on MaxUltraMcpOnboardingTabsDialog close do if (bridgeClient != undefined) do bridgeClient.handleOnboardingRolloutClosed()
+        on dncPages SelectedIndexChanged eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleOnboardingTabChanged eventSender.SelectedIndex
+    )
+
+    rollout MaxUltraMcpOnboardingSetupDialog "" width: 540 height: 350 (
+        label lblOnboardingIntro "Connect this 3ds Max bridge to one or more AI clients." pos: [16,8] width: 508 height: 18
+        label lblOnboardingHint "Automatic setup uses official client CLIs and never edits their config files directly." pos: [16,28] width: 508 height: 18
+
+        groupBox grpSupportedAgents "Supported clients" pos: [12,50] width: 516 height: 126
+        checkbox chkOpenAI "ChatGPT Desktop / Codex" pos: [28,74] width: 230 height: 20 checked: true
+        dotNetControl lblOpenAIStatus "System.Windows.Forms.Label" pos: [48,96] width: 462 height: 18
+        checkbox chkClaudeCode "Claude Code" pos: [28,122] width: 230 height: 20 checked: true
+        dotNetControl lblClaudeCodeStatus "System.Windows.Forms.Label" pos: [48,144] width: 462 height: 18
+
+        groupBox grpManual "Manual / other STDIO clients" pos: [12,184] width: 516 height: 94
+        dotNetControl txtManual "System.Windows.Forms.TextBox" pos: [24,206] width: 492 height: 58
+
+        dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [16,282] width: 508 height: 20
+        button btnInstallAgents "Install selected" pos: [12,308] width: 152 height: 28
+        button btnRefreshAgents "Refresh status" pos: [172,308] width: 112 height: 28
+        button btnCopyManual "Copy manual setup" pos: [292,308] width: 128 height: 28
+
+        on MaxUltraMcpOnboardingSetupDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingSetupDialog()
+        on btnInstallAgents pressed do if (bridgeClient != undefined) do bridgeClient.installSelectedAgentIntegrations()
+        on btnRefreshAgents pressed do if (bridgeClient != undefined) do bridgeClient.refreshAgentIntegrationStatus()
+        on btnCopyManual pressed do if (bridgeClient != undefined) do bridgeClient.copyManualAgentConfiguration()
+    )
+
+    rollout MaxUltraMcpOnboardingTestDialog "" width: 540 height: 350 (
+        label lblTestIntro "Use this prompt after setup to verify the MCP connection safely." pos: [16,8] width: 508 height: 18
+        label lblTestHint "Copy it into the configured AI client. It does not modify the current scene." pos: [16,30] width: 508 height: 18
+        groupBox grpTestPrompt "Connection test prompt" pos: [12,54] width: 516 height: 246
+        dotNetControl txtTestPrompt "System.Windows.Forms.TextBox" pos: [24,78] width: 492 height: 210
+        button btnCopyTestPrompt "Copy test prompt" pos: [12,308] width: 128 height: 28
+
+        on MaxUltraMcpOnboardingTestDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingTestDialog()
+        on btnCopyTestPrompt pressed do if (bridgeClient != undefined) do bridgeClient.copyOnboardingTestPrompt()
     )
     struct MaxUltraMcpBridgeClient (
         hostAddress = "127.0.0.1",
@@ -80,6 +128,11 @@ global MaxUltraMcpActiveClient
         lifecycleMutexName = @"Local\3DGround.MaxUltraMCP.ServerLifecycle",
         statusDialog,
         settingsDialog,
+        onboardingTabsDialog,
+        onboardingSetupDialog,
+        onboardingTestDialog,
+        onboardingFloater,
+        onboardingPage = #none,
         transportWorker,
         inboundQueue,
         outboundQueue,
@@ -97,6 +150,16 @@ global MaxUltraMcpActiveClient
         restoreBubbleDragOffset,
         restoreBubbleCloseAllowed = false,
         settingsRefreshInProgress = false,
+        clipboardFeedbackTimer,
+        clipboardFeedbackButton,
+        clipboardFeedbackDefaultText = "",
+        integrationProcess,
+        integrationResultFilePath = "",
+        integrationAutomaticCheck = false,
+        integrationBusy = false,
+        suppressOnboardingDismissal = false,
+        integrationOpenAIConfigured = false,
+        integrationClaudeCodeConfigured = false,
         transportWorkerArguments,
         suppressPanelShutdown = false,
         panelCloseInProgress = false,
@@ -461,12 +524,23 @@ global MaxUltraMcpActiveClient
             )
             return true
         ),
+        fn addActivity activityLevel activityMessage = (
+            local timestampText = (dotNetClass "System.DateTime").Now.ToString("HH:mm:ss")
+            local singleLineActivityMessage = substituteString (activityMessage as string) "\r" " "
+            singleLineActivityMessage = substituteString singleLineActivityMessage "\n" " "
+            append activityEntries (timestampText + " [" + activityLevel + "] " + singleLineActivityMessage)
+            while (activityEntries.count > maximumActivityEntries) do deleteItem activityEntries 1
+            activityLogDirty = true
+            refreshActivityText()
+            return true
+        ),
+
         fn resizePanelControls panelSize = (
             if (isDisposed or not panelIsOpen()) do return false
             local panelWidth = amax 540 panelSize.x
             local panelHeight = amax 420 panelSize.y
             local contentWidth = panelWidth - 24
-            statusDialog.lblStatus.width = panelWidth - 108
+            statusDialog.lblStatus.width = panelWidth - 188
             statusDialog.lblContext.width = contentWidth
             local logHeight = amax 260 (panelHeight - 114)
             statusDialog.pnlLogOutline.width = panelWidth - 8
@@ -478,6 +552,7 @@ global MaxUltraMcpActiveClient
             statusDialog.btnStop.pos.y = buttonY
             statusDialog.btnStart.pos.y = buttonY
             statusDialog.btnSettings.pos = [panelWidth - 132, buttonY]
+            statusDialog.btnAgents.pos = [panelWidth - 164, 8]
             statusDialog.btnHide.pos = [panelWidth - 84, 8]
             return true
         ),
@@ -777,12 +852,411 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (settingsDialogIsOpen()) do return true
             try (
-                createDialog settingsDialog width: 360 height: 82 style: #(#style_titlebar, #style_sysmenu)
+                createDialog settingsDialog width: 380 height: 150 style: #(#style_titlebar, #style_sysmenu)
                 return settingsDialogIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)
                 return false
             )
+        ),
+
+        fn onboardingDialogIsOpen = (
+            if (onboardingFloater == undefined or onboardingTabsDialog == undefined) do return false
+            try (return onboardingTabsDialog.open) catch (return false)
+        ),
+
+        fn persistOnboardingDismissed isDismissed = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "onboarding" "dismissed" (if (isDismissed) then "true" else "false")
+                return true
+            ) catch (return false)
+        ),
+
+        fn loadOnboardingDismissed = (
+            local storedValue = ""
+            try (
+                if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do storedValue = toLower (getINISetting uiStateFilePath "onboarding" "dismissed")
+            ) catch (storedValue = "")
+            if (storedValue == "true") do return true
+            if (storedValue != "false") do persistOnboardingDismissed false
+            return false
+        ),
+
+        fn integrationHelperFilePath = (
+            local helperCandidate = ""
+            if (bootstrapFilePath != undefined and bootstrapFilePath != "") do helperCandidate = (ensureSlash (getFilenamePath bootstrapFilePath)) + @"scripts\agent-integration.ps1"
+            if (helperCandidate != "" and doesFileExist helperCandidate) do return helperCandidate
+            if (serverWorkingDirectory != undefined and serverWorkingDirectory != "") do helperCandidate = serverWorkingDirectory + "agent-integration.ps1"
+            if (helperCandidate != "" and doesFileExist helperCandidate) do return helperCandidate
+            return ""
+        ),
+
+        fn ensureIntegrationResultFilePath = (
+            if (integrationResultFilePath != "") do return integrationResultFilePath
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return ""
+            try (if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory) catch (return "")
+            integrationResultFilePath = uiStateDirectory + "agent-integration-" + (processId as string) + "-" + serverOwnerToken + ".ini"
+            return integrationResultFilePath
+        ),
+
+        fn quoteProcessArgument sourceContent = (
+            local quoteCharacter = bit.intAsChar 34
+            return quoteCharacter + (sourceContent as string) + quoteCharacter
+        ),
+
+        fn readIntegrationValue sectionName keyName fallbackValue: "" = (
+            local resultPath = ensureIntegrationResultFilePath()
+            if (resultPath == "" or not (doesFileExist resultPath)) do return fallbackValue
+            local storedValue = ""
+            try (storedValue = getINISetting resultPath sectionName keyName) catch (storedValue = "")
+            if (storedValue == "") then fallbackValue else storedValue
+        ),
+
+        fn integrationValueIsTrue sectionName keyName = (
+            return (toLower (readIntegrationValue sectionName keyName fallbackValue: "false")) == "true"
+        ),
+
+        fn integrationStateText sectionName = (
+            local stateValue = toLower (readIntegrationValue sectionName "state" fallbackValue: "not_checked")
+            case stateValue of (
+                "configured": "Ready - MCP configured"
+                "not_configured": "Setup required - client found, MCP not configured"
+                "restart_required": "Restart required - reconnect this AI client"
+                "cli_missing": "Client not found - install it or use manual setup"
+                "runtime_missing": "Runtime missing - portable Node.js is unavailable"
+                "install_failed": "Setup failed - refresh status and retry"
+                default: "Not checked"
+            )
+        ),
+
+        fn integrationStateColor sectionName = (
+            local colorClass = dotNetClass "System.Drawing.Color"
+            local stateValue = toLower (readIntegrationValue sectionName "state" fallbackValue: "not_checked")
+            case stateValue of (
+                "configured": (colorClass.FromArgb 76 190 112)
+                "not_configured": (colorClass.FromArgb 230 169 25)
+                "restart_required": (colorClass.FromArgb 230 169 25)
+                "cli_missing": (colorClass.FromArgb 210 90 82)
+                "runtime_missing": (colorClass.FromArgb 210 90 82)
+                "install_failed": (colorClass.FromArgb 210 90 82)
+                default: (colorClass.FromArgb 150 150 150)
+            )
+        ),
+
+        fn manualAgentConfigurationText = (
+            local commandValue = readIntegrationValue "runtime" "command" fallbackValue: ""
+            local serverValue = readIntegrationValue "runtime" "server" fallbackValue: ((ensureSlash (getFilenamePath bootstrapFilePath)) + @"core\server.js")
+            local argumentsValue = readIntegrationValue "runtime" "arguments" fallbackValue: ((quoteProcessArgument serverValue) + " --stdio")
+            local environmentValue = readIntegrationValue "runtime" "environment" fallbackValue: "MAX_ULTRA_MCP_TOOL_PROFILE=archviz"
+            if (commandValue == "") do commandValue = "<bundled runtime\\win-x64\\node.exe or Node.js 22+>"
+            return "Name: max-ultra-mcp\r\nCommand: " + commandValue + "\r\nArguments: " + argumentsValue + "\r\nEnvironment: " + environmentValue
+        ),
+
+        fn refreshOnboardingDialog = (
+            if (not (onboardingDialogIsOpen()) or onboardingPage != #setup or not onboardingSetupDialog.open) do return false
+            integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
+            integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
+            local openAIAvailable = integrationValueIsTrue "openai" "cliAvailable"
+            local claudeAvailable = integrationValueIsTrue "claudeCode" "cliAvailable"
+            try (
+                if (integrationBusy) then (
+                    local warningColor = (dotNetClass "System.Drawing.Color").FromArgb 230 169 25
+                    onboardingSetupDialog.lblOpenAIStatus.Text = "Checking client and MCP registration..."
+                    onboardingSetupDialog.lblClaudeCodeStatus.Text = "Checking client and MCP registration..."
+                    onboardingSetupDialog.lblOpenAIStatus.ForeColor = warningColor
+                    onboardingSetupDialog.lblClaudeCodeStatus.ForeColor = warningColor
+                ) else (
+                    onboardingSetupDialog.lblOpenAIStatus.Text = integrationStateText "openai"
+                    onboardingSetupDialog.lblClaudeCodeStatus.Text = integrationStateText "claudeCode"
+                    onboardingSetupDialog.lblOpenAIStatus.ForeColor = integrationStateColor "openai"
+                    onboardingSetupDialog.lblClaudeCodeStatus.ForeColor = integrationStateColor "claudeCode"
+                )
+                onboardingSetupDialog.chkOpenAI.enabled = openAIAvailable and not integrationOpenAIConfigured and not integrationBusy
+                onboardingSetupDialog.chkClaudeCode.enabled = claudeAvailable and not integrationClaudeCodeConfigured and not integrationBusy
+                onboardingSetupDialog.chkOpenAI.checked = integrationOpenAIConfigured or (openAIAvailable and not integrationBusy)
+                onboardingSetupDialog.chkClaudeCode.checked = integrationClaudeCodeConfigured or (claudeAvailable and not integrationBusy)
+                onboardingSetupDialog.btnInstallAgents.enabled = not integrationBusy and ((openAIAvailable and not integrationOpenAIConfigured) or (claudeAvailable and not integrationClaudeCodeConfigured))
+                onboardingSetupDialog.btnRefreshAgents.enabled = not integrationBusy
+                onboardingSetupDialog.btnCopyManual.enabled = not integrationBusy
+                onboardingSetupDialog.txtManual.Text = manualAgentConfigurationText()
+                onboardingSetupDialog.lblOnboardingOperation.Text = if (integrationBusy) then "Checking installed clients and MCP registrations..." else readIntegrationValue "operation" "message" fallbackValue: ""
+            ) catch ()
+            return true
+        ),
+
+        fn onboardingTestPromptText = (
+            return "Use Max Ultra MCP to verify this connection without modifying the open 3ds Max scene.\r\n\r\n1. Call max_list_instances.\r\n2. If more than one instance is connected, ask me which one to select. Otherwise use the only instance.\r\n3. Call max_health and max_scene_summary.\r\n4. Call max_capture_viewport for the active viewport.\r\n5. Inspect the returned image and report the selected 3ds Max version, scene object count, selection count, viewport type, and image dimensions.\r\n\r\nIf a call returns Control authentication failed, tell me to restart or reconnect this AI client so it reloads the MCP host. Do not ask me to restart the 3ds Max bridge for that error.\r\n\r\nDo not run arbitrary MaxScript, change the scene, start a render, or save any file during this test."
+        ),
+
+        fn showOnboardingPage pageName = (
+            if (not (onboardingDialogIsOpen())) do return false
+            local targetPage = if (pageName == #test) then #test else #setup
+            if (targetPage == onboardingPage) do return true
+            try (
+                if (onboardingPage == #setup and onboardingSetupDialog.open) do removeRollout onboardingSetupDialog onboardingFloater
+                if (onboardingPage == #test and onboardingTestDialog.open) do removeRollout onboardingTestDialog onboardingFloater
+                onboardingPage = targetPage
+                if (targetPage == #test) then addRollout onboardingTestDialog onboardingFloater rolledUp: false border: false else addRollout onboardingSetupDialog onboardingFloater rolledUp: false border: false
+                return true
+            ) catch (
+                format "[3DGROUND | Max Ultra MCP] ONBOARDING PAGE ERROR | %\n" (getCurrentException() as string)
+                return false
+            )
+        ),
+
+        fn handleOnboardingTabChanged selectedIndex = (
+            if (selectedIndex == 1) then return showOnboardingPage #test else return showOnboardingPage #setup
+        ),
+
+        fn configureOnboardingTabsDialog = (
+            if (not (onboardingDialogIsOpen())) do return false
+            try (
+                local tabAppearanceClass = dotNetClass "System.Windows.Forms.TabAppearance"
+                local tabSizeModeClass = dotNetClass "System.Windows.Forms.TabSizeMode"
+                onboardingTabsDialog.dncPages.TabPages.Clear()
+                onboardingTabsDialog.dncPages.Appearance = tabAppearanceClass.Normal
+                onboardingTabsDialog.dncPages.SizeMode = tabSizeModeClass.Fixed
+                onboardingTabsDialog.dncPages.ItemSize = dotNetObject "System.Drawing.Size" 132 24
+                onboardingTabsDialog.dncPages.Multiline = false
+                onboardingTabsDialog.dncPages.TabPages.Add (dotNetObject "System.Windows.Forms.TabPage" "Setup")
+                onboardingTabsDialog.dncPages.TabPages.Add (dotNetObject "System.Windows.Forms.TabPage" "Test prompt")
+                onboardingTabsDialog.dncPages.SelectedIndex = 0
+                showOnboardingPage #setup
+                return true
+            ) catch (
+                format "[3DGROUND | Max Ultra MCP] ONBOARDING TABS ERROR | %\n" (getCurrentException() as string)
+                return false
+            )
+        ),
+
+        fn configureOnboardingSetupDialog = (
+            if (not (onboardingDialogIsOpen()) or not onboardingSetupDialog.open) do return false
+            try (
+                local rolloutBackground = themeDrawingColor #rollupTitleFace 81 81 81
+                local onboardingTextColor = themeDrawingColor #text 225 225 225
+                onboardingSetupDialog.txtManual.Multiline = true
+                onboardingSetupDialog.txtManual.ReadOnly = true
+                onboardingSetupDialog.txtManual.WordWrap = false
+                onboardingSetupDialog.txtManual.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Vertical
+                onboardingSetupDialog.lblOpenAIStatus.Text = "Not checked"
+                onboardingSetupDialog.lblClaudeCodeStatus.Text = "Not checked"
+                onboardingSetupDialog.lblOpenAIStatus.BackColor = rolloutBackground
+                onboardingSetupDialog.lblClaudeCodeStatus.BackColor = rolloutBackground
+                onboardingSetupDialog.lblOnboardingOperation.BackColor = rolloutBackground
+                onboardingSetupDialog.lblOnboardingOperation.ForeColor = onboardingTextColor
+            ) catch ()
+            refreshOnboardingDialog()
+            return true
+        ),
+
+        fn configureOnboardingTestDialog = (
+            if (not (onboardingDialogIsOpen()) or not onboardingTestDialog.open) do return false
+            try (
+                onboardingTestDialog.txtTestPrompt.Multiline = true
+                onboardingTestDialog.txtTestPrompt.ReadOnly = true
+                onboardingTestDialog.txtTestPrompt.WordWrap = true
+                onboardingTestDialog.txtTestPrompt.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").FixedSingle
+                onboardingTestDialog.txtTestPrompt.BackColor = (dotNetClass "System.Drawing.Color").FromArgb 250 250 250
+                onboardingTestDialog.txtTestPrompt.ForeColor = (dotNetClass "System.Drawing.Color").FromArgb 24 24 24
+                onboardingTestDialog.txtTestPrompt.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Vertical
+                onboardingTestDialog.txtTestPrompt.Text = onboardingTestPromptText()
+                return true
+            ) catch (return false)
+        ),
+
+        fn startIntegrationOperation actionName installOpenAI: false installClaudeCode: false automaticCheck: false = (
+            if (isDisposed or integrationBusy) do return false
+            local helperPath = integrationHelperFilePath()
+            local resultPath = ensureIntegrationResultFilePath()
+            if (helperPath == "" or resultPath == "") do (
+                addActivity "error" "AI integration helper was not found below the first-step file"
+                if (onboardingDialogIsOpen() and onboardingPage == #setup and onboardingSetupDialog.open) do onboardingSetupDialog.lblOnboardingOperation.Text = "Setup helper is missing from this package."
+                return false
+            )
+            try (if (doesFileExist resultPath) do deleteFile resultPath) catch ()
+            try (
+                local profileValue = (dotNetClass "System.Environment").GetEnvironmentVariable "MAX_ULTRA_MCP_TOOL_PROFILE"
+                if (profileValue == undefined or findItem #("core", "archviz", "full") (toLower profileValue) == 0) do profileValue = "archviz"
+                local actionValue = if (actionName == #install) then "Install" else "Status"
+                local argumentText = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + quoteProcessArgument helperPath + " -Action " + actionValue + " -ResultPath " + quoteProcessArgument resultPath + " -Profile " + profileValue
+                if (installOpenAI) do argumentText += " -InstallOpenAI"
+                if (installClaudeCode) do argumentText += " -InstallClaudeCode"
+                local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
+                startInfo.FileName = "powershell.exe"
+                startInfo.Arguments = argumentText
+                startInfo.WorkingDirectory = getFilenamePath helperPath
+                startInfo.UseShellExecute = false
+                startInfo.CreateNoWindow = true
+                startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
+                integrationProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
+                if (integrationProcess == undefined) do throw "Windows did not start the integration helper"
+                integrationAutomaticCheck = automaticCheck
+                integrationBusy = true
+                refreshOnboardingDialog()
+                return true
+            ) catch (
+                integrationProcess = undefined
+                integrationBusy = false
+                integrationAutomaticCheck = false
+                addActivity "error" ("Could not start AI integration setup: " + (getCurrentException() as string))
+                refreshOnboardingDialog()
+                return false
+            )
+        ),
+
+        fn pollIntegrationOperation = (
+            if (integrationProcess == undefined or not integrationBusy) do return true
+            local hasExited = false
+            try (hasExited = integrationProcess.HasExited) catch (hasExited = true)
+            if (not hasExited) do return true
+            local wasAutomaticCheck = integrationAutomaticCheck
+            local helperExitCode = -1
+            try (helperExitCode = integrationProcess.ExitCode) catch ()
+            try (integrationProcess.Dispose()) catch ()
+            integrationProcess = undefined
+            integrationBusy = false
+            integrationAutomaticCheck = false
+            integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
+            integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
+            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured) do persistOnboardingDismissed true
+            refreshOnboardingDialog()
+            if (helperExitCode != 0) do addActivity "error" ("AI integration helper failed: " + readIntegrationValue "operation" "message" fallbackValue: "unknown error")
+            if (wasAutomaticCheck and helperExitCode == 0 and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (loadOnboardingDismissed())) do showOnboardingDialog refreshStatus: false
+            return true
+        ),
+
+        fn refreshAgentIntegrationStatus = (
+            return startIntegrationOperation #status automaticCheck: false
+        ),
+
+        fn installSelectedAgentIntegrations = (
+            if (not (onboardingDialogIsOpen())) do return false
+            if (readIntegrationValue "operation" "state" fallbackValue: "" == "") do (
+                if (not integrationBusy) do refreshAgentIntegrationStatus()
+                try (onboardingSetupDialog.lblOnboardingOperation.Text = "Finish the status check before installing.") catch ()
+                return false
+            )
+            local installOpenAI = false
+            local installClaudeCode = false
+            try (
+                installOpenAI = onboardingSetupDialog.chkOpenAI.enabled and onboardingSetupDialog.chkOpenAI.checked
+                installClaudeCode = onboardingSetupDialog.chkClaudeCode.enabled and onboardingSetupDialog.chkClaudeCode.checked
+            ) catch ()
+            if (not installOpenAI and not installClaudeCode) do (
+                messageBox "No available client CLI is selected. Use the manual STDIO values for clients without a CLI." title: "Max Ultra MCP - AI Client Setup"
+                return false
+            )
+            addActivity "info" "Installing selected AI client integrations"
+            return startIntegrationOperation #install installOpenAI: installOpenAI installClaudeCode: installClaudeCode automaticCheck: false
+        ),
+
+        fn resetClipboardFeedback = (
+            if (clipboardFeedbackTimer != undefined) do (
+                try (clipboardFeedbackTimer.Stop()) catch ()
+                try (clipboardFeedbackTimer.Dispose()) catch ()
+            )
+            try (if (clipboardFeedbackButton != undefined) do clipboardFeedbackButton.text = clipboardFeedbackDefaultText) catch ()
+            clipboardFeedbackTimer = undefined
+            clipboardFeedbackButton = undefined
+            clipboardFeedbackDefaultText = ""
+            return true
+        ),
+
+        fn handleClipboardFeedbackTick eventSender eventArgs = (
+            return resetClipboardFeedback()
+        ),
+
+        fn showClipboardCopiedFeedback targetButton defaultButtonText = (
+            resetClipboardFeedback()
+            if (targetButton == undefined) do return false
+            try (
+                clipboardFeedbackButton = targetButton
+                clipboardFeedbackDefaultText = defaultButtonText
+                clipboardFeedbackButton.text = "Copied"
+                clipboardFeedbackTimer = dotNetObject "System.Windows.Forms.Timer"
+                clipboardFeedbackTimer.Interval = 1600
+                dotNet.addEventHandler clipboardFeedbackTimer "Tick" handleClipboardFeedbackTick
+                clipboardFeedbackTimer.Start()
+                return true
+            ) catch (
+                resetClipboardFeedback()
+                return false
+            )
+        ),
+
+        fn copyManualAgentConfiguration = (
+            try (
+                (dotNetClass "System.Windows.Forms.Clipboard").SetText (manualAgentConfigurationText())
+                showClipboardCopiedFeedback onboardingSetupDialog.btnCopyManual "Copy manual setup"
+                if (onboardingDialogIsOpen() and onboardingPage == #setup and onboardingSetupDialog.open) do onboardingSetupDialog.lblOnboardingOperation.Text = "Manual STDIO settings copied to the clipboard."
+                return true
+            ) catch (
+                messageBox "Could not access the Windows clipboard. Try again after closing another clipboard operation." title: "Max Ultra MCP - AI Client Setup"
+                return false
+            )
+        ),
+
+        fn handleOnboardingRolloutClosed = (
+            resetClipboardFeedback()
+            onboardingPage = #none
+            onboardingFloater = undefined
+            if (not suppressOnboardingDismissal) do persistOnboardingDismissed true
+            return true
+        ),
+
+        fn closeOnboardingDialog = (
+            resetClipboardFeedback()
+            try (if (onboardingDialogIsOpen()) do closeRolloutFloater onboardingFloater) catch ()
+            onboardingPage = #none
+            onboardingFloater = undefined
+            return true
+        ),
+
+        fn disposeOnboardingDialog = (
+            resetClipboardFeedback()
+            suppressOnboardingDismissal = true
+            try (if (onboardingDialogIsOpen()) do closeRolloutFloater onboardingFloater) catch ()
+            onboardingPage = #none
+            onboardingFloater = undefined
+            suppressOnboardingDismissal = false
+            return true
+        ),
+
+        fn showOnboardingDialog refreshStatus: true = (
+            if (isDisposed) do return false
+            if (not (onboardingDialogIsOpen())) do (
+                try (
+                    onboardingPage = #none
+                    onboardingFloater = newRolloutFloater "Max Ultra MCP - AI Client Setup" 548 430
+                    addRollout onboardingTabsDialog onboardingFloater rolledUp: false border: false
+                ) catch (
+                    onboardingFloater = undefined
+                    onboardingPage = #none
+                    format "[3DGROUND | Max Ultra MCP] ONBOARDING ERROR | %\n" (getCurrentException() as string)
+                    return false
+                )
+            )
+            if (onboardingPage == #setup) do refreshOnboardingDialog()
+            if (refreshStatus and not integrationBusy) do refreshAgentIntegrationStatus()
+            return true
+        ),
+
+        fn copyOnboardingTestPrompt = (
+            try (
+                (dotNetClass "System.Windows.Forms.Clipboard").SetText (onboardingTestPromptText())
+                showClipboardCopiedFeedback onboardingTestDialog.btnCopyTestPrompt "Copy test prompt"
+                return true
+            ) catch (
+                messageBox "Could not access the Windows clipboard. Try again after closing another clipboard operation." title: "Max Ultra MCP - AI Client Setup"
+                return false
+            )
+        ),
+
+        fn beginAutomaticOnboardingCheck = (
+            if (loadOnboardingDismissed()) do return true
+            return startIntegrationOperation #status automaticCheck: true
         ),
 
         fn defaultRestoreBubblePosition = (
@@ -1147,17 +1621,6 @@ global MaxUltraMcpActiveClient
             statusDialog.btnStop.enabled = not isStopped
             statusDialog.btnStart.enabled = isStopped
             if (activityLogDirty) do refreshActivityText()
-            return true
-        ),
-
-        fn addActivity activityLevel activityMessage = (
-            local timestampText = (dotNetClass "System.DateTime").Now.ToString("HH:mm:ss")
-            local singleLineActivityMessage = substituteString (activityMessage as string) "\r" " "
-            singleLineActivityMessage = substituteString singleLineActivityMessage "\n" " "
-            append activityEntries (timestampText + " [" + activityLevel + "] " + singleLineActivityMessage)
-            while (activityEntries.count > maximumActivityEntries) do deleteItem activityEntries 1
-            activityLogDirty = true
-            refreshActivityText()
             return true
         ),
 
@@ -2034,8 +2497,16 @@ global MaxUltraMcpActiveClient
             pendingConnectOnly = false
             stopPollTimer()
             disposeSettingsDialog()
+            disposeOnboardingDialog()
             disposeRestoreBubble()
             try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+            local integrationProcessFinished = true
+            try (if (integrationProcess != undefined) do integrationProcessFinished = integrationProcess.HasExited) catch ()
+            try (if (integrationProcess != undefined) do integrationProcess.Dispose()) catch ()
+            integrationProcess = undefined
+            integrationBusy = false
+            integrationAutomaticCheck = false
+            if (integrationProcessFinished and integrationResultFilePath != "") do try (if (doesFileExist integrationResultFilePath) do deleteFile integrationResultFilePath) catch ()
             try (if (transportWorker != undefined) do dotNet.removeEventHandler transportWorker "DoWork" transportDoWork) catch ()
             pendingRequestLines = #()
             cancelledRequestIds = #()
@@ -2095,6 +2566,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed or pollTimer == undefined or timerSender != pollTimer) do return true
             try (
                 tickCount += 1
+                pollIntegrationOperation()
                 local handledInboundLines = 0
                 while (inboundQueue != undefined and inboundQueue.Count > 0 and handledInboundLines < maximumInboundLinesPerTick) do (
                     handleInboundLine (inboundQueue.Dequeue())
@@ -2146,6 +2618,7 @@ global MaxUltraMcpActiveClient
                 pollTimer.Interval = 250
                 dotNet.addEventHandler pollTimer "Tick" handleTimerTick
                 pollTimer.Start()
+                beginAutomaticOnboardingCheck()
             ) catch (
                 local timerStartFailure = getCurrentException() as string
                 isDisposed = true
@@ -2159,7 +2632,7 @@ global MaxUltraMcpActiveClient
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog settingsDialog: MaxUltraMcpSettingsDialog
+    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient

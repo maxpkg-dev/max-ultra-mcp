@@ -1,12 +1,9 @@
-/dist/
-/runtime/win-x64/
-*.tmp
-/logs/
-*.log
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.pfx
-*.p12
+# Local per-install runtime state. Never commit control tokens or ownership data.
+runtime/state/
+runtime/win-x64/
+
+# MaxPkg Packager tooling, machine-local settings, and generated release output.
+maxpkg-packager.ini
+maxpkg-changelog.ini
+maxpkg-icon.svg
+dist/

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">Max Ultra MCP</title>
+  <desc id="description">A connected M mark representing 3ds Max and MCP.</desc>
+  <circle cx="8" cy="8" r="3.5" fill="#f5b942"/>
+  <circle cx="56" cy="8" r="3.5" fill="#f5b942"/>
+  <circle cx="32" cy="56" r="3.5" fill="#f5b942"/>
+  <path d="M10.5 10.5L16 16M53.5 10.5L48 16M32 52V49" fill="none" stroke="#f5b942" stroke-width="2" stroke-linecap="round"/>
+  <path d="M13 45V19h7l12 15 12-15h7v26h-7V29L32 44 20 29v16z" fill="#55d88a"/>
+</svg>

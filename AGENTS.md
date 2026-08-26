@@ -9,6 +9,7 @@ This file is the repository entry point for AI coding agents. It describes what 
 3. [docs/USE_CASES.md](docs/USE_CASES.md) for mandatory production workflows that may still be backlog items.
 4. [.agents/coding-rules.md](.agents/coding-rules.md) for authoritative source, MaxScript, lifecycle, UI, and verification rules.
 5. [docs/PRIVACY.md](docs/PRIVACY.md) for required anonymization, placeholders, and sensitive-data review.
+6. [docs/MAXPKG.md](docs/MAXPKG.md) before changing release layout, package lifecycle, or installation behavior.
 
 Do not infer that a documented backlog tool is implemented. Confirm it in `core/tool-catalog.js`, `core/tool-runtime.js`, and tests.
 
@@ -19,6 +20,8 @@ Do not infer that a documented backlog tool is implemented. Confirm it in `core/
 - The target product range is 3ds Max 2022 through 2027. Automated protocol tests currently exercise the 2022 and 2027 endpoints; do not claim complete real-version validation without evidence.
 - Release users must not need a system Node.js installation. Source development may use Node.js 22+; release preparation bundles pinned Node.js 24 LTS.
 - The server remains Node.js unless profiling demonstrates a specific operation that justifies a native GUP.
+- `01_START_MAX_ULTRA_MCP_FIRST.ms` is the only normal end-user entry point. Preserve automatic AI-client onboarding, its setup and read-only test-prompt pages, the persistent header/settings entry points, and closable dismissal behavior.
+- MaxPkg is the release installation system. Preserve the pinned-tooling workflow, production file allowlist, dynamic package-root paths, standard hooks, and focused uninstall cleanup.
 
 ## Architecture
 
@@ -38,6 +41,7 @@ The daemon is shared. Instance selection and jobs belong to the individual MCP s
 
 - Keep MCP STDOUT JSON-RPC only. Send diagnostics to STDERR or logs.
 - Never commit real user paths, customer data, credentials, machine identifiers, raw logs, or metadata-bearing media. Follow `docs/PRIVACY.md`.
+- Discover or register AI clients through their official CLIs. Do not directly rewrite Codex, ChatGPT, Claude Code, or other client configuration files.
 - Bind local transports to `127.0.0.1` and preserve installation-token authentication.
 - Never call 3ds Max scene, viewport, renderer, SDK, WinForms, or UIAccessor APIs from a transport/background thread.
 - Serialize scene mutations through the Max main-thread queue.
@@ -61,8 +65,10 @@ The daemon is shared. Instance selection and jobs belong to the individual MCP s
 | Floor-plan validation/build | `core/floor-plan.js` |
 | Windows UI Automation | `core/windows-ui.js`, `scripts/max-ui-automation.ps1` |
 | Max bootstrap and main-thread queue | `01_START_MAX_ULTRA_MCP_FIRST.ms` |
+| AI-client onboarding and registration | `01_START_MAX_ULTRA_MCP_FIRST.ms`, `scripts/agent-integration.ps1` |
 | Mock and contract tests | `core/smoke-test.js`, `core/v1-smoke-test.js`, `core/cli-integration-test.js` |
 | Release/runtime tooling | `scripts/prepare-portable-node.ps1`, `scripts/build-release.ps1`, `scripts/build-sea.ps1` |
+| MaxPkg packaging | `docs/MAXPKG.md`, `maxpkg-files.txt`, `scripts/prepare-maxpkg.ps1`, `scripts/sync-maxpkg-tooling.ps1` |
 
 ## Adding or changing an MCP tool
 
@@ -98,7 +104,7 @@ The daemon is shared. Instance selection and jobs belong to the individual MCP s
 
 ## Natural-language material editing
 
-ChatGPT or Codex interprets natural language. The MCP server receives an explicit structured material query/edit plan. Never evaluate raw user prose as MaxScript.
+The AI client interprets natural language. The MCP server receives an explicit structured material query/edit plan. Never evaluate raw user prose as MaxScript.
 
 Before applying a material edit, detect shared materials and maps. Default to cloning for matched objects when an edit would otherwise affect unmatched nodes.
 

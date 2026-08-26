@@ -3,14 +3,12 @@
 "use strict";
 
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { randomBytes, timingSafeEqual } = require("node:crypto");
 
 function tokenFilePath() {
   if (process.env.MAX_ULTRA_MCP_TOKEN_FILE) return path.resolve(process.env.MAX_ULTRA_MCP_TOKEN_FILE);
-  const localData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
-  return path.join(localData, "3DGROUND", "MaxUltraMCP", "control-token");
+  return path.resolve(__dirname, "..", "runtime", "state", "control-token");
 }
 
 function validToken(value) {

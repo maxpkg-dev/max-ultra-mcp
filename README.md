@@ -10,8 +10,9 @@ The required production workflow backlog includes asset relinking and collection
 
 ## What users can do
 
+- Start the bridge and configure ChatGPT Desktop, Codex, Claude Code, or another STDIO client from one MaxScript entry point.
 - Connect one or more already-open 3ds Max instances to one local bridge.
-- Let each ChatGPT or Codex client select its own Max instance.
+- Let each connected MCP client select its own Max instance.
 - Inspect and modify scenes through structured MCP tools.
 - Capture viewport screenshots and return them directly to the model.
 - Start, monitor, cancel, and retrieve renders.
@@ -22,26 +23,23 @@ The required production workflow backlog includes asset relinking and collection
 
 ## Installation for release users
 
-Release packages bundle a portable Node.js runtime. Users do not install Node.js, change `PATH`, require administrator rights, or download dependencies at runtime.
+MaxPkg release packages bundle a portable Node.js runtime. Users do not install Node.js, change `PATH`, require administrator rights, or download dependencies at runtime.
 
-1. Extract or install Max Ultra MCP into a stable local directory.
-2. Run:
+1. Install the Max Ultra MCP `.mzp` through MaxPkg.
+2. Run this single file once in every 3ds Max process that should connect:
 
-   ```bat
-   scripts\install-chatgpt-codex.bat
-   ```
-
-3. Run this file once in every 3ds Max process that should connect:
-
-   ```text
+   ```maxscript
    01_START_MAX_ULTRA_MCP_FIRST.ms
    ```
 
-4. Restart or reconnect the MCP client if it was already open.
+3. When no supported AI client is configured, the first-start script opens **AI Client Setup** automatically. On **1. Setup**, select **ChatGPT Desktop / Codex** and/or **Claude Code**, then choose **Install selected**. After reconnecting the client, use **2. Test prompt** to copy a safe, read-only connection test.
+4. Restart or reconnect each newly configured AI client.
 
-The installer uses the bundled runtime and registers the STDIO host through the Codex CLI when available. If the CLI is unavailable, it prints the exact command and arguments required by the desktop MCP settings. It does not rewrite application configuration files directly.
+The onboarding uses official `codex mcp` and `claude mcp` commands when their CLIs are available. ChatGPT Desktop and Codex share the OpenAI MCP configuration. Claude Code registration is user-scoped. If a CLI is unavailable, the same window shows and copies exact STDIO values for manual or other-client setup. It never writes client configuration files directly.
 
-> The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1` when building a release.
+Closing onboarding dismisses its automatic display without stopping the bridge. Open it again at any time with **AI setup** beside **Hide panel**, or with **Settings -> Open AI client setup**. The standalone `scripts\install-chatgpt-codex.bat` remains available for headless OpenAI-client registration, but it is not required for normal first start.
+
+> The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1`, then prepare the pinned MaxPkg Packager project with `scripts\prepare-maxpkg.ps1`.
 
 ## Development checkout
 
@@ -68,7 +66,7 @@ Then run `01_START_MAX_ULTRA_MCP_FIRST.ms` inside 3ds Max.
 ## How the connection works
 
 ```text
-ChatGPT Desktop / Codex
+ChatGPT Desktop / Codex / Claude Code / other MCP client
         | MCP JSON-RPC over STDIO
         v
 MCP host: core/server.js --stdio
@@ -137,6 +135,7 @@ Before a production release, also test real 3ds Max versions and installed Coron
 - [Detailed bootstrap, panel, lifecycle, and example documentation](docs/README.md)
 - [Portable runtime layout](runtime/README.md)
 - [Experimental single-executable packaging](docs/SEA.md)
+- [MaxPkg packaging and lifecycle](docs/MAXPKG.md)
 - [Instructions for AI coding agents](AGENTS.md)
 
 ## Repository layout
@@ -148,6 +147,7 @@ scripts/                          launch, installation, packaging, UI helpers
 examples/                         runnable and acceptance examples
 docs/                             architecture and product specifications
 runtime/                          portable runtime location in release builds
+assets/                           source-controlled MaxPkg icon artwork
 AGENTS.md                         repository contract for AI coding agents
 ```
 

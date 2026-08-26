@@ -26,6 +26,7 @@ class BridgeControlClient {
     this.port = Number(options.port ?? process.env.MAX_ULTRA_MCP_PORT ?? 47635);
     this.timeoutMs = Number(options.timeoutMs ?? process.env.MAX_ULTRA_MCP_TIMEOUT_MS ?? 5000);
     this.controlToken = options.controlToken || readControlToken();
+    this.reloadControlToken = options.controlToken === undefined;
     this.socket = null;
     this.buffer = "";
     this.pendingRequests = new Map();
@@ -85,6 +86,10 @@ class BridgeControlClient {
   }
 
   request(operation, toolName = "", toolArguments = {}) {
+    if (this.reloadControlToken) {
+      const currentControlToken = readControlToken();
+      if (currentControlToken) this.controlToken = currentControlToken;
+    }
     if (!this.socket || this.socket.destroyed) throw new Error("Max Ultra MCP control client is not connected");
     const requestId = randomUUID();
     return new Promise((resolve, reject) => {

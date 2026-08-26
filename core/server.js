@@ -16,7 +16,7 @@ const { randomUUID } = require("node:crypto");
 const { allToolNames } = require("./tool-catalog");
 const { invokeV1Tool, NOT_HANDLED } = require("./tool-runtime");
 
-const { ensureControlToken, tokenMatches } = require("./local-auth");
+const { ensureControlToken, readControlToken, tokenMatches } = require("./local-auth");
 const CONTROL_CALLABLE_TOOLS = new Set([
   "max_list_instances",
   "max_health",
@@ -284,7 +284,11 @@ class MaxBridge {
       const operation = fields[3];
       const tokenProtected = operation === "call" || operation.startsWith("shutdown");
       const suppliedToken = decodeField(fields.at(-1));
-      if (tokenProtected && !tokenMatches(this.controlToken, suppliedToken)) throw new Error("Control authentication failed");
+      if (tokenProtected) {
+        const currentControlToken = readControlToken() || this.controlToken;
+        if (currentControlToken !== this.controlToken) this.controlToken = currentControlToken;
+        if (!tokenMatches(this.controlToken, suppliedToken)) throw new Error("Control authentication failed");
+      }
 
       let responsePayload;
       let shutdownAfterResponse = false;

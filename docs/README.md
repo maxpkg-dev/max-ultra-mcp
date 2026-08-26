@@ -12,6 +12,8 @@ The only file a 3ds Max user runs manually is the root file:
 
 Run it once in every Max process that should connect. It locates `scripts\start-server.bat` relative to the project root, probes the configured loopback endpoint, launches a minimized branded server console when needed, and connects the current Max. Running the file again disposes the previous in-Max client, then explicitly reuses a healthy compatible server or launches a new one when absent. An unexpected disconnect or manually closed server is terminal for that session: the bootstrap reports the failure and does not relaunch until the first-step file is explicitly run again. Panel **Reconnect** and **Connect only** actions attach only to an already-running server.
 
+After bridge startup, the same file starts a hidden, non-blocking client-status check. If neither the shared ChatGPT Desktop/Codex registration nor Claude Code is configured and onboarding was not dismissed earlier, **AI Client Setup** opens automatically. A borderless rollout header uses a WinForms `TabControl`; selecting **Setup** or **Test prompt** removes the previous content rollout and loads the selected rollout into the same `RolloutFloater`. The Setup page installs selected registrations through official CLIs and displays manual STDIO values for other clients. Status label backgrounds use the current `ColorMan #rollupTitleFace` color so they match the native rollout surface. Copy buttons briefly display **Copied** after a successful clipboard write. The Test prompt page copies a non-mutating prompt that checks instance discovery, health, scene summary, and viewport image return. The window can be closed without stopping the bridge.
+
 A manual diagnostic launch remains visible:
 
 ```bat
@@ -39,7 +41,8 @@ The compact panel shows two status/context rows above a tall log.
 - Running/connected is green; connecting/restarting/retrying is amber; errors are red; stopped/unknown is neutral. Status text is bold and always names the state, so color is not the only cue.
 - Panel and log colors derive from 3ds Max `ColorMan` background/text colors, with safe fallbacks. The log uses a lighter theme surface, a one-pixel flat black boundary, and blue/cyan informational text. Success, warning, error, and debug colors remain distinct.
 - The RichTextBox is read-only, wrapped, capped at 30 entries, and auto-scrolls to the latest entry.
-- The compact **Hide panel** action sits at the upper-right beside the status row. Its former lower-right position contains **Settings**. The settings window currently contains one auto-saving checkbox, **Autostart with 3ds Max**; changing it immediately writes `[settings] autostart` in `MaxUltraMCP\panel-ui.ini` and creates or removes `3DGROUND-Max-Ultra-MCP-Autostart.ms` under `#userStartupScripts` for the current Max version. The generated startup script stores the absolute path to `01_START_MAX_ULTRA_MCP_FIRST.ms`, launches it through `fileIn` when present, and otherwise disables the INI setting and schedules its own deletion for `#postSystemStartup`, after the startup-script file is no longer open.
+- **AI setup** is always available beside **Hide panel**. It opens the same onboarding window used on first start. **Settings** also contains **Open AI client setup...**, so a dismissed onboarding window is always recoverable.
+- The settings window also contains the auto-saving **Autostart with 3ds Max** checkbox. Changing it immediately writes `[settings] autostart` in `MaxUltraMCP\panel-ui.ini` and creates or removes `3DGROUND-Max-Ultra-MCP-Autostart.ms` under `#userStartupScripts` for the current Max version. The generated startup script stores the absolute path to `01_START_MAX_ULTRA_MCP_FIRST.ms`, launches it through `fileIn` when present, and otherwise disables the INI setting and schedules its own deletion for `#postSystemStartup`, after the startup-script file is no longer open.
 - Final normal window `x`/`y` plus user-resized `width`/`height` and the explicit `hidden` state are saved before cleanup in the per-user scripts `MaxUltraMCP\panel-ui.ini` file. Existing position-only files remain compatible and default to expanded. On launch, corrupt or missing values fall back safely; size is constrained to the panel's 540×420 layout minimum and the selected monitor's current working area, and position is clamped so the full panel remains visible. If monitor topology or DPI scaling changed, the nearest current screen is used; an unusable position centers the validated size on the primary screen.
 - **Hide panel** saves `[panel] hidden=true`, saves the current normal geometry, and hides only the main panel. The server and Max client remain connected. A compact borderless mini-panel with a one-pixel black outer outline appears at its last saved position (lower-left of the 3ds Max screen on first use), with one **Expand MCP Server** action and no minimize, maximize, or close controls. Its button color continues to follow live connection state—green when connected, amber while starting/reconnecting, and red on errors. Drag the mini-panel by its **Max Ultra MCP** label; its clamped on-screen position is saved in the same per-user INI file. The next script start goes directly to this mini-panel while the saved state is hidden. Expanding writes `hidden=false`, revalidates and restores/focuses the main panel at its previous size and position, then removes the mini-panel. Failed Hide/Expand transitions roll the INI value back to the actually available UI. Minimized or maximized state is never persisted: normal-state move/resize tracking updates the INI geometry, with WinForms restore bounds used only as a fallback. Repeated hide requests reuse the same mini-panel instead of creating duplicates, and a failed expansion leaves it available to retry.
 - Window X and **Stop / Exit** first stop and unsubscribe the Max-side timer, start the detached exactly-one-Max helper, and cancel transport. If two or more Max processes are live, the helper leaves the server available to them. If exactly one is live, it terminates only the ownership-verified Max-launched server/BAT chain. A pre-existing/manual server is disconnected but left running. The `#preSystemShutdown` callback applies the same idempotent cleanup during Max exit. Re-run cleanup disposes the prior timer, worker/form handlers, and restore mini-panel without invoking the shutdown helper, then begins a new explicit start flow.
@@ -94,19 +97,34 @@ The screenshot example runs `max tool maximize` before capture and compares the 
 
 ## Agent configuration
 
-Use the automatic installer from a packaged release:
+The normal packaged-release flow starts inside 3ds Max:
 
-```bat
-scripts\install-chatgpt-codex.bat
+```text
+01_START_MAX_ULTRA_MCP_FIRST.ms
 ```
 
-For a development checkout, register the STDIO host rather than the daemon launcher:
+The onboarding status/install work runs in a hidden Windows PowerShell 5.1 child process. The Max UI timer only polls process completion, so CLI discovery and registration do not block the 3ds Max main thread. It resolves known per-user Codex and Claude Code CLI locations in addition to `PATH`, which handles a 3ds Max process started before an agent was installed or updated. `scripts\agent-integration.ps1` writes a short per-run INI result below the existing per-user `MaxUltraMCP` state directory. It contains status labels and local runtime paths, never raw CLI output, environment dumps, access tokens, or client configuration contents.
+If a configured STDIO host started before the installed MCP runtime was updated, onboarding reports **Restart required** in amber. Restart or reconnect the AI client once; restarting the 3ds Max bridge does not reload a stale client-owned STDIO process. Control clients reload the package token file before subsequent requests, so later token-file rotation does not require another code change.
+
+Supported automatic targets:
+
+- **ChatGPT Desktop / Codex** through `codex mcp add`. These OpenAI clients share the same local Codex MCP configuration.
+- **Claude Code** through `claude mcp add ... --scope user`.
+- Other STDIO-capable agents through the copyable manual command, arguments, and environment values.
+
+For a development checkout, the equivalent OpenAI registration is:
 
 ```powershell
 codex mcp add max-ultra-mcp --env MAX_ULTRA_MCP_TOOL_PROFILE=archviz -- node "<PROJECT_ROOT>\core\server.js" --stdio
 ```
 
-See [V1.md](V1.md) for the portable-runtime TOML configuration and ChatGPT Desktop instructions.
+The equivalent Claude Code registration is:
+
+```powershell
+claude mcp add max-ultra-mcp --scope user --env MAX_ULTRA_MCP_TOOL_PROFILE=archviz -- node "<PROJECT_ROOT>\core\server.js" --stdio
+```
+
+See [V1.md](V1.md) for the portable-runtime TOML configuration and client lifecycle details.
 
 
 ## PowerShell versions
@@ -126,6 +144,7 @@ The first command checks Windows PowerShell 5.1. The second checks optional Powe
 - `MAX_ULTRA_MCP_PORT` — listener port; defaults to `47635`.
 - `MAX_ULTRA_MCP_TIMEOUT_MS` — request timeout; defaults to `5000`.
 - `MAX_ULTRA_MCP_ROOT` — optional project root when the first-start MaxScript is copied elsewhere.
+- `MAX_ULTRA_MCP_TOKEN_FILE` — optional absolute control-token file override; the default is `runtime\state\control-token` below the executing package root.
 
 Automatic launch/recovery is loopback-only.
 ## Repository layout
@@ -138,6 +157,7 @@ scripts/                          launchers, shared Node.js runner, and detached
 examples/                         BAT-only launcher root plus same-named implementation folders
 docs/README.md                    detailed documentation
 .agents/                          adapted project coding instructions
+maxpkg-files.txt                  reviewed production allowlist for MaxPkg
 ```
 
 ## Verification
