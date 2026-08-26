@@ -11,7 +11,10 @@ docs/SEA.md
 core/bridge-control-client.js
 core/floor-plan.js
 core/image-utils.js
+core/job-registry.js
 core/local-auth.js
+core/material-diagnostics.js
+core/plan-token.js
 core/polygon-mesh.js
 core/server.js
 core/stdio-host.js

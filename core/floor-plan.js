@@ -7,7 +7,7 @@
 
 "use strict";
 
-const { hashCanonical } = require("./plan-token");
+const { canonicalString, hashCanonical } = require("./plan-token");
 
 function finite(value, field, { positive = false, minimum = -Infinity } = {}) {
   const number = Number(value);

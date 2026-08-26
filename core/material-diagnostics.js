@@ -19,7 +19,7 @@ function boundedLimit(value) {
 
 function generateMaterialDiagnosticsScript(options = {}) {
   const limit = boundedLimit(options.limit);
-  return `(
+  const script = `(
   -- Max Ultra MCP: Find material diagnostics
   local includeHidden = ${maxBoolean(options.includeHidden !== false)}
   local includeFrozen = ${maxBoolean(options.includeFrozen !== false)}
@@ -155,6 +155,15 @@ function generateMaterialDiagnosticsScript(options = {}) {
       "\\"materialMissingMaps\\":[" + (mcpJoinStrings materialMissingMapsRecords ",") + "]" +
     "},\\"coverage\\":{\\"missingMaps\\":\\"Bitmaptexture file inputs; renderer-specific assets require max_assets_scan\\"}}"
 )`;
+  const scriptLines = script.split("\n");
+  const escapeLineIndexes = scriptLines
+    .map((line, index) => line.includes("substituteString escapedValue") ? index : -1)
+    .filter((index) => index >= 0);
+  if (escapeLineIndexes.length !== 5) throw new Error("Material diagnostic escape helper is incomplete");
+  scriptLines[escapeLineIndexes[1]] = "    escapedValue = substituteString escapedValue " +
+    JSON.stringify(String.fromCharCode(34)) + " " +
+    JSON.stringify(String.fromCharCode(92, 34));
+  return scriptLines.join("\n");
 }
 
 function parseMaterialDiagnostics(execution, sceneRevision) {

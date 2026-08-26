@@ -15,6 +15,44 @@ const { runUiAutomation } = require("./windows-ui");
 
 const NOT_HANDLED = Symbol("NOT_HANDLED");
 
+function activityLabelForTool(toolName, args = {}) {
+  const labels = {
+    max_execute: "Run MaxScript",
+    max_run_script: "Run MaxScript",
+    max_run_script_file: "Run MaxScript file",
+    max_create_polygon_mesh: "Create polygon mesh",
+    max_build_floor_plan: "Build floor plan",
+    max_material_find_unassigned: "Find material issues",
+    max_capture_viewport: "Capture viewport",
+    max_render_start: `Start ${args.mode || "production"} render`,
+    max_render_settings_set: "Update render settings",
+  };
+  if (labels[toolName]) return labels[toolName];
+  return String(toolName || "Max operation")
+    .replace(/^max_/, "")
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function withActivityLabel(bridge, activityLabel) {
+  return new Proxy(bridge, {
+    get(target, property) {
+      if (property === "request") {
+        return (instanceId, actionName, actionPayload, timeoutMs, explicitLabel) => (
+          target.request(instanceId, actionName, actionPayload, timeoutMs, explicitLabel || activityLabel)
+        );
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    set(target, property, value) {
+      return Reflect.set(target, property, value, target);
+    },
+  });
+}
+
 function maxString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r/g, "\\r").replace(/\n/g, "\\n")}"`;
 }
@@ -182,6 +220,7 @@ function createPrimitiveScript(args) {
 
 async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   if (!allToolNames.has(toolName)) return NOT_HANDLED;
+  bridge = withActivityLabel(bridge, activityLabelForTool(toolName, args));
   ensureRuntime(bridge, session);
 
   if (toolName === "max_validate_polygon_mesh") return validatePolygonMesh(args.mesh);
@@ -406,8 +445,8 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   }
 
   const viewportScripts = {
-    max_frame_selection: "(max zoomext sel all; completeRedraw(); true)",
-    max_zoom_extents: "(max zoomext all; completeRedraw(); true)",
+    max_frame_selection: "(max zoomext sel; completeRedraw(); true)",
+    max_zoom_extents: "(max tool zoomextents; completeRedraw(); true)",
     max_redraw_viewports: "(completeRedraw(); true)",
   };
   if (viewportScripts[toolName]) return { instanceId: instance.instanceId, execution: await bridge.request(instance.instanceId, "execute", viewportScripts[toolName], 30000), sceneRevision: revisionFor(bridge, instance.instanceId) };

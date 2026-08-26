@@ -94,7 +94,7 @@ async function run() {
     await waitForLines(hostLines, 3);
 
     const responses = hostLines.map((line) => JSON.parse(line));
-    assert.equal(responses[0].result.serverInfo.version, "1.0.0");
+    assert.equal(responses[0].result.serverInfo.version, "1.1.0");
     assert.ok(responses[1].result.tools.length >= 56);
     assert.equal(responses[2].result.structuredContent.ok, true, JSON.stringify(responses[2].result.structuredContent));
     assert.equal(responses[2].result.structuredContent.data.count, 1);

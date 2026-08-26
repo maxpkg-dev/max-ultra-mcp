@@ -559,7 +559,10 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings"/);
     assert.match(bootstrapSource, /groupBox grpAutostart "Autostart" pos: \[12,10\] width: 356 height: 58/);
     assert.match(bootstrapSource, /groupBox grpAbout "About" pos: \[12,216\] width: 356 height: 72/);
-    assert.match(bootstrapSource, /label lblAboutVersion "Version: 1\.0\.0"/);
+    assert.match(bootstrapSource, /label lblAboutVersion "Version: 1\.1\.0"/);
+    assert.match(bootstrapSource, /local activityLabel = if \(wireFields\.count >= 5\) then decodeWireField\(wireFields\[5\]\) else ""/);
+    assert.match(bootstrapSource, /operationLabel \+ " \[" \+ shortRequestId \+ "\]"/);
+    assert.doesNotMatch(bootstrapSource, /Executing MaxScript request/);
     assert.match(bootstrapSource, /label lblAboutAuthor "Author: Lukianenko Vasyl"/);
     assert.match(bootstrapSource, /hyperLink lnkAboutWebsite "https:\/\/3dground\.net"[\s\S]*address: "https:\/\/3dground\.net"/);
     assert.match(bootstrapSource, /checkbox chkAutostart "Autostart with 3ds Max"/);
@@ -618,6 +621,9 @@ async function runSmokeTest() {
     assert.match(fs.readFileSync(path.join(PROJECT_ROOT, "core", "bridge-control-client.js"), "utf8"), /const currentControlToken = readControlToken\(\)/);
     assert.match(localAuthSource, /path\.resolve\(__dirname, "\.\.", "runtime", "state", "control-token"\)/);
     assert.match(maxPkgFilesSource, /runtime\/win-x64\/node\.exe/);
+    assert.match(maxPkgFilesSource, /core\/job-registry\.js/);
+    assert.match(maxPkgFilesSource, /core\/material-diagnostics\.js/);
+    assert.match(maxPkgFilesSource, /core\/plan-token\.js/);
     for (const skillName of skillNames) {
       assert.ok(maxPkgFilesSource.includes(`skills/${skillName}/SKILL.md`));
       for (const skillReferenceName of skillReferenceNamesBySkill.get(skillName)) {

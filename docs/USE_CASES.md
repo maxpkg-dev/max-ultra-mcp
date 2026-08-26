@@ -88,6 +88,8 @@ Standard 3ds Max render elements must not be substituted when the active rendere
 
 ## 6. Find objects without valid materials
 
+Implementation status: available and mock-tested in v1.1; real 3ds Max acceptance remains required.
+
 Tool:
 
 - `max_material_find_unassigned`

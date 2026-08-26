@@ -27,6 +27,7 @@ class MockMaxClient {
     this.readBuffer = "";
     this.cancelledRequests = new Set();
     this.executeRequests = [];
+    this.activityLabels = [];
   }
 
   connect() {
@@ -76,6 +77,7 @@ class MockMaxClient {
     const requestId = fields[1];
     const actionName = fields[2];
     const actionPayload = decodeField(fields[3]);
+    const activityLabel = fields.length >= 5 ? decodeField(fields[4]) : "";
     let responsePayload;
     if (actionName === "never") {
       return;
@@ -105,11 +107,38 @@ class MockMaxClient {
       };
     } else if (actionName === "execute") {
       this.executeRequests.push(actionPayload);
+      this.activityLabels.push(activityLabel);
       let executionResult = `mock-result:${actionPayload}`;
       if (actionPayload.includes("Max Ultra MCP: Create polygon mesh")) {
         const nodeNameMatch = /local nodeName = ("(?:\\.|[^"\\])*")/.exec(actionPayload);
         const nodeName = nodeNameMatch ? JSON.parse(nodeNameMatch[1]) : "MockPolygonMesh";
         executionResult = `42001|${nodeName}|8|12|6|0|Editable_Poly`;
+      } else if (actionPayload.includes("Max Ultra MCP: Find material diagnostics")) {
+        executionResult = JSON.stringify({
+          scanned: 3,
+          matched: 2,
+          returned: 2,
+          truncated: false,
+          categories: {
+            noMaterial: [
+              { node: { handle: 51001, name: "Fixture_NoMaterial" }, className: "Box", layer: "Fixture", materialClass: "", emptySlots: 0, missingPaths: [] },
+            ],
+            invalidMaterial: [],
+            emptyMultiSubSlot: [
+              { node: { handle: 51002, name: "Fixture_EmptySlot" }, className: "Editable_Poly", layer: "Fixture", materialClass: "Multimaterial", emptySlots: 1, missingPaths: [] },
+            ],
+            unsupportedMaterial: [],
+            materialMissingMaps: [],
+          },
+          coverage: { missingMaps: "Bitmaptexture file inputs; renderer-specific assets require max_assets_scan" },
+        });
+      } else if (actionPayload.includes("local b=render()")) {
+        const outputPathMatch = /b\.filename=("(?:\\.|[^"\\])*")/.exec(actionPayload);
+        if (outputPathMatch) {
+          const outputPath = JSON.parse(outputPathMatch[1]);
+          fs.writeFileSync(outputPath, ONE_PIXEL_PNG);
+          executionResult = outputPath;
+        }
       }
       responsePayload = {
         action: actionName, ok: true, instanceId: this.instanceId, mainThread: true,

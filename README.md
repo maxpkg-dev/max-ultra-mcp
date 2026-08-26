@@ -6,7 +6,16 @@ Max Ultra MCP connects ChatGPT, Codex, and other MCP clients to Autodesk 3ds Max
 
 The v1 architecture and mock-tested MCP surface are implemented. The current automated suite covers the 3ds Max 2022 and 2027 protocol endpoints, multi-instance routing, authenticated STDIO transport, structured responses, viewport images, render jobs, UI boundaries, and floor-plan generation. Real 3ds Max and renderer-version acceptance testing remains required before a production release.
 
-The required production workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, material diagnostics, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
+The first production-foundations increment adds session-owned common jobs and read-only material diagnostics. The remaining workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
+
+### Recent changes in 1.1.0
+
+- Added a session-owned common job API for listing, monitoring, waiting for, cancelling, and retrieving long-operation results without leaking jobs between MCP clients.
+- Added read-only material diagnostics for missing assignments, invalid materials, incomplete Multi/Sub materials, and missing bitmap files.
+- Added privacy-safe semantic activity labels to the in-Max panel, with a shortened request identifier retained for troubleshooting.
+- Reused validation tokens for destructive plan/apply workflows so payload, selected Max instance, scene revision, targets, and detected capabilities stay bound together.
+- Corrected viewport framing commands: selection framing now affects only the active viewport, and scene extents use the documented `max tool zoomextents` command.
+- Expanded mock, contract, CLI, packaging, and agent-reference coverage for the new behavior.
 
 ## What users can do
 
@@ -17,6 +26,8 @@ The required production workflow backlog includes asset relinking and collection
 - Validate and create custom Editable Poly topology from object-local vertices and zero-based polygon faces.
 - Maximize the active viewport, capture it, and return the screenshot directly to the model.
 - Start, monitor, cancel, and retrieve renders.
+- Monitor, wait for, cancel, and retrieve any session-owned long operation through the common job API.
+- Find geometry with missing, invalid, unsupported, incomplete Multi/Sub, or missing-bitmap material assignments without changing selection.
 - Run MaxScript text, files, macros, and Action Table commands.
 - Inspect and operate UI controls only inside the selected `3dsmax.exe` process.
 - Validate and build a dimensioned house plan interpreted from an attached image.
@@ -121,6 +132,7 @@ The MCP server remains fully usable without these skills. Skill installation is 
 - UI Automation rejects every HWND not owned by the selected `3dsmax.exe` process.
 - Arbitrary MaxScript is intentionally powerful and is annotated as a destructive, open-world operation for client approval.
 - Unknown renderer APIs return explicit unsupported errors instead of reporting false success.
+- Native code is never required for normal operation. Any future managed or native helper must be package-local, optional, and covered by a Node.js/MaxScript fallback.
 
 ## Verification
 

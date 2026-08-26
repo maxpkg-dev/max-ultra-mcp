@@ -1,4 +1,9 @@
-/* MCP STDIO host for the singleton Max Ultra MCP daemon. */
+/*
+ * MCP STDIO host for the singleton Max Ultra MCP daemon.
+ * Copyright (c) 2026 Lukianenko Vasyl
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
+ */
 
 "use strict";
 
@@ -8,9 +13,9 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { BridgeControlClient } = require("./bridge-control-client");
 const { getMcpTools, normalizeProfile } = require("./tool-catalog");
+const { version: SERVER_VERSION } = require("./package.json");
 
-const SERVER_VERSION = "1.0.0";
-const INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, and build it with the unchanged token. The floor-plan builder preserves a source wall spline, extrudes a separate working copy, and creates door/window topology through meshOp before viewport verification. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits.";
+const INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. Use max_job_* for the common lifecycle of long operations; render-specific job tools remain compatible. Use max_material_find_unassigned before changing material assignments. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, and build it with the unchanged token. The floor-plan builder preserves a source wall spline, extrudes a separate working copy, and creates door/window topology through meshOp before viewport verification. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits.";
 
 function writeRpc(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -22,6 +27,12 @@ function errorCode(error) {
   if (/No 3ds Max instances/i.test(message)) return "MAX_NOT_CONNECTED";
   if (/Multiple 3ds Max|max_select_instance/i.test(message)) return "INSTANCE_REQUIRED";
   if (/STALE_NODE_REF/i.test(message)) return "STALE_NODE_REF";
+  if (/STALE_PLAN/i.test(message)) return "STALE_PLAN";
+  if (/JOB_NOT_FOUND/i.test(message)) return "JOB_NOT_FOUND";
+  if (/JOB_NOT_COMPLETE/i.test(message)) return "JOB_NOT_COMPLETE";
+  if (/JOB_LIMIT_REACHED/i.test(message)) return "JOB_LIMIT_REACHED";
+  if (/JOB_TYPE_MISMATCH/i.test(message)) return "JOB_TYPE_MISMATCH";
+  if (/MATERIAL_DIAGNOSTICS_INVALID/i.test(message)) return "MATERIAL_DIAGNOSTICS_INVALID";
   if (/VALIDATION_FAILED|must |requires |unknown wall|overlap|extends past/i.test(message)) return "VALIDATION_FAILED";
   if (/RENDERER_UNSUPPORTED/i.test(message)) return "RENDERER_UNSUPPORTED";
   if (/UI element was not found/i.test(message)) return "UI_ELEMENT_NOT_FOUND";
@@ -97,6 +108,7 @@ function imageDescriptor(toolName, data) {
   if (toolName === "max_capture_viewport") return { image: data?.screenshot, remove: true };
   if (toolName === "max_ui_capture_window") return { image: data?.ui, remove: true };
   if (toolName === "max_render_get_result") return { image: data?.image, remove: false };
+  if (toolName === "max_job_result") return { image: data?.image, remove: false };
   return null;
 }
 

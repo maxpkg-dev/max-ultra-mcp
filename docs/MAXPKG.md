@@ -31,6 +31,7 @@ Pinned `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` live in the proj
 - MaxPkg extracts the package into its GUID-owned temporary package directory.
 - The generated MaxPkg macro runs `01_START_MAX_ULTRA_MCP_FIRST.ms` directly from that directory.
 - Runtime paths are resolved from the executing entry file; no developer-machine path is embedded in the archive.
+- Native code is not required. A future managed helper DLL may be shipped package-relative and loaded explicitly, but it must remain optional and provide a tested Node.js/MaxScript fallback.
 - Mutable authentication state stays under `runtime\state` inside the package root and is excluded from source control and the package input list.
 - The standard MaxPkg installer and uninstaller own package files, generated macros, toolbar metadata, and the installed SVG icon.
 - The focused custom uninstall hook unregisters the named MCP server through available official client CLIs and stops only Node processes whose command line contains the exact installed `core\server.js` path. MaxPkg then removes the package directory.

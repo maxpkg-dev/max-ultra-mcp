@@ -9,6 +9,9 @@ const { BridgeControlClient } = require("../core/bridge-control-client");
 const { StdioHost } = require("../core/stdio-host");
 const { getMcpTools } = require("../core/tool-catalog");
 const { generateFloorPlanScript, validateFloorPlan } = require("../core/floor-plan");
+const { JobRegistry } = require("../core/job-registry");
+const { generateMaterialDiagnosticsScript } = require("../core/material-diagnostics");
+const { createPlanToken, verifyPlanToken } = require("../core/plan-token");
 const { generatePolygonMeshScript, validatePolygonMesh } = require("../core/polygon-mesh");
 const EXAMPLE_PLAN = require("../examples/house-plan-from-image/expected-plan.json");
 
@@ -159,6 +162,33 @@ async function run() {
   invalidPolygon.faces[0] = [0, 3, 2, 99];
   assert.match(validatePolygonMesh(invalidPolygon).blockers[0], /highest valid index is 7/);
 
+  const planBinding = {
+    operation: "fixture_operation",
+    instanceId: "mock-max-2027-1",
+    sceneRevision: 4,
+    request: { targets: ["A", "B"] },
+    targets: [{ handle: 1001 }, { handle: 1002 }],
+    capabilities: { adapter: "generic" },
+  };
+  const planToken = createPlanToken(planBinding);
+  assert.equal(planToken.length, 64);
+  assert.equal(verifyPlanToken(planToken, structuredClone(planBinding)), true);
+  assert.throws(() => verifyPlanToken(planToken, { ...planBinding, sceneRevision: 5 }), /STALE_PLAN/);
+
+  const materialDiagnosticScript = generateMaterialDiagnosticsScript({ includeHidden: true, limit: 25 });
+  assertBalancedGeneratedMaxScript(materialDiagnosticScript);
+  assert.match(materialDiagnosticScript, /Max Ultra MCP: Find material diagnostics/);
+  assert.match(materialDiagnosticScript, /getClassInstances Bitmaptexture/);
+  assert.match(materialDiagnosticScript, /doesFileExist bitmapPath/);
+  assert.doesNotMatch(materialDiagnosticScript, /select nodeValue|delete nodeValue/);
+
+  const isolatedJobs = new JobRegistry({ maximumJobs: 10 });
+  const isolatedJob = isolatedJobs.create({ type: "fixture", instanceId: "mock-max-2027-1" });
+  isolatedJobs.start(isolatedJob, async () => ({ manifest: ["verified"] }));
+  assert.equal((await isolatedJobs.wait(isolatedJob.jobId, 1000)).state, "completed");
+  assert.deepEqual(isolatedJobs.getResult(isolatedJob.jobId).result, { manifest: ["verified"] });
+  assert.equal(isolatedJobs.list({ type: "fixture" }).length, 1);
+
   const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 2000 });
   await bridge.start();
   const max2022 = new MockMaxClient({ port: bridge.port, maxVersion: "2022", pid: 22022, instanceId: "v1-max-2022" });
@@ -172,7 +202,7 @@ async function run() {
     await waitFor(() => bridge.listInstances().length === 2);
 
     const initialize = await rpc(hostA, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
-    assert.equal(initialize.result.serverInfo.version, "1.0.0");
+    assert.equal(initialize.result.serverInfo.version, "1.1.0");
     assert.match(initialize.result.instructions, /floor-plan images/);
 
     const list = await rpc(hostA, { jsonrpc: "2.0", id: 2, method: "tools/list" });
@@ -194,6 +224,14 @@ async function run() {
     assert.equal(healthB.result.structuredContent.data.instance.instanceId, "v1-max-2027");
     const infoA = await rpc(hostA, { jsonrpc: "2.0", id: 71, method: "tools/call", params: { name: "max_get_info", arguments: {} } });
     assert.deepEqual(infoA.result.structuredContent.data.info.units, { systemType: "Millimeters", systemScale: 1, displayType: "Metric" });
+
+    const materialIssues = await rpc(hostA, { jsonrpc: "2.0", id: 72, method: "tools/call", params: { name: "max_material_find_unassigned", arguments: {} } });
+    assert.equal(materialIssues.result.isError, false, JSON.stringify(materialIssues.result.structuredContent));
+    assert.equal(materialIssues.result.structuredContent.data.matched, 2);
+    assert.equal(materialIssues.result.structuredContent.data.counts.noMaterial, 1);
+    assert.equal(materialIssues.result.structuredContent.data.counts.emptyMultiSubSlot, 1);
+    assert.equal(materialIssues.result.structuredContent.data.categories.noMaterial[0].node.sceneRevision, 0);
+    assert.equal(max2022.activityLabels.at(-1), "Find material issues");
 
     const box = await rpc(hostA, { jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: "max_create_box", arguments: { name: "V1Box", position: [1, 2, 3], size: [10, 20, 30] } } });
     assert.equal(box.result.isError, false);
@@ -243,12 +281,32 @@ async function run() {
     assert.equal(screenshot.result.structuredContent.data.screenshot.width, 64);
     assert.equal(screenshot.result.structuredContent.data.screenshot.height, 32);
 
+    const frameSelection = await rpc(hostA, { jsonrpc: "2.0", id: 121, method: "tools/call", params: { name: "max_frame_selection", arguments: {} } });
+    assert.equal(frameSelection.result.isError, false, JSON.stringify(frameSelection.result.structuredContent));
+    assert.match(max2022.executeRequests.at(-1), /max zoomext sel;/);
+    assert.doesNotMatch(max2022.executeRequests.at(-1), /max zoomext sel all/);
+
+    const zoomExtents = await rpc(hostA, { jsonrpc: "2.0", id: 122, method: "tools/call", params: { name: "max_zoom_extents", arguments: {} } });
+    assert.equal(zoomExtents.result.isError, false, JSON.stringify(zoomExtents.result.structuredContent));
+    assert.match(max2022.executeRequests.at(-1), /max tool zoomextents;/);
+    assert.doesNotMatch(max2022.executeRequests.at(-1), /max zoomext all|zoomextents all/);
+
     const renderStart = await rpc(hostA, { jsonrpc: "2.0", id: 13, method: "tools/call", params: { name: "max_render_start", arguments: { mode: "production" } } });
     const jobId = renderStart.result.structuredContent.data.jobId;
     assert.equal(typeof jobId, "string");
     await waitFor(() => max2022.executeRequests.some((script) => /local b=render\(\)/.test(script)));
     const renderWait = await rpc(hostA, { jsonrpc: "2.0", id: 14, method: "tools/call", params: { name: "max_render_wait", arguments: { jobId, timeout_ms: 1000 } } });
     assert.equal(renderWait.result.structuredContent.data.state, "completed");
+    const commonJobStatus = await rpc(hostA, { jsonrpc: "2.0", id: 141, method: "tools/call", params: { name: "max_job_status", arguments: { jobId } } });
+    assert.equal(commonJobStatus.result.structuredContent.data.type, "render");
+    assert.equal(commonJobStatus.result.structuredContent.data.state, "completed");
+    const commonJobList = await rpc(hostA, { jsonrpc: "2.0", id: 142, method: "tools/call", params: { name: "max_job_list", arguments: { type: "render" } } });
+    assert.equal(commonJobList.result.structuredContent.data.jobs.some((entry) => entry.jobId === jobId), true);
+    const commonJobResult = await rpc(hostA, { jsonrpc: "2.0", id: 143, method: "tools/call", params: { name: "max_job_result", arguments: { jobId } } });
+    assert.equal(commonJobResult.result.content[1]?.type, "image", JSON.stringify(commonJobResult));
+    assert.equal(commonJobResult.result.structuredContent.data.result.mode, "production");
+    const foreignJob = await rpc(hostB, { jsonrpc: "2.0", id: 144, method: "tools/call", params: { name: "max_job_status", arguments: { jobId } } });
+    assert.equal(foreignJob.result.structuredContent.error.code, "JOB_NOT_FOUND");
 
     const regionStart = await rpc(hostA, { jsonrpc: "2.0", id: 15, method: "tools/call", params: { name: "max_render_start", arguments: { mode: "region", region: { x: 10, y: 20, width: 320, height: 180 } } } });
     const regionJobId = regionStart.result.structuredContent.data.jobId;

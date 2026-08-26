@@ -79,7 +79,7 @@ global MaxUltraMcpActiveClient
         button btnAgentSetup "Open AI client setup..." pos: [24,168] width: 210 height: 26
         groupBox grpAbout "About" pos: [12,216] width: 356 height: 72
         label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,238] width: 190 height: 18
-        label lblAboutVersion "Version: 1.0.0" pos: [250,238] width: 100 height: 18
+        label lblAboutVersion "Version: 1.1.0" pos: [250,238] width: 100 height: 18
         label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,262] width: 180 height: 18
         hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,260] width: 138 height: 20 address: "https://3dground.net"
 
@@ -1983,9 +1983,12 @@ global MaxUltraMcpActiveClient
             )
         ),
 
-        fn handleExecuteRequest requestId scriptContent = (
+        fn handleExecuteRequest requestId scriptContent activityLabel = (
             local startedAt = timestamp()
-            addActivity "info" ("Executing MaxScript request " + requestId)
+            local operationLabel = if (activityLabel != "") then activityLabel else "Run Max operation"
+            local shortRequestId = requestId
+            if (shortRequestId.count > 8) do shortRequestId = substring shortRequestId 1 8
+            addActivity "info" (operationLabel + " [" + shortRequestId + "]")
             try (
                 local executionResult = execute scriptContent
                 local resultText = ""
@@ -1994,12 +1997,12 @@ global MaxUltraMcpActiveClient
                 local resultType = try ((classOf executionResult) as string) catch ("Unknown")
                 local elapsedMilliseconds = timestamp() - startedAt
                 local responseBody = "{\"action\":\"execute\",\"ok\":true,\"mainThread\":true,\"result\":\"" + jsonEscape(resultText) + "\",\"resultType\":\"" + jsonEscape(resultType) + "\",\"elapsedMs\":" + (elapsedMilliseconds as string) + "}"
-                addActivity "info" ("MaxScript completed in " + (elapsedMilliseconds as string) + " ms")
+                addActivity "info" (operationLabel + " completed in " + (elapsedMilliseconds as string) + " ms")
                 sendSceneStatus()
                 return sendBridgeResponse requestId true responseBody
             ) catch (
                 local errorMessage = getCurrentException()
-                addActivity "error" ("MaxScript failed: " + errorMessage)
+                addActivity "error" (operationLabel + " failed: " + errorMessage)
                 sendSceneStatus()
                 return sendBridgeResponse requestId false errorMessage
             )
@@ -2186,6 +2189,7 @@ global MaxUltraMcpActiveClient
             local requestId = wireFields[2]
             local actionName = wireFields[3]
             local actionPayload = if (wireFields.count >= 4) then decodeWireField(wireFields[4]) else ""
+            local activityLabel = if (wireFields.count >= 5) then decodeWireField(wireFields[5]) else ""
             if (requestWasCancelled requestId) do (
                 addActivity "info" ("Cancelled queued request " + requestId)
                 return sendBridgeResponse requestId false "Request was cancelled before main-thread execution"
@@ -2208,7 +2212,7 @@ global MaxUltraMcpActiveClient
                     sendSceneStatus()
                     return sendBridgeResponse requestId true (buildSceneSummaryJson actionName)
                 )
-                "execute": return handleExecuteRequest requestId actionPayload
+                "execute": return handleExecuteRequest requestId actionPayload activityLabel
                 "panel": return handlePanelAction requestId actionPayload
                 "screenshot": return handleViewportScreenshot requestId actionPayload
                 "ui_list": return handleUiListRequest requestId actionPayload

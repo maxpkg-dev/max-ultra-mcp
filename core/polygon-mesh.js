@@ -7,7 +7,7 @@
 
 "use strict";
 
-const { hashCanonical } = require("./plan-token");
+const { canonicalString, hashCanonical } = require("./plan-token");
 
 const MAX_VERTICES = 10000;
 const MAX_FACES = 20000;

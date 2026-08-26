@@ -15,6 +15,7 @@ const readline = require("node:readline");
 const { randomUUID } = require("node:crypto");
 const { allToolNames } = require("./tool-catalog");
 const { invokeV1Tool, NOT_HANDLED } = require("./tool-runtime");
+const { version: SERVER_VERSION } = require("./package.json");
 
 const { ensureControlToken, readControlToken, tokenMatches } = require("./local-auth");
 const CONTROL_CALLABLE_TOOLS = new Set([
@@ -431,7 +432,7 @@ class MaxBridge {
     }
     return connectedInstances[0];
   }
-  request(instanceId, actionName, actionPayload = "", timeoutMs = this.requestTimeoutMs) {
+  request(instanceId, actionName, actionPayload = "", timeoutMs = this.requestTimeoutMs, activityLabel = "") {
     const instanceInfo = this.selectInstance(instanceId);
     const requestId = randomUUID();
     return new Promise((resolve, reject) => {
@@ -442,7 +443,8 @@ class MaxBridge {
       }, timeoutMs);
       this.pendingRequests.set(requestId, { resolve, reject, timeoutHandle, instanceId: instanceInfo.instanceId });
       const wirePayload = encodeField(actionPayload);
-      instanceInfo.socket.write(`REQUEST\t${requestId}\t${actionName}\t${wirePayload}\n`, (error) => {
+      const wireActivityLabel = encodeField(String(activityLabel || "").slice(0, 120));
+      instanceInfo.socket.write(`REQUEST\t${requestId}\t${actionName}\t${wirePayload}\t${wireActivityLabel}\n`, (error) => {
         if (!error) return;
         const pendingRequest = this.pendingRequests.get(requestId);
         if (!pendingRequest) return;
@@ -638,7 +640,7 @@ async function handleRpcMessage(bridge, message, sendResponse = writeRpcMessage)
       rpcResponse.result = {
         protocolVersion: message.params?.protocolVersion || "2024-11-05",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "max-ultra-mcp", version: "1.0.0" },
+        serverInfo: { name: "max-ultra-mcp", version: SERVER_VERSION },
         instructions: "Use concise semantic tools first: max_list_instances, max_select_instance, max_scene_summary, max_get_info, max_create_box, max_ui_list/invoke, and max_viewport_screenshot. Results are compact by default; use max_get_info for detailed scene statistics. max_execute is the advanced full-control escape hatch. All Max work is queued on the main thread.",
       };
     } else if (message.method === "ping") {

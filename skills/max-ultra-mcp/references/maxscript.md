@@ -49,7 +49,8 @@ Use one block, descriptive locals, a bounded undo transaction for scene writes, 
 | Delete nodes | `delete nodeArray` | Keep deletion inside one named undo transaction. |
 | Convert a physical value | `units.decodeValue "250mm"` | Preserve the existing system and display unit settings. |
 | Redraw viewports | `redrawViews()` | Prefer `max_redraw_viewports`. |
-| Zoom extents | `max tool zoomextents all` | Prefer `max_zoom_extents`; Max commands can display UI in other cases. |
+| Zoom extents in the active viewport | `max tool zoomextents` | Prefer `max_zoom_extents`. Do not use the nonexistent `max zoomext all` command. |
+| Zoom extents in every viewport | `max tool zoomextents all` | Use only when changing every viewport is explicitly intended. |
 | Orbit active viewport | `viewport.rotate rotationQuat` | Perspective/user views only; use the reviewed pattern below. |
 | Capture active viewport | `viewport.getViewportDib()` | Prefer `max_capture_viewport`, which maximizes first and returns MCP image content. |
 | Run a MacroScript | `macros.run categoryName macroName` | Prefer `max_run_macro`. |
@@ -103,4 +104,5 @@ Do not call a blocking raw `render()` when the user needs status, cancellation, 
 - [Running script files](https://help.autodesk.com/cloudhelp/2026/ENU/MAXScript-Help/files/MAXScript-Introduction/Accessing-MAXScript/GUID-86D82FCE-B88F-4487-9B34-B6222EDA1C71.html)
 - [Viewport bitmap capture](https://help.autodesk.com/cloudhelp/2024/ENU/MAXScript-Help/files/MAXScript-Language-Reference/Values/Bitmap-Values/GUID-9F6ABEE1-0728-4B39-8903-D909634C1304.html)
 - [Active viewport transforms and `viewport.rotate`](https://help.autodesk.com/cloudhelp/2023/ENU/MAXScript-Help/files/MAXScript-Tools-and-Interaction/Interacting-with-the-3ds-Max/Viewports/GUID-8AA71F9E-F4F0-4437-A44E-9683619E89DE.html)
+- [3ds Max commands](https://help.autodesk.com/cloudhelp/2022/ENU/MAXScript-Help/files/MAXScript-Tools-and-Interaction/Interacting-with-the-3ds-Max/GUID-A96857E7-73FE-4F42-BE71-E8185356F4C9.html)
 - [String and path literals](https://help.autodesk.com/cloudhelp/2022/ENU/MAXScript-Help/files/MAXScript-Language-Reference/Names-Literal-Constants-and/Literal-Constants/GUID-7F17449E-C377-445C-AC15-CD3BA88A975B.html)

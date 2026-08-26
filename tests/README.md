@@ -24,4 +24,4 @@ node .\tests\v1-smoke-test.js
 node .\tests\cli-integration-test.js
 ```
 
-The JavaScript suites use mock Max clients only. They must never open, modify, render, or save a real user scene. The UI Automation fixture requires an explicitly selected disposable 3ds Max test scene and is not executed by the automated runner.
+The JavaScript suites use mock Max clients only. They must never open, modify, render, or save a real user scene. The v1 suite covers common session-owned jobs, render compatibility wrappers, plan-token binding, bounded material-diagnostic generation/parsing, and privacy-safe activity labels. Material-class and renderer-specific coverage still requires the real-Max acceptance matrix. The UI Automation fixture requires an explicitly selected disposable 3ds Max test scene and is not executed by the automated runner.
