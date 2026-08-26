@@ -8,6 +8,8 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { allToolNames, MAX_EXECUTION_TIMEOUT_MS } = require("./tool-catalog");
 const { generateFloorPlanScript, validateFloorPlan } = require("./floor-plan");
+const { JobRegistry, snapshotJob } = require("./job-registry");
+const { generateMaterialDiagnosticsScript, parseMaterialDiagnostics } = require("./material-diagnostics");
 const { generatePolygonMeshScript, validatePolygonMesh } = require("./polygon-mesh");
 const { runUiAutomation } = require("./windows-ui");
 
@@ -35,7 +37,10 @@ function vectorScript(value) {
 
 function ensureRuntime(bridge, session) {
   if (!bridge.sceneRevisions) bridge.sceneRevisions = new Map();
-  if (!session.jobs) session.jobs = new Map();
+  if (!session.jobRegistry) {
+    session.jobRegistry = new JobRegistry();
+    session.jobs = session.jobRegistry.jobs;
+  }
   return session;
 }
 
@@ -104,26 +109,44 @@ async function executePolygonMeshMutation(bridge, instance, script, validation) 
 
 
 function renderSnapshot(job) {
+  const common = snapshotJob(job);
   return {
-    jobId: job.jobId,
-    instanceId: job.instanceId,
+    jobId: common.jobId,
+    instanceId: common.instanceId,
     mode: job.mode,
     renderer: job.renderer,
-    state: job.state,
-    createdAt: job.createdAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt || null,
-    elapsedMs: (job.completedAt ? Date.parse(job.completedAt) : Date.now()) - Date.parse(job.startedAt || job.createdAt),
-    progress: job.progress ?? null,
-    cancelRequested: Boolean(job.cancelRequested),
-    error: job.error || null,
+    state: common.state,
+    createdAt: common.createdAt,
+    startedAt: common.startedAt,
+    completedAt: common.completedAt,
+    elapsedMs: common.elapsedMs,
+    progress: common.progress,
+    cancelRequested: common.cancelRequested,
+    error: common.error,
+    warnings: common.warnings,
   };
 }
 
-function requireJob(session, jobId) {
-  const job = session.jobs.get(jobId);
-  if (!job) throw new Error(`Unknown render job '${jobId}'`);
+function requireRenderJob(session, jobId) {
+  const job = session.jobRegistry.require(jobId);
+  if (job.type !== "render") throw new Error(`JOB_TYPE_MISMATCH: job '${jobId}' is '${job.type}', not 'render'`);
   return job;
+}
+
+function verifiedRenderResult(job) {
+  if (job.state !== "completed") throw new Error(`JOB_NOT_COMPLETE: job '${job.jobId}' is '${job.state}'`);
+  if (!fs.existsSync(job.outputPath)) throw new Error("Completed renderer did not create the output image");
+  return { ...renderSnapshot(job), image: { filePath: job.outputPath, mimeType: "image/png" } };
+}
+
+function commonJobResult(session, jobId) {
+  const job = session.jobRegistry.require(jobId);
+  const completed = session.jobRegistry.getResult(jobId);
+  if (job.type === "render") {
+    const render = verifiedRenderResult(job);
+    return { ...completed, image: render.image };
+  }
+  return completed;
 }
 
 function waitDelay(milliseconds) {
@@ -164,34 +187,25 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   if (toolName === "max_validate_polygon_mesh") return validatePolygonMesh(args.mesh);
   if (toolName === "max_validate_floor_plan") return validateFloorPlan(args.plan);
 
+  if (toolName === "max_job_list") {
+    const jobs = session.jobRegistry.list(args);
+    return { jobs, count: jobs.length };
+  }
+  if (toolName === "max_job_status") return session.jobRegistry.snapshot(args.jobId);
+  if (toolName === "max_job_wait") return session.jobRegistry.wait(args.jobId, args.timeout_ms);
+  if (toolName === "max_job_cancel") return session.jobRegistry.cancelJob(args.jobId);
+  if (toolName === "max_job_result") return commonJobResult(session, args.jobId);
+
   if (["max_render_status", "max_render_wait", "max_render_cancel", "max_render_get_result"].includes(toolName)) {
-    const job = requireJob(session, args.jobId);
+    const job = requireRenderJob(session, args.jobId);
     if (toolName === "max_render_status") return renderSnapshot(job);
     if (toolName === "max_render_wait") {
-      const timeoutMs = Math.min(600000, Math.max(0, Number(args.timeout_ms ?? 30000)));
-      if (!["completed", "failed", "cancelled"].includes(job.state)) await Promise.race([job.promise, waitDelay(timeoutMs)]);
+      await session.jobRegistry.wait(args.jobId, args.timeout_ms);
       return renderSnapshot(job);
     }
-    if (toolName === "max_render_get_result") {
-      if (job.state !== "completed") throw new Error(`Render job '${job.jobId}' is '${job.state}', not completed`);
-      if (!fs.existsSync(job.outputPath)) throw new Error("Completed renderer did not create the output image");
-      return { ...renderSnapshot(job), image: { filePath: job.outputPath, mimeType: "image/png" } };
-    }
-    job.cancelRequested = true;
-    try {
-      await runUiAutomation(job.pid, "sendKeys", { keys: "{ESC}" }, 5000);
-    } catch (error) {
-      job.cancelWarning = error.message;
-    }
-    if (job.state === "running_interactive") {
-      const stopScript = /corona/i.test(job.renderer)
-        ? `(try (CoronaRenderer.CoronaFp.stopRender(); true) catch false)`
-        : /v-?ray/i.test(job.renderer) ? `(try (renderers.current.stopIpr(); true) catch false)` : "false";
-      void bridge.request(job.instanceId, "execute", stopScript, 10000).catch(() => {});
-      job.state = "cancelled";
-      job.completedAt = new Date().toISOString();
-    }
-    return { ...renderSnapshot(job), warning: job.cancelWarning || null };
+    if (toolName === "max_render_get_result") return verifiedRenderResult(job);
+    await session.jobRegistry.cancelJob(args.jobId);
+    return renderSnapshot(job);
   }
 
   const instance = bridge.selectInstance(args.instance_id, session);
@@ -365,6 +379,15 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     const script = `(local m=for candidate in sceneMaterials where candidate.name==${maxString(args.materialName)} collect candidate; if m.count==0 do throw "Material not found"; local nodes=#(${expressions.join(",")}); if findItem nodes undefined>0 do throw "NodeRef not found"; undo "Max Ultra MCP: Material" on for n in nodes do n.material=m[1]; nodes.count)`;
     return args.dryRun ? dryRunResult(toolName, instance, script) : executeMutation(bridge, instance, script);
   }
+  if (toolName === "max_material_find_unassigned") {
+    const script = generateMaterialDiagnosticsScript(args);
+    const execution = await bridge.request(instance.instanceId, "execute", script, 120000);
+    return {
+      instanceId: instance.instanceId,
+      sceneRevision: revisionFor(bridge, instance.instanceId),
+      ...parseMaterialDiagnostics(execution, revisionFor(bridge, instance.instanceId)),
+    };
+  }
   if (toolName === "max_import_file" || toolName === "max_export_file") {
     const script = toolName === "max_import_file"
       ? `(importFile ${maxString(args.filePath)} #noPrompt)`
@@ -421,11 +444,8 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     const mode = args.mode || "production";
     const info = await bridge.request(instance.instanceId, "get_info", "", 30000);
     const renderer = info?.scene?.render?.renderer || "Unknown";
-    const jobId = randomUUID();
-    const outputPath = args.outputPath || path.join(os.tmpdir(), `max-ultra-mcp-render-${jobId}.png`);
+    const outputPath = args.outputPath || path.join(os.tmpdir(), `max-ultra-mcp-render-${randomUUID()}.png`);
     const timeoutMs = Math.min(3600000, Math.max(1000, Number(args.timeout_ms ?? 600000)));
-    const job = { jobId, instanceId: instance.instanceId, pid: instance.pid, mode, renderer, outputPath, state: "queued", createdAt: new Date().toISOString(), startedAt: null, completedAt: null, progress: null, promise: null };
-    session.jobs.set(jobId, job);
     let productionScript = `(local b=render(); if b==undefined do throw "Renderer returned no bitmap"; b.filename=${maxString(outputPath)}; save b; close b; ${maxString(outputPath)})`;
     if (mode === "region") {
       if (!args.region) throw new Error("region is required when mode is 'region'");
@@ -443,55 +463,42 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
         ? `(try (renderers.current.startIpr(); "V-Ray interactive started") catch (throw ("RENDERER_UNSUPPORTED: " + (getCurrentException() as string))))`
         : `(throw "RENDERER_UNSUPPORTED: active renderer has no Max Ultra MCP interactive adapter")`;
     if (path.extname(outputPath).toLowerCase() !== ".png") throw new Error("Render outputPath must use the .png extension in v1");
-    job.promise = Promise.resolve().then(async () => {
-      job.state = "running";
-      job.startedAt = new Date().toISOString();
-      try {
-        job.execution = await bridge.request(instance.instanceId, "execute", mode === "interactive" ? interactiveScript : productionScript, timeoutMs);
-        job.state = job.cancelRequested ? "cancelled" : (mode === "interactive" ? "running_interactive" : "completed");
-      } catch (error) {
-        job.error = error.message;
-        job.state = job.cancelRequested ? "cancelled" : "failed";
-      } finally {
-        if (job.state !== "running_interactive") job.completedAt = new Date().toISOString();
+    const job = session.jobRegistry.create({
+      type: "render",
+      instanceId: instance.instanceId,
+      metadata: { mode, renderer },
+      cancel: async (activeJob) => {
+        let warning = "";
+        if (activeJob.startedAt) {
+          try {
+            await runUiAutomation(activeJob.pid, "sendKeys", { keys: "{ESC}" }, 5000);
+          } catch (error) {
+            warning = error.message;
+          }
+        }
+        if (activeJob.state === "running_interactive") {
+          const stopScript = /corona/i.test(activeJob.renderer)
+            ? `(try (CoronaRenderer.CoronaFp.stopRender(); true) catch false)`
+            : /v-?ray/i.test(activeJob.renderer) ? `(try (renderers.current.stopIpr(); true) catch false)` : "false";
+          await bridge.request(activeJob.instanceId, "execute", stopScript, 10000).catch(() => {});
+          activeJob.state = "cancelled";
+          activeJob.completedAt = new Date().toISOString();
+        }
+        return warning ? { warning } : null;
+      },
+    });
+    Object.assign(job, { pid: instance.pid, mode, renderer, outputPath });
+    session.jobRegistry.start(job, async (activeJob) => {
+      const execution = await bridge.request(instance.instanceId, "execute", mode === "interactive" ? interactiveScript : productionScript, timeoutMs);
+      activeJob.execution = execution;
+      if (mode === "interactive" && !activeJob.cancelRequested) {
+        activeJob.phase = "interactive";
+        activeJob.state = "running_interactive";
       }
-      return renderSnapshot(job);
+      return { mode, renderer, outputPath: mode === "interactive" ? null : outputPath, execution };
     });
     return renderSnapshot(job);
   }
-  if (toolName === "max_render_status") return renderSnapshot(requireJob(session, args.jobId));
-  if (toolName === "max_render_wait") {
-    const job = requireJob(session, args.jobId);
-    const timeoutMs = Math.min(600000, Math.max(0, Number(args.timeout_ms ?? 30000)));
-    if (["completed", "failed", "cancelled"].includes(job.state)) return renderSnapshot(job);
-    await Promise.race([job.promise, waitDelay(timeoutMs)]);
-    return renderSnapshot(job);
-  }
-  if (toolName === "max_render_cancel") {
-    const job = requireJob(session, args.jobId);
-    job.cancelRequested = true;
-    try {
-      await runUiAutomation(instance.pid, "sendKeys", { keys: "{ESC}" }, 5000);
-    } catch (error) {
-      job.cancelWarning = error.message;
-    }
-    if (job.state === "running_interactive") {
-      const stopScript = /corona/i.test(job.renderer)
-        ? `(try (CoronaRenderer.CoronaFp.stopRender(); true) catch false)`
-        : /v-?ray/i.test(job.renderer) ? `(try (renderers.current.stopIpr(); true) catch false)` : "false";
-      void bridge.request(instance.instanceId, "execute", stopScript, 10000).catch(() => {});
-      job.state = "cancelled";
-      job.completedAt = new Date().toISOString();
-    }
-    return { ...renderSnapshot(job), warning: job.cancelWarning || null };
-  }
-  if (toolName === "max_render_get_result") {
-    const job = requireJob(session, args.jobId);
-    if (job.state !== "completed") throw new Error(`Render job '${job.jobId}' is '${job.state}', not completed`);
-    if (!fs.existsSync(job.outputPath)) throw new Error("Completed renderer did not create the output image");
-    return { ...renderSnapshot(job), image: { filePath: job.outputPath, mimeType: "image/png" } };
-  }
-
   if (toolName === "max_run_script" || toolName === "max_execute") {
     const timeoutMs = Math.min(MAX_EXECUTION_TIMEOUT_MS, Math.max(1000, Number(args.timeout_ms ?? 60000)));
     const result = await executeMutation(bridge, instance, args.script, timeoutMs);

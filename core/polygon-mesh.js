@@ -7,25 +7,13 @@
 
 "use strict";
 
-const { createHash } = require("node:crypto");
+const { hashCanonical } = require("./plan-token");
 
 const MAX_VERTICES = 10000;
 const MAX_FACES = 20000;
 const MAX_FACE_VERTICES = 256;
 const MAX_FACE_VERTEX_REFERENCES = 100000;
 const SUPPORTED_UNITS = new Set(["scene", "mm", "cm", "m", "in", "ft"]);
-
-function stable(value) {
-  if (Array.isArray(value)) return value.map(stable);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-  }
-  return value;
-}
-
-function canonicalString(value) {
-  return JSON.stringify(stable(value));
-}
 
 function finite(value, field) {
   const number = Number(value);
@@ -184,7 +172,7 @@ function validatePolygonMesh(input) {
     isolatedVertices,
     faceVertexReferences,
   };
-  const validationToken = createHash("sha256").update(canonicalString(normalizedMesh)).digest("hex");
+  const validationToken = hashCanonical(normalizedMesh);
   return { normalizedMesh, validationToken, warnings, blockers, boundingBox, counts, valid: blockers.length === 0 };
 }
 

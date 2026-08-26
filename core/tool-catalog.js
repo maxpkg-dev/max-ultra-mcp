@@ -1,6 +1,8 @@
 /*
  * Public Max Ultra MCP v1 tool catalog.
  * Copyright (c) 2026 Lukianenko Vasyl
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
  */
 
 "use strict";
@@ -90,6 +92,12 @@ const tools = [
   tool("max_get_info", "Return detailed units, scene, topology, material, animation, viewport, and render information.", schema(), readOnly),
   tool("max_get_logs", "Return daemon and in-Max diagnostics.", schema({ tail: { type: "integer", minimum: 1, maximum: 200, default: 20 } }), readOnly),
 
+  tool("max_job_list", "List jobs owned by this MCP client session, optionally filtered by type or state.", schema({ type: { type: "string" }, state: { type: "string", enum: ["queued", "running", "running_interactive", "completed", "failed", "cancelled"] }, limit: { type: "integer", minimum: 1, maximum: 200, default: 50 } }), readOnly),
+  tool("max_job_status", "Read the common lifecycle state of a session-owned job.", schema({ jobId: { type: "string", minLength: 1 } }, ["jobId"]), readOnly),
+  tool("max_job_wait", "Wait for any session-owned job up to a bounded timeout.", schema({ jobId: { type: "string", minLength: 1 }, timeout_ms: { type: "integer", minimum: 0, maximum: 600000, default: 30000 } }, ["jobId"]), readOnly),
+  tool("max_job_cancel", "Request cancellation of any cancellable session-owned job.", schema({ jobId: { type: "string", minLength: 1 } }, ["jobId"]), control),
+  tool("max_job_result", "Return the verified result or manifest of a completed session-owned job.", schema({ jobId: { type: "string", minLength: 1 } }, ["jobId"]), readOnly),
+
   tool("max_scene_new", "Create a new empty scene without showing a confirmation dialog.", schema({ dryRun: { type: "boolean", default: false } }), write),
   tool("max_scene_open", "Open a MAX scene file.", schema({ filePath: { type: "string", minLength: 1 }, useFileUnits: { type: "boolean", default: true }, dryRun: { type: "boolean", default: false } }, ["filePath"]), write),
   tool("max_scene_save", "Save the current scene, optionally to a new MAX file.", schema({ filePath: { type: "string" }, dryRun: { type: "boolean", default: false } }), write),
@@ -112,6 +120,7 @@ const tools = [
   tool("max_add_modifier", "Add a named modifier to one guarded scene node.", schema({ node: objectRef, modifier: { type: "string", minLength: 1 }, parameters: { type: "object", additionalProperties: { type: ["number", "string", "boolean"] } }, dryRun: { type: "boolean", default: false } }, ["node", "modifier"]), openWrite, "full"),
   tool("max_material_create", "Create a standard material with optional diffuse color.", schema({ name: { type: "string", minLength: 1 }, diffuse: { type: "array", items: { type: "integer", minimum: 0, maximum: 255 }, minItems: 3, maxItems: 3 }, dryRun: { type: "boolean", default: false } }, ["name"]), write, "archviz"),
   tool("max_material_assign", "Assign a named scene material to guarded nodes.", schema({ materialName: { type: "string", minLength: 1 }, nodes: { type: "array", items: objectRef, minItems: 1 }, dryRun: { type: "boolean", default: false } }, ["materialName", "nodes"]), write, "archviz"),
+  tool("max_material_find_unassigned", "Find geometry with no material, invalid or missing material classes, empty Multi/Sub slots, or missing bitmap inputs without changing selection.", schema({ includeHidden: { type: "boolean", default: true }, includeFrozen: { type: "boolean", default: true }, includeXRefs: { type: "boolean", default: false }, includeNonGeometry: { type: "boolean", default: false }, includeMissingMaps: { type: "boolean", default: true }, limit: { type: "integer", minimum: 1, maximum: 500, default: 200 } }), readOnly, "archviz"),
   tool("max_import_file", "Import a supported file through 3ds Max with prompts disabled.", schema({ filePath: { type: "string", minLength: 1 }, dryRun: { type: "boolean", default: false } }, ["filePath"]), openWrite, "full"),
   tool("max_export_file", "Export the scene or selection through 3ds Max with prompts disabled.", schema({ filePath: { type: "string", minLength: 1 }, selectedOnly: { type: "boolean", default: false }, dryRun: { type: "boolean", default: false } }, ["filePath"]), openWrite, "full"),
   tool("max_animation_set_time", "Set the current animation frame.", schema({ frame: { type: "number" } }, ["frame"]), write, "full"),

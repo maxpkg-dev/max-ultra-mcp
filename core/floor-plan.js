@@ -7,7 +7,7 @@
 
 "use strict";
 
-const { createHash } = require("node:crypto");
+const { hashCanonical } = require("./plan-token");
 
 function finite(value, field, { positive = false, minimum = -Infinity } = {}) {
   const number = Number(value);
@@ -20,18 +20,6 @@ function finite(value, field, { positive = false, minimum = -Infinity } = {}) {
 function point2(value, field) {
   if (!Array.isArray(value) || value.length !== 2) throw new Error(`${field} must contain [x,y]`);
   return [finite(value[0], `${field}[0]`), finite(value[1], `${field}[1]`)];
-}
-
-function stable(value) {
-  if (Array.isArray(value)) return value.map(stable);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-  }
-  return value;
-}
-
-function canonicalString(value) {
-  return JSON.stringify(stable(value));
 }
 
 function validateFloorPlan(input) {
@@ -102,7 +90,7 @@ function validateFloorPlan(input) {
   const xs = allPoints.map((point) => point[0] + origin[0]);
   const ys = allPoints.map((point) => point[1] + origin[1]);
   const boundingBox = { min: [Math.min(...xs), Math.min(...ys), -floor.thickness], max: [Math.max(...xs), Math.max(...ys), wallHeight] };
-  const validationToken = createHash("sha256").update(canonicalString(normalizedPlan)).digest("hex");
+  const validationToken = hashCanonical(normalizedPlan);
   return {
     normalizedPlan,
     validationToken,
