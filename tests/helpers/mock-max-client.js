@@ -89,6 +89,7 @@ class MockMaxClient {
         action: actionName, ok: true, instanceId: this.instanceId, pid: this.pid,
         maxVersion: this.maxVersion, productVersion: `mock-${this.maxVersion}`, mainThread: true,
         sampledAt: new Date().toISOString(),
+        units: { systemType: "Millimeters", systemScale: 1, displayType: "Metric" },
         scene: {
           filePath: "", displayName: "Untitled", saveRequired: false, objectCount: 3, selectionCount: 0, frame: "0f",
           animation: { current: "0f", start: "0f", end: "100f" },
@@ -104,9 +105,15 @@ class MockMaxClient {
       };
     } else if (actionName === "execute") {
       this.executeRequests.push(actionPayload);
+      let executionResult = `mock-result:${actionPayload}`;
+      if (actionPayload.includes("Max Ultra MCP: Create polygon mesh")) {
+        const nodeNameMatch = /local nodeName = ("(?:\\.|[^"\\])*")/.exec(actionPayload);
+        const nodeName = nodeNameMatch ? JSON.parse(nodeNameMatch[1]) : "MockPolygonMesh";
+        executionResult = `42001|${nodeName}|8|12|6|0|Editable_Poly`;
+      }
       responsePayload = {
         action: actionName, ok: true, instanceId: this.instanceId, mainThread: true,
-        sourceLength: actionPayload.length, result: `mock-result:${actionPayload}`, resultType: "String", mock: true,
+        sourceLength: actionPayload.length, result: executionResult, resultType: "String", mock: true,
       };
     } else if (actionName === "panel") {
       responsePayload = { action: actionName, ok: true, requestedAction: actionPayload, state: actionPayload, mainThread: true, mock: true };

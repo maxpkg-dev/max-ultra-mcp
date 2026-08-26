@@ -8,6 +8,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { allToolNames, MAX_EXECUTION_TIMEOUT_MS } = require("./tool-catalog");
 const { generateFloorPlanScript, validateFloorPlan } = require("./floor-plan");
+const { generatePolygonMeshScript, validatePolygonMesh } = require("./polygon-mesh");
 const { runUiAutomation } = require("./windows-ui");
 
 const NOT_HANDLED = Symbol("NOT_HANDLED");
@@ -78,6 +79,29 @@ async function executeNodeMutation(bridge, instance, script, fallbackName, timeo
   return result;
 }
 
+async function executePolygonMeshMutation(bridge, instance, script, validation) {
+  const mutation = await executeMutation(bridge, instance, script, 600000);
+  const resultText = String(mutation.execution?.result || "");
+  const parsed = /^(\d+)\|([^|]+)\|(\d+)\|(\d+)\|(\d+)\|(\d+)\|(.+)$/.exec(resultText);
+  if (!parsed) throw new Error("3ds Max returned an unexpected polygon mesh post-state");
+  const actualTopology = {
+    vertices: Number(parsed[3]),
+    edges: Number(parsed[4]),
+    faces: Number(parsed[5]),
+    openEdges: Number(parsed[6]),
+  };
+  return {
+    ...mutation,
+    node: { handle: Number(parsed[1]), name: parsed[2], sceneRevision: mutation.sceneRevision },
+    baseObjectClass: parsed[7],
+    topology: actualTopology,
+    expectedTopology: validation.counts,
+    boundingBox: validation.boundingBox,
+    validationToken: validation.validationToken,
+    validationWarnings: validation.warnings,
+  };
+}
+
 
 function renderSnapshot(job) {
   return {
@@ -137,6 +161,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   if (!allToolNames.has(toolName)) return NOT_HANDLED;
   ensureRuntime(bridge, session);
 
+  if (toolName === "max_validate_polygon_mesh") return validatePolygonMesh(args.mesh);
   if (toolName === "max_validate_floor_plan") return validateFloorPlan(args.plan);
 
   if (["max_render_status", "max_render_wait", "max_render_cancel", "max_render_get_result"].includes(toolName)) {
@@ -179,6 +204,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
       instance: publicInstance,
       profiles: ["core", "archviz", "full"],
       activeRenderer: renderer,
+      units: info?.units || null,
       rendererAdapter: /corona/i.test(renderer) ? "corona" : /v-?ray/i.test(renderer) ? "vray" : "generic",
       uiAutomation: { processScoped: true, backend: "Windows UI Automation" },
       maxScript: { unrestricted: true },
@@ -258,6 +284,21 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   if (toolName === "max_create_primitive") {
     const script = createPrimitiveScript(args);
     return args.dryRun ? dryRunResult(toolName, instance, script) : executeNodeMutation(bridge, instance, script, args.name);
+  }
+  if (toolName === "max_create_polygon_mesh") {
+    const validation = validatePolygonMesh(args.mesh);
+    if (validation.blockers.length) throw new Error(`VALIDATION_FAILED: ${validation.blockers.join("; ")}`);
+    if (validation.validationToken !== args.validationToken) throw new Error("VALIDATION_FAILED: polygon mesh payload differs from the validated payload");
+    const generated = generatePolygonMeshScript(validation.normalizedMesh);
+    if (args.dryRun) {
+      return dryRunResult(toolName, instance, generated.script, {
+        validationToken: validation.validationToken,
+        warnings: validation.warnings,
+        counts: validation.counts,
+        boundingBox: validation.boundingBox,
+      });
+    }
+    return executePolygonMeshMutation(bridge, instance, generated.script, validation);
   }
   if (toolName === "max_clone_object") {
     const source = nodeExpression(args.node, bridge, instance.instanceId);

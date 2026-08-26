@@ -21,6 +21,36 @@ const objectRef = {
   },
   additionalProperties: false,
 };
+const polygonFace = {
+  type: ["array", "object"],
+  description: "A zero-based vertex index array, or an object with vertices, materialId, and smoothingGroup.",
+  items: { type: "integer", minimum: 0 },
+  minItems: 3,
+  maxItems: 256,
+  properties: {
+    vertices: { type: "array", items: { type: "integer", minimum: 0 }, minItems: 3, maxItems: 256 },
+    materialId: { type: "integer", minimum: 1, maximum: 65535, default: 1 },
+    smoothingGroup: { type: "integer", minimum: 0, maximum: 2147483647, default: 0 },
+  },
+  required: ["vertices"],
+  additionalProperties: false,
+};
+const polygonMesh = {
+  type: "object",
+  description: "Object-local polygon topology. Face indices are zero-based. Physical units are converted without changing scene units.",
+  properties: {
+    name: { type: "string", minLength: 1, maxLength: 128, pattern: "^[^|\\r\\n\\t]+$" },
+    units: { type: "string", enum: ["scene", "mm", "cm", "m", "in", "ft"], default: "scene" },
+    vertices: { type: "array", items: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, minItems: 3, maxItems: 10000 },
+    faces: { type: "array", items: polygonFace, minItems: 1, maxItems: 20000 },
+    position: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3, default: [0, 0, 0] },
+    layer: { type: "string", maxLength: 128, default: "" },
+    select: { type: "boolean", default: true },
+    allowNonManifold: { type: "boolean", default: false },
+  },
+  required: ["name", "vertices", "faces"],
+  additionalProperties: false,
+};
 const selector = {
   type: "object",
   properties: {
@@ -57,7 +87,7 @@ const tools = [
   tool("max_health", "Verify daemon transport and execution on the selected Max main thread.", schema(), readOnly),
   tool("max_scene_summary", "Return concise scene state and scene revision.", schema({ ...details }), readOnly),
   tool("max_query_scene", "Return a scene snapshot only when sceneRevision differs from sinceRevision.", schema({ sinceRevision: { type: "integer", minimum: 0, default: 0 }, details: { type: "boolean", default: false } }), readOnly),
-  tool("max_get_info", "Return detailed scene, topology, material, animation, viewport, and render information.", schema(), readOnly),
+  tool("max_get_info", "Return detailed units, scene, topology, material, animation, viewport, and render information.", schema(), readOnly),
   tool("max_get_logs", "Return daemon and in-Max diagnostics.", schema({ tail: { type: "integer", minimum: 1, maximum: 200, default: 20 } }), readOnly),
 
   tool("max_scene_new", "Create a new empty scene without showing a confirmation dialog.", schema({ dryRun: { type: "boolean", default: false } }), write),
@@ -70,6 +100,8 @@ const tools = [
 
   tool("max_create_box", "Create a Box and return a NodeRef.", schema({ name: { type: "string", minLength: 1, maxLength: 128, default: "MaxUltraBox" }, position: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3, default: [0, 0, 0] }, size: { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3, default: [20, 20, 20] }, select: { type: "boolean", default: true }, dryRun: { type: "boolean", default: false } }), write),
   tool("max_create_primitive", "Create a box, sphere, cylinder, plane, teapot, camera, omni, spot, or directional light.", schema({ type: { type: "string", enum: ["box", "sphere", "cylinder", "plane", "teapot", "camera", "omni", "spot", "directional"] }, name: { type: "string", minLength: 1 }, position: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, parameters: { type: "object", additionalProperties: { type: ["number", "string", "boolean"] } }, dryRun: { type: "boolean", default: false } }, ["type", "name"]), write),
+  tool("max_validate_polygon_mesh", "Validate object-local vertices and zero-based polygon faces without changing the scene.", schema({ mesh: polygonMesh }, ["mesh"]), readOnly),
+  tool("max_create_polygon_mesh", "Create a validated Editable Poly through bounded meshOp operations and return measured topology.", schema({ mesh: polygonMesh, validationToken: { type: "string", minLength: 64, maxLength: 64 }, dryRun: { type: "boolean", default: false } }, ["mesh", "validationToken"]), write),
   tool("max_clone_object", "Clone a scene node as copy, instance, or reference.", schema({ node: objectRef, cloneType: { type: "string", enum: ["copy", "instance", "reference"], default: "copy" }, name: { type: "string" }, dryRun: { type: "boolean", default: false } }, ["node"]), write),
   tool("max_delete_objects", "Delete guarded scene nodes in one undo transaction.", schema({ nodes: { type: "array", items: objectRef, minItems: 1 }, dryRun: { type: "boolean", default: false } }, ["nodes"]), write),
   tool("max_rename_object", "Rename one guarded scene node.", schema({ node: objectRef, name: { type: "string", minLength: 1, maxLength: 128 }, dryRun: { type: "boolean", default: false } }, ["node", "name"]), write),

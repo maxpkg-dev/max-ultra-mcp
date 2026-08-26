@@ -52,7 +52,7 @@ The compact panel shows two status/context rows above a tall log.
 ## Concise MCP tools
 
 The mandatory production workflow backlog and acceptance contracts are defined in [USE_CASES.md](USE_CASES.md).
-The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 52–63 tools; see [V1.md](V1.md).
+The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 54–65 tools; see [V1.md](V1.md).
 
 
 | Tool | Purpose |

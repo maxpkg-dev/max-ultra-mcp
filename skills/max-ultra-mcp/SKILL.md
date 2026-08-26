@@ -1,6 +1,6 @@
 ---
 name: max-ultra-mcp
-description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for scene, viewport, rendering, MaxScript, Max-owned UI automation, or structured floor-plan tasks when Max Ultra MCP tools are available. Do not use for editing the Max Ultra MCP repository itself.
+description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for scene, polygon modeling, viewport, rendering, MaxScript, Max-owned UI automation, or structured floor-plan tasks when Max Ultra MCP tools are available. Do not use for editing the Max Ultra MCP repository itself.
 ---
 
 # Max Ultra MCP
@@ -31,6 +31,7 @@ Never generate MaxScript merely to recreate an available semantic tool. Never us
 ## Conditional references
 
 - Read [references/maxscript.md](references/maxscript.md) before authoring MaxScript for `max_run_script` or `max_execute`.
+- Read [references/polygon-modeling.md](references/polygon-modeling.md) when synthesizing custom polygon topology from dimensions, a reference image, or a modeling request.
 - Read [references/workflows.md](references/workflows.md) for multi-step viewport, rendering, floor-plan, script-rollout, and verification sequences.
 - Read [references/capabilities-and-boundaries.md](references/capabilities-and-boundaries.md) for renderer/plugin detection, filesystem operations, profiles, UI scope, or an unavailable semantic workflow.
 

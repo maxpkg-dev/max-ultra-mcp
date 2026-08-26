@@ -12,12 +12,14 @@ core/bridge-control-client.js
 core/floor-plan.js
 core/image-utils.js
 core/local-auth.js
+core/polygon-mesh.js
 core/server.js
 core/stdio-host.js
 core/tool-catalog.js
 core/tool-runtime.js
 core/windows-ui.js
 skills/max-ultra-mcp/SKILL.md
+skills/max-ultra-mcp/references/polygon-modeling.md
 skills/max-ultra-mcp/references/maxscript.md
 skills/max-ultra-mcp/references/workflows.md
 skills/max-ultra-mcp/references/capabilities-and-boundaries.md

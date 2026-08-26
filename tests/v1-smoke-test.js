@@ -9,6 +9,7 @@ const { BridgeControlClient } = require("../core/bridge-control-client");
 const { StdioHost } = require("../core/stdio-host");
 const { getMcpTools } = require("../core/tool-catalog");
 const { generateFloorPlanScript, validateFloorPlan } = require("../core/floor-plan");
+const { generatePolygonMeshScript, validatePolygonMesh } = require("../core/polygon-mesh");
 const EXAMPLE_PLAN = require("../examples/house-plan-from-image/expected-plan.json");
 
 function assertBalancedGeneratedMaxScript(source) {
@@ -68,6 +69,21 @@ const PLAN = {
   floor: { enabled: true, thickness: 200, outline: [[0, 0], [10000, 0], [10000, 8000], [0, 8000]] },
 };
 
+const POLYGON_CUBE = {
+  name: "AgentPolygonCube",
+  units: "mm",
+  vertices: [
+    [-500, -500, -500], [500, -500, -500], [500, 500, -500], [-500, 500, -500],
+    [-500, -500, 500], [500, -500, 500], [500, 500, 500], [-500, 500, 500],
+  ],
+  faces: [
+    [0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4],
+    [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7],
+  ],
+  position: [0, 0, 500],
+  layer: "MCP_MODELING",
+};
+
 async function run() {
   const coreTools = getMcpTools("core");
   const archvizTools = getMcpTools("archviz");
@@ -77,6 +93,8 @@ async function run() {
   assert.ok(fullTools.length > archvizTools.length);
   assert.equal(new Set(fullTools.map((entry) => entry.name)).size, fullTools.length);
   assert.equal(coreTools.some((entry) => entry.name === "max_viewport_screenshot"), false);
+  assert.equal(coreTools.some((entry) => entry.name === "max_validate_polygon_mesh"), true);
+  assert.equal(coreTools.some((entry) => entry.name === "max_create_polygon_mesh"), true);
   assert.equal(archvizTools.some((entry) => entry.name === "max_validate_floor_plan"), true);
   assert.equal(fullTools.find((entry) => entry.name === "max_execute").annotations.openWorldHint, true);
 
@@ -95,6 +113,29 @@ async function run() {
   assert.doesNotMatch(generatedExample.script, /boolean|ProBoolean/i);
 
   assert.notEqual(validateFloorPlan(changed).validationToken, validation.validationToken);
+
+  const polygonValidation = validatePolygonMesh(POLYGON_CUBE);
+  assert.equal(polygonValidation.valid, true);
+  assert.deepEqual(polygonValidation.blockers, []);
+  assert.equal(polygonValidation.validationToken.length, 64);
+  assert.deepEqual(polygonValidation.counts, {
+    vertices: 8, faces: 6, edges: 12, boundaryEdges: 0,
+    nonManifoldEdges: 0, isolatedVertices: 0, faceVertexReferences: 24,
+  });
+  assert.deepEqual(polygonValidation.boundingBox, { min: [-500, -500, -500], max: [500, 500, 500], size: [1000, 1000, 1000] });
+  const polygonScript = generatePolygonMeshScript(polygonValidation.normalizedMesh).script;
+  assertBalancedGeneratedMaxScript(polygonScript);
+  assert.match(polygonScript, /units\.decodeValue "1mm"/);
+  assert.match(polygonScript, /meshop\.createPolygon/);
+  assert.match(polygonScript, /undo off/);
+  assert.match(polygonScript, /convertToPoly createdNode/);
+  assert.doesNotMatch(polygonScript, /\bexecute\b/i);
+  const changedPolygon = structuredClone(POLYGON_CUBE);
+  changedPolygon.position = [10, 0, 500];
+  assert.notEqual(validatePolygonMesh(changedPolygon).validationToken, polygonValidation.validationToken);
+  const invalidPolygon = structuredClone(POLYGON_CUBE);
+  invalidPolygon.faces[0] = [0, 3, 2, 99];
+  assert.match(validatePolygonMesh(invalidPolygon).blockers[0], /highest valid index is 7/);
 
   const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 2000 });
   await bridge.start();
@@ -129,6 +170,8 @@ async function run() {
     assert.equal(healthB.result.isError, false, JSON.stringify(healthB.result.structuredContent));
     assert.equal(healthA.result.structuredContent.data.instance.instanceId, "v1-max-2022");
     assert.equal(healthB.result.structuredContent.data.instance.instanceId, "v1-max-2027");
+    const infoA = await rpc(hostA, { jsonrpc: "2.0", id: 71, method: "tools/call", params: { name: "max_get_info", arguments: {} } });
+    assert.deepEqual(infoA.result.structuredContent.data.info.units, { systemType: "Millimeters", systemScale: 1, displayType: "Metric" });
 
     const box = await rpc(hostA, { jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: "max_create_box", arguments: { name: "V1Box", position: [1, 2, 3], size: [10, 20, 30] } } });
     assert.equal(box.result.isError, false);
@@ -142,6 +185,19 @@ async function run() {
     assert.equal(changedScene.result.structuredContent.data.scene.objectCount, 3);
 
 
+    const validatePolygon = await rpc(hostA, { jsonrpc: "2.0", id: 83, method: "tools/call", params: { name: "max_validate_polygon_mesh", arguments: { mesh: POLYGON_CUBE } } });
+    const polygonToken = validatePolygon.result.structuredContent.data.validationToken;
+    const createPolygon = await rpc(hostA, { jsonrpc: "2.0", id: 84, method: "tools/call", params: { name: "max_create_polygon_mesh", arguments: { mesh: POLYGON_CUBE, validationToken: polygonToken } } });
+    assert.equal(createPolygon.result.isError, false, JSON.stringify(createPolygon.result.structuredContent));
+    assert.deepEqual(createPolygon.result.structuredContent.data.topology, { vertices: 8, edges: 12, faces: 6, openEdges: 0 });
+    assert.equal(createPolygon.result.structuredContent.data.node.name, "AgentPolygonCube");
+    assert.equal(createPolygon.result.structuredContent.data.node.sceneRevision, 2);
+    assert.equal(createPolygon.result.structuredContent.data.baseObjectClass, "Editable_Poly");
+    assert.match(max2022.executeRequests.at(-1), /Max Ultra MCP: Create polygon mesh/);
+    const rejectedPolygon = structuredClone(POLYGON_CUBE);
+    rejectedPolygon.position = [10, 0, 500];
+    const stalePolygonPlan = await rpc(hostA, { jsonrpc: "2.0", id: 85, method: "tools/call", params: { name: "max_create_polygon_mesh", arguments: { mesh: rejectedPolygon, validationToken: polygonToken } } });
+    assert.equal(stalePolygonPlan.result.structuredContent.error.code, "VALIDATION_FAILED");
     const stale = await rpc(hostA, { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "max_transform_object", arguments: { node: { name: "V1Box", sceneRevision: 0 }, position: [0, 0, 0] } } });
     assert.equal(stale.result.isError, true);
     assert.equal(stale.result.structuredContent.error.code, "STALE_NODE_REF");

@@ -14,6 +14,7 @@ The required production workflow backlog includes asset relinking and collection
 - Connect one or more already-open 3ds Max instances to one local bridge.
 - Let each connected MCP client select its own Max instance.
 - Inspect and modify scenes through structured MCP tools.
+- Validate and create custom Editable Poly topology from object-local vertices and zero-based polygon faces.
 - Maximize the active viewport, capture it, and return the screenshot directly to the model.
 - Start, monitor, cancel, and retrieve renders.
 - Run MaxScript text, files, macros, and Action Table commands.

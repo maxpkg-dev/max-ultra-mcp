@@ -70,13 +70,18 @@ global MaxUltraMcpActiveClient
         on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
-    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 218 (
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 300 (
         groupBox grpAutostart "Autostart" pos: [12,10] width: 356 height: 58
         checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
         groupBox grpServerConsole "Server console" pos: [12,78] width: 356 height: 58
         checkbox chkShowServerConsole "Show server console when starting" pos: [24,102] width: 300 height: 20
         groupBox grpAgents "AI client integration" pos: [12,146] width: 356 height: 60
         button btnAgentSetup "Open AI client setup..." pos: [24,168] width: 210 height: 26
+        groupBox grpAbout "About" pos: [12,216] width: 356 height: 72
+        label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,238] width: 190 height: 18
+        label lblAboutVersion "Version: 1.0.0" pos: [250,238] width: 100 height: 18
+        label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,262] width: 180 height: 18
+        hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,260] width: 138 height: 20 address: "https://3dground.net"
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
@@ -953,7 +958,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (settingsDialogIsOpen()) do return true
             try (
-                createDialog settingsDialog width: 380 height: 218 style: #(#style_titlebar, #style_sysmenu)
+                createDialog settingsDialog width: 380 height: 300 style: #(#style_titlebar, #style_sysmenu)
                 return settingsDialogIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)
@@ -1898,6 +1903,12 @@ global MaxUltraMcpActiveClient
             local rendererClass = try ((classOf renderers.current) as string) catch ("Unknown")
             local layerCount = try (LayerManager.count) catch (0)
             local materialCount = try (sceneMaterials.count) catch (0)
+            local systemUnitType = try (units.SystemType as string) catch ("Unknown")
+            local systemUnitScale = try (units.SystemScale) catch (1.0)
+            local displayUnitType = try (units.DisplayType as string) catch ("Unknown")
+            local jsonQuote = bit.intAsChar 34
+            local unitsFragment = "," + jsonQuote + "units" + jsonQuote + ":{" + jsonQuote + "systemType" + jsonQuote + ":" + jsonQuote + jsonEscape(systemUnitType) + jsonQuote
+            unitsFragment += "," + jsonQuote + "systemScale" + jsonQuote + ":" + (systemUnitScale as string) + "," + jsonQuote + "displayType" + jsonQuote + ":" + jsonQuote + jsonEscape(displayUnitType) + jsonQuote + "}"
             local responseBody = "{\"action\":\"get_info\",\"ok\":true,\"instanceId\":\"" + jsonEscape(instanceId) + "\""
             responseBody += ",\"pid\":" + (processId as string) + ",\"maxVersion\":\"" + (currentMaxYear() as string) + "\""
             responseBody += ",\"productVersion\":\"" + jsonEscape(versionInfo as string) + "\",\"mainThread\":true,\"sampledAt\":\"" + jsonEscape(currentTimestamp) + "\""
@@ -1914,6 +1925,7 @@ global MaxUltraMcpActiveClient
             responseBody += ",\"vertices\":" + (selectedGeometryCounts[4] as string) + ",\"polygons\":" + (selectedGeometryCounts[3] as string) + ",\"triangles\":" + (selectedGeometryCounts[3] as string) + "}"
             responseBody += ",\"materials\":" + (materialCount as string) + ",\"layers\":" + (layerCount as string) + "}"
             responseBody += ",\"render\":{\"renderer\":\"" + jsonEscape(rendererClass) + "\",\"width\":" + (renderWidth as string) + ",\"height\":" + (renderHeight as string) + "}}}"
+            responseBody = (substring responseBody 1 (responseBody.count - 1)) + unitsFragment + "}"
             return responseBody
         ),
 
