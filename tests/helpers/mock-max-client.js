@@ -28,6 +28,7 @@ class MockMaxClient {
     this.cancelledRequests = new Set();
     this.executeRequests = [];
     this.activityLabels = [];
+    this.screenshotRequests = [];
   }
 
   connect() {
@@ -169,10 +170,12 @@ class MockMaxClient {
         targetText: decodeField(uiFields[2]) || "Mock Button", targetClass: decodeField(uiFields[3]) || "Button",
         result: "mock-invoked", mainThread: true, mock: true,
       };    } else if (actionName === "screenshot") {
-      fs.writeFileSync(actionPayload, ONE_PIXEL_PNG);
+      const [screenshotPath, reviewPreset = "clean-realistic"] = actionPayload.split("\t");
+      this.screenshotRequests.push({ screenshotPath, reviewPreset });
+      fs.writeFileSync(screenshotPath, ONE_PIXEL_PNG);
       responsePayload = {
-        action: actionName, ok: true, filePath: actionPayload, mimeType: "image/png",
-        width: 1, height: 1, mainThread: true, mock: true,
+        action: actionName, ok: true, filePath: screenshotPath, mimeType: "image/png",
+        width: 1, height: 1, reviewPreset, displaySettingsRestored: true, mainThread: true, mock: true,
       };
     } else {
       responsePayload = {

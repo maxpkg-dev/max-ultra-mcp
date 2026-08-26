@@ -15,6 +15,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Added privacy-safe semantic activity labels to the in-Max panel, with a shortened request identifier retained for troubleshooting.
 - Reused validation tokens for destructive plan/apply workflows so payload, selected Max instance, scene revision, targets, and detected capabilities stay bound together.
 - Corrected viewport framing commands: selection framing now affects only the active viewport, and scene extents use the documented `max tool zoomextents` command.
+- Added clean visual-review captures: the viewport is maximized, temporary Realistic/Shaded review settings remove grid and selection noise, Nitrous anti-aliasing is raised to 8X, and the user's display settings are restored after the image is saved.
 - Corrected floor-plan wall winding, added mitered corners and trimmed T-junctions, expanded floor slabs to the outside wall envelope, removed opening Dummy helpers, and added a guarded Normal-modifier screenshot comparison tool.
 - Expanded mock, contract, CLI, packaging, and agent-reference coverage for the new behavior.
 
@@ -25,7 +26,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Let each connected MCP client select its own Max instance.
 - Inspect and modify scenes through structured MCP tools.
 - Validate and create custom Editable Poly topology from object-local vertices and zero-based polygon faces.
-- Maximize the active viewport, capture it, and return the screenshot directly to the model.
+- Maximize the active viewport, temporarily clean and improve its display, capture it, restore the user's display settings, and return the screenshot directly to the model.
 - Start, monitor, cancel, and retrieve renders.
 - Monitor, wait for, cancel, and retrieve any session-owned long operation through the common job API.
 - Find geometry with missing, invalid, unsupported, incomplete Multi/Sub, or missing-bitmap material assignments without changing selection.

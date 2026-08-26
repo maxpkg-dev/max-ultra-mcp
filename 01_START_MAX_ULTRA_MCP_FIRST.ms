@@ -1947,10 +1947,34 @@ global MaxUltraMcpActiveClient
             return sendBridgeResponse requestId actionSucceeded responseBody
         ),
 
-        fn handleViewportScreenshot requestId screenshotPath = (
+        fn restoreViewportReviewSettings reviewState = (
+            if (reviewState == undefined or reviewState.count != 13) do return false
+            local restored = true
+            try (reviewState[1].VisualStyleMode = reviewState[2]) catch (restored = false)
+            try (reviewState[1].ShowSelectionBracketsEnabled = reviewState[3]) catch (restored = false)
+            try (reviewState[1].ShowEdgedFacesEnabled = reviewState[4]) catch (restored = false)
+            try (reviewState[1].SelectedEdgedFacesEnabled = reviewState[5]) catch (restored = false)
+            try (reviewState[6].SelectionHighlightEnabled = reviewState[7]) catch (restored = false)
+            try (reviewState[6].SelectionOutlineEnabled = reviewState[8]) catch (restored = false)
+            try (reviewState[6].PreviewHighlightEnabled = reviewState[9]) catch (restored = false)
+            try (reviewState[6].PreviewOutlineEnabled = reviewState[10]) catch (restored = false)
+            try (NitrousGraphicsManager.AntialiasingQuality = reviewState[11]) catch (restored = false)
+            try (viewport.setGridVisibility reviewState[12] reviewState[13]) catch (restored = false)
+            try (completeRedraw()) catch (restored = false)
+            return restored
+        ),
+
+        fn handleViewportScreenshot requestId screenshotPayload = (
             local viewportBitmap = undefined
+            local reviewState = undefined
+            local screenshotPath = ""
+            local reviewPreset = "clean-realistic"
             try (
+                local screenshotFields = filterString screenshotPayload "\t"
+                if (screenshotFields.count >= 1) do screenshotPath = screenshotFields[1]
+                if (screenshotFields.count >= 2) do reviewPreset = toLower screenshotFields[2]
                 if (screenshotPath == undefined or screenshotPath == "") do throw "The screenshot file path is empty"
+                if (findItem #("clean-realistic", "clean-shaded", "clean-current") reviewPreset == 0) do throw "Unsupported viewport review preset"
                 local originalViewportSize = getViewSize()
                 local originalViewportArea = originalViewportSize.x * originalViewportSize.y
                 max tool maximize
@@ -1963,6 +1987,40 @@ global MaxUltraMcpActiveClient
                 )
                 local captureViewportSize = getViewSize()
                 if ((captureViewportSize.x * captureViewportSize.y) < originalViewportArea) do throw "The active viewport could not be maximized"
+
+                local activeViewportIndex = viewport.activeViewport
+                if (activeViewportIndex < 1) do throw "The active view is not a capturable 3D viewport"
+                local displaySettings = NitrousGraphicsManager.GetActiveViewportSetting()
+                local selectionSettings = NitrousGraphicsManager.GetSelectionSetting()
+                if (displaySettings == undefined or selectionSettings == undefined) do throw "Nitrous viewport settings are unavailable"
+                reviewState = #(
+                    displaySettings,
+                    displaySettings.VisualStyleMode,
+                    displaySettings.ShowSelectionBracketsEnabled,
+                    displaySettings.ShowEdgedFacesEnabled,
+                    displaySettings.SelectedEdgedFacesEnabled,
+                    selectionSettings,
+                    selectionSettings.SelectionHighlightEnabled,
+                    selectionSettings.SelectionOutlineEnabled,
+                    selectionSettings.PreviewHighlightEnabled,
+                    selectionSettings.PreviewOutlineEnabled,
+                    NitrousGraphicsManager.AntialiasingQuality,
+                    activeViewportIndex,
+                    viewport.getGridVisibility activeViewportIndex
+                )
+                if (reviewPreset == "clean-realistic") do displaySettings.VisualStyleMode = #Realistic
+                if (reviewPreset == "clean-shaded") do displaySettings.VisualStyleMode = #Shaded
+                displaySettings.ShowSelectionBracketsEnabled = false
+                displaySettings.ShowEdgedFacesEnabled = false
+                displaySettings.SelectedEdgedFacesEnabled = false
+                selectionSettings.SelectionHighlightEnabled = false
+                selectionSettings.SelectionOutlineEnabled = false
+                selectionSettings.PreviewHighlightEnabled = false
+                selectionSettings.PreviewOutlineEnabled = false
+                NitrousGraphicsManager.AntialiasingQuality = #8X
+                viewport.setGridVisibility activeViewportIndex false
+                completeRedraw()
+
                 viewportBitmap = gw.getViewportDib()
                 if (viewportBitmap == undefined) do throw "The active viewport did not provide a bitmap"
                 local bitmapWidth = viewportBitmap.width
@@ -1972,12 +2030,16 @@ global MaxUltraMcpActiveClient
                 if (not (doesFileExist screenshotPath)) do throw "3ds Max did not write the viewport PNG"
                 close viewportBitmap
                 viewportBitmap = undefined
-                local responseBody = "{\"action\":\"screenshot\",\"ok\":true,\"filePath\":\"" + jsonEscape(screenshotPath) + "\",\"mimeType\":\"image/png\",\"width\":" + (bitmapWidth as string) + ",\"height\":" + (bitmapHeight as string) + ",\"mainThread\":true}"
+                if (not (restoreViewportReviewSettings reviewState)) do throw "The viewport image was saved, but display settings could not be restored"
+                reviewState = undefined
+                local responseBody = "{\"action\":\"screenshot\",\"ok\":true,\"filePath\":\"" + jsonEscape(screenshotPath) + "\",\"mimeType\":\"image/png\",\"width\":" + (bitmapWidth as string) + ",\"height\":" + (bitmapHeight as string) + ",\"reviewPreset\":\"" + jsonEscape(reviewPreset) + "\",\"antialiasing\":\"8X\",\"displaySettingsRestored\":true,\"mainThread\":true}"
                 addActivity "info" ("Viewport screenshot " + (bitmapWidth as string) + "x" + (bitmapHeight as string))
                 return sendBridgeResponse requestId true responseBody
             ) catch (
-                try (if (viewportBitmap != undefined) do close viewportBitmap) catch ()
                 local errorMessage = getCurrentException()
+                try (if (viewportBitmap != undefined) do close viewportBitmap) catch ()
+                if (reviewState != undefined and not (restoreViewportReviewSettings reviewState)) do errorMessage += " | Viewport display settings could not be restored"
+                try (if (screenshotPath != "" and doesFileExist screenshotPath) do deleteFile screenshotPath) catch ()
                 addActivity "error" ("Screenshot failed: " + errorMessage)
                 return sendBridgeResponse requestId false errorMessage
             )

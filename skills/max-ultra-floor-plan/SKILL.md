@@ -31,7 +31,7 @@ Do not replace this workflow with Box walls, destructive edits to the source spl
 6. Optionally call `max_build_floor_plan` with `dryRun:true` to inspect the intended script and post-state without changing the scene.
 7. Call `max_build_floor_plan` with the unchanged payload and validation token.
 8. Verify the reported workflow, source spline name, wall mesh name, wall/opening counts, bounds, and scene revision.
-9. Set a top view, frame the result, and call `max_capture_viewport`. Then use a shaded perspective view, frame the same wall mesh, and capture a baseline image.
+9. Set a top view, frame the result, and call `max_capture_viewport` with `reviewPreset:"clean-shaded"`. Then use a perspective view, frame the same wall mesh, and capture a baseline image with the same preset.
 10. Inspect exterior faces, interior faces, opening reveals, wall junctions, and the floor perimeter. The floor must reach at least the outside faces of perimeter walls, and a branch wall must stop at the receiving wall face instead of penetrating it.
 11. If the walls appear consistently inside-out, call `max_add_normal_modifier` with `flip:true` on the returned wall mesh NodeRef and capture the exact same view. Immediately call `max_undo` after the comparison. Keep the baseline when it is correct; reapply the modifier only when the flipped screenshot is clearly correct across exterior, interior, and opening faces.
 12. Compare the final top and perspective images with the source plan. If geometry is clearly wrong, call `max_undo`, correct the structured payload, validate again, and rebuild.

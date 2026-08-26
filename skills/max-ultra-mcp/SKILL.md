@@ -1,6 +1,6 @@
 ---
 name: max-ultra-mcp
-description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for general scene, polygon modeling, viewport, rendering, MaxScript, or Max-owned UI automation tasks when Max Ultra MCP tools are available. Use max-ultra-spline-modeling for spline paths/profiles and max-ultra-floor-plan for dimensional architectural plans. Do not use for editing the Max Ultra MCP repository itself.
+description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for scene and file lifecycle, XRefs, File Properties, script artifacts, polygon modeling, viewport, rendering, MaxScript, or Max-owned UI automation when Max Ultra MCP tools are available. Use max-ultra-spline-modeling for spline paths/profiles and max-ultra-floor-plan for dimensional architectural plans. Do not use for editing the Max Ultra MCP repository itself.
 ---
 
 # Max Ultra MCP
@@ -16,7 +16,7 @@ For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. 
 3. Read the smallest useful state with `max_scene_summary`, `max_query_scene`, or a domain-specific read tool.
 4. Prefer a semantic tool with structured arguments and post-state evidence. Respect write approval, `dryRun`, validation tokens, scene revisions, and NodeRefs when the selected tool exposes them.
 5. Run mutations serially. Do not assume a write succeeded from transport success alone.
-6. Verify the post-state. For visual changes, call `max_capture_viewport` after framing the relevant objects or camera and inspect the returned image.
+6. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image.
 
 ## Tool priority
 
@@ -34,6 +34,7 @@ Never generate MaxScript merely to recreate an available semantic tool. Never us
 
 - Read [references/maxscript.md](references/maxscript.md) before authoring MaxScript for `max_run_script` or `max_execute`.
 - Read [references/polygon-modeling.md](references/polygon-modeling.md) when synthesizing custom polygon topology from dimensions, a reference image, or a modeling request.
+- Read [references/scene-files-and-scripts.md](references/scene-files-and-scripts.md) before creating, opening, saving, merging, or resetting scenes; managing XRefs or File Properties; or creating a persistent script file.
 - Read [references/workflows.md](references/workflows.md) for multi-step viewport, rendering, script-rollout, and verification sequences.
 - Read [references/capabilities-and-boundaries.md](references/capabilities-and-boundaries.md) for renderer/plugin detection, filesystem operations, profiles, UI scope, or an unavailable semantic workflow.
 

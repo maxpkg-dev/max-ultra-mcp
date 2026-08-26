@@ -279,7 +279,8 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   }
   if (toolName === "max_capture_viewport") {
     const outputPath = path.join(os.tmpdir(), `max-ultra-mcp-viewport-${randomUUID()}.png`);
-    const screenshot = await bridge.request(instance.instanceId, "screenshot", outputPath, 30000);
+    const reviewPreset = args.reviewPreset || "clean-realistic";
+    const screenshot = await bridge.request(instance.instanceId, "screenshot", `${outputPath}\t${reviewPreset}`, 30000);
     if (args.width || args.height) {
       const resized = await resizePng(outputPath, Number(args.width || 0), Number(args.height || 0));
       Object.assign(screenshot, resized);

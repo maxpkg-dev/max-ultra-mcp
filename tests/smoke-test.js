@@ -873,6 +873,13 @@ async function runSmokeTest() {
     assert.match(viewportScreenshotBody, /if \(toggledViewportArea < originalViewportArea\)[\s\S]*max tool maximize/);
     assert.ok(viewportScreenshotBody.indexOf("max tool maximize") < viewportScreenshotBody.indexOf("viewportBitmap = gw.getViewportDib()"), "The active viewport must be maximized before capture");
     assert.match(viewportScreenshotBody, /viewportBitmap = gw\.getViewportDib\(\)/);
+    assert.match(viewportScreenshotBody, /ShowSelectionBracketsEnabled = false/);
+    assert.match(viewportScreenshotBody, /SelectionHighlightEnabled = false/);
+    assert.match(viewportScreenshotBody, /PreviewOutlineEnabled = false/);
+    assert.match(viewportScreenshotBody, /AntialiasingQuality = #8X/);
+    assert.match(viewportScreenshotBody, /viewport\.setGridVisibility activeViewportIndex false/);
+    assert.match(viewportScreenshotBody, /restoreViewportReviewSettings reviewState/);
+    assert.ok(viewportScreenshotBody.indexOf("ShowSelectionBracketsEnabled = false") < viewportScreenshotBody.indexOf("viewportBitmap = gw.getViewportDib()"), "Viewport clutter must be hidden before capture");
     assert.match(viewportScreenshotBody, /viewportBitmap\.filename = screenshotPath[\s\S]*save viewportBitmap/);
     assert.match(viewportScreenshotBody, /if \(not \(doesFileExist screenshotPath\)\) do throw "3ds Max did not write the viewport PNG"/);
     assert.doesNotMatch(viewportScreenshotBody, /save viewportBitmap screenshotPath/);

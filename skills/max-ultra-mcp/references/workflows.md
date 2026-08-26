@@ -17,10 +17,16 @@ Do not reacquire a stale node by name after `STALE_NODE_REF`. Query again and us
 1. Set or activate the requested view with `max_set_view` or `max_activate_camera`.
 2. Use `max_frame_selection` or `max_zoom_extents` when the subject is not already framed.
 3. If a free perspective angle is needed, switch to `perspective`, frame the subject, and use the reviewed `viewport.rotate` fallback in [maxscript.md](maxscript.md). Use small yaw/pitch steps and never orbit an active camera view; move or rotate the camera explicitly instead.
-4. Call `max_redraw_viewports` after changing the view or display mode.
-5. Call `max_capture_viewport` and inspect the returned image, viewport type, camera metadata, and dimensions. Capture automatically runs `max tool maximize`, detects and reverses an accidental minimize toggle, and leaves the active viewport maximized.
+4. Choose the capture preset:
+   - `clean-realistic` is the default for materials, composition, lighting, architectural form, and general visual review.
+   - `clean-shaded` removes material interpretation from topology, silhouette, junction, opening, and normal-orientation checks.
+   - `clean-current` preserves an intentionally chosen diagnostic style such as wireframe while still removing visual clutter.
+5. Call `max_redraw_viewports` after changing the view or display mode.
+6. Call `max_capture_viewport` with the chosen preset and inspect the returned image, viewport type, camera metadata, dimensions, preset, and restore status.
 
-For visual composition, capture after each meaningful angle adjustment. Compare the image with the requested subject placement, then apply another small orbit rather than guessing a large correction.
+Capture always maximizes the active viewport. It temporarily hides the grid, edged faces, selected edged faces, selection brackets, selection and hover overlays/outlines, and raises Nitrous anti-aliasing to 8X. It restores those display settings after saving the image and leaves only the viewport maximized. Do not recreate this preparation with arbitrary MaxScript.
+
+For visual composition, capture after each meaningful angle adjustment. Compare the image with the requested subject placement, then apply another small orbit rather than guessing a large correction. For A/B comparisons, keep the view, framing, review preset, and lighting identical.
 
 ## Production render
 

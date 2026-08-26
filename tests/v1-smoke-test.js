@@ -349,6 +349,13 @@ async function run() {
     assert.equal(screenshot.result.content[1].mimeType, "image/png");
     assert.equal(screenshot.result.structuredContent.data.screenshot.width, 64);
     assert.equal(screenshot.result.structuredContent.data.screenshot.height, 32);
+    assert.equal(screenshot.result.structuredContent.data.screenshot.reviewPreset, "clean-realistic");
+    assert.equal(screenshot.result.structuredContent.data.screenshot.displaySettingsRestored, true);
+    assert.equal(max2022.screenshotRequests.at(-1).reviewPreset, "clean-realistic");
+
+    const shadedScreenshot = await rpc(hostA, { jsonrpc: "2.0", id: 120, method: "tools/call", params: { name: "max_capture_viewport", arguments: { reviewPreset: "clean-shaded" } } });
+    assert.equal(shadedScreenshot.result.isError, false, JSON.stringify(shadedScreenshot.result.structuredContent));
+    assert.equal(max2022.screenshotRequests.at(-1).reviewPreset, "clean-shaded");
 
     const frameSelection = await rpc(hostA, { jsonrpc: "2.0", id: 121, method: "tools/call", params: { name: "max_frame_selection", arguments: {} } });
     assert.equal(frameSelection.result.isError, false, JSON.stringify(frameSelection.result.structuredContent));

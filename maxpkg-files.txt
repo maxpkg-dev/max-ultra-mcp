@@ -24,6 +24,7 @@ core/windows-ui.js
 skills/max-ultra-mcp/SKILL.md
 skills/max-ultra-mcp/references/polygon-modeling.md
 skills/max-ultra-mcp/references/maxscript.md
+skills/max-ultra-mcp/references/scene-files-and-scripts.md
 skills/max-ultra-mcp/references/workflows.md
 skills/max-ultra-mcp/references/capabilities-and-boundaries.md
 skills/max-ultra-floor-plan/SKILL.md
