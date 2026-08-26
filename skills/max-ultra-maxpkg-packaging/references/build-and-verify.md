@@ -127,11 +127,6 @@ Do not claim these checks when only source or archive inspection was performed. 
 
 ## Marketplace onboarding is optional
 
-Prepare marketplace listing text, screenshots, cover guidance, category confirmation, and upload instructions only when the user requests full onboarding or publication preparation. Never sign in, upload, submit, or publish without explicit authorization.
+Prepare marketplace material only when the user requests full onboarding, publication preparation, or instructions for adding an MZP to maxpkg.dev. Read [marketplace-publishing.md](marketplace-publishing.md) and follow its live-source refresh, listing generation, no-H1 long-description, plain FAQ, asset preparation, privacy, and external-action approval rules.
 
-When requested, base every statement on the project and tested package. Sanitize screenshots and documents: remove user paths, keys, e-mail addresses, customer data, private URLs, and unrelated desktop content. If the live category list cannot be inspected, mark the recommendation for confirmation instead of inventing a category.
-
-Official source material:
-
-- [MaxPkg Packager README](https://github.com/maxpkg-dev/max-dev-tool/blob/93ceb0e018b44ca53546cf2c274b196160495699/README.md)
-- [MaxPkg Full Onboarding Prompt](https://github.com/maxpkg-dev/max-dev-tool/blob/93ceb0e018b44ca53546cf2c274b196160495699/maxpkg-full-onboarding-prompt.md)
+Never sign in, upload, submit, or publish without explicit authorization. If the live marketplace form cannot be inspected, mark its changeable requirements for confirmation instead of inventing them.

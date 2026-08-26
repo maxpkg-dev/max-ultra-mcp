@@ -1,6 +1,6 @@
 ---
 name: max-ultra-maxpkg-packaging
-description: Adapt a new or existing 3ds Max MaxScript or Python project for MaxPkg, configure the official packager, and build or verify its MZP through Max Ultra MCP. Use when a user asks to make a script MaxPkg-compatible, replace a legacy installer, or prepare a MaxPkg release. Do not use merely to run an existing third-party MZP or package non-3ds Max software.
+description: Adapt a new or existing 3ds Max MaxScript or Python project for MaxPkg, configure the official packager, build or verify its MZP through Max Ultra MCP, and prepare a maxpkg.dev marketplace listing and assets. Use when a user asks to make a script MaxPkg-compatible, replace a legacy installer, prepare a MaxPkg release, or publish/add an MZP on maxpkg.dev. Do not use merely to run an existing third-party MZP or package non-3ds Max software.
 ---
 
 # Max Ultra MaxPkg Packaging
@@ -32,6 +32,7 @@ Use this concise confirmation request after the read-only audit:
 - For a script being created through MCP, make it package-ready from the beginning: direct runtime entry, dynamic resource paths, writable user-data paths, and no separate installer assumptions.
 - For an existing script, read [references/adaptation-workflow.md](references/adaptation-workflow.md) and migrate its legacy installation actions without chaining or packaging the old installer.
 - For automatic packager configuration, MZP output, release readiness, or marketplace onboarding, also read [references/build-and-verify.md](references/build-and-verify.md).
+- For maxpkg.dev listing text, form guidance, categories, screenshots, Assets, version upload, or review preparation, also read [references/marketplace-publishing.md](references/marketplace-publishing.md). Refresh the official website and linked repositories before relying on field or asset requirements.
 - A request to adapt a project for MaxPkg normally includes configuring the packager and attempting a local build when the required facts and 3ds Max environment are available. It never includes publishing, uploading, account changes, marketplace submission, or a Git commit unless separately requested.
 
 ## Required workflow
@@ -44,7 +45,8 @@ Use this concise confirmation request after the read-only audit:
 6. When 3ds Max testing is available, select the intended Max instance, run entry points with `max_run_script_file`, launch the packager, and use process-scoped UI automation only for stable controls inside that selected `3dsmax.exe` process.
 7. When validation can pass, invoke the original packager's real Build MZP action and verify the newly created archive. Do not generate a replacement ZIP/MZP or rename its output. The original packager must produce `<slug>@<major.minor.patch>@<guid>.mzp`; release channel remains separate metadata. The MZP is an additional build artifact, normally below `dist`; it never replaces the source project. Generated manifests and `mzp.run` files are build output, not substitutes for the three required root authoring files.
 8. Inspect the final archive and manifests, then distinguish static validation, real installation testing, launch testing, update testing, and uninstall testing in the report.
-9. Track every `fetchRoot` returned by the upstream helper. After the official files have been read and copied and the task is complete, remove only those exact verified temporary directories. Never leave stale upstream prompt/tooling downloads behind.
+9. When marketplace preparation is requested, generate `maxpkg-marketplace-listing.md` with complete field-ready copy, a category recommendation, FAQ questions and answers, an ordered asset plan, screenshot titles and captions, and exact upload steps. The long description must not contain an H1 (`#`) heading, and FAQ entries must not use Markdown heading wrappers. Keep the package GUID and developer-machine paths out of this public listing document.
+10. Track every `fetchRoot` returned by the upstream helper. After the official files have been read and copied and the task is complete, remove only those exact verified temporary directories. Never leave stale upstream prompt/tooling downloads behind.
 
 ## Non-negotiable boundaries
 
@@ -55,8 +57,9 @@ Use this concise confirmation request after the read-only audit:
 - Do not hard-code a developer path, user profile, drive, 3ds Max version, package GUID, or `$temp` package folder into runtime code.
 - Do not overwrite or delete existing user settings during install or update. Uninstall removes only verified package-owned integrations unless the user explicitly requests a separate user-data purge.
 - Do not invent license terms, URLs, authorship, version compatibility, test results, product capabilities, or marketplace categories.
+- Treat the package GUID as private identity metadata. Preserve it in package configuration, but never place it in public descriptions, screenshots, captions, keywords, or other marketplace copy.
 - Do not publish, upload, commit, or push unless the user separately requests that action.
 
 ## Handoff
 
-Report the resolved upstream commit, official prompt used, adapted runtime entry, installer-action mapping, changed and package-excluded files, automatic MaxPkg configuration, exact archive path and filename when built, validation performed, real-Max tests performed, untested manual checks, assumptions, and facts still requiring confirmation.
+Report the resolved upstream commit, official prompt used, adapted runtime entry, installer-action mapping, changed and package-excluded files, automatic MaxPkg configuration, exact archive path and filename when built, generated marketplace-listing and asset-plan paths, validation performed, real-Max tests performed, untested manual checks, assumptions, and facts still requiring confirmation. Report an exact local MZP path or GUID only in the private task handoff, clearly marked as non-public metadata.

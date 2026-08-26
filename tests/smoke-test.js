@@ -526,6 +526,10 @@ async function runSmokeTest() {
     assert.match(maxPkgSkillDocumentation, /Both hooks are mandatory/i);
     assert.match(maxPkgSkillDocumentation, /<slug>@<major\.minor\.patch>@<guid>\.mzp/);
     assert.match(maxPkgSkillDocumentation, /original `maxpkg-packager\.ms`/i);
+    assert.match(maxPkgSkillDocumentation, /maxpkg-marketplace-listing\.md/);
+    assert.match(maxPkgSkillDocumentation, /long description must not contain an H1/i);
+    assert.match(maxPkgSkillDocumentation, /FAQ must not use Markdown headings/i);
+    assert.match(maxPkgSkillDocumentation, /GUID is private identity metadata/i);
     assert.equal(fs.existsSync(path.join(skillsRoot, "max-ultra-maxpkg-packaging", "references", "maxpkg-adaptation-prompt.md")), false);
     assert.equal(fs.existsSync(path.join(skillsRoot, "max-ultra-maxpkg-packaging", "references", "maxpkg-full-onboarding-prompt.md")), false);
     assert.match(maxPkgUpstreamSkillSource, /api\.github\.com\/repos\/maxpkg-dev\/max-dev-tool\/commits\/HEAD/);
@@ -534,6 +538,7 @@ async function runSmokeTest() {
     assert.match(maxPkgUpstreamSkillSource, /toolingFiles = @\('maxpkg-packager\.ms', '_install\.ms', '_uninstall\.ms'\)/);
     assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/scripts\/get-maxpkg-upstream\.ps1/);
+    assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/references\/marketplace-publishing\.md/);
     const generalSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-mcp")];
     assert.match(generalSkillDocumentation, /references\/code-rules\.md/);
     assert.match(generalSkillDocumentation, /Define every helper before/i);

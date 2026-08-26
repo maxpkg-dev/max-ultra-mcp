@@ -43,6 +43,7 @@ skills/max-ultra-spline-modeling/references/maxscript-patterns.md
 skills/max-ultra-maxpkg-packaging/SKILL.md
 skills/max-ultra-maxpkg-packaging/references/adaptation-workflow.md
 skills/max-ultra-maxpkg-packaging/references/build-and-verify.md
+skills/max-ultra-maxpkg-packaging/references/marketplace-publishing.md
 skills/max-ultra-maxpkg-packaging/scripts/get-maxpkg-upstream.ps1
 scripts/agent-integration.ps1
 scripts/update-manager.ps1
