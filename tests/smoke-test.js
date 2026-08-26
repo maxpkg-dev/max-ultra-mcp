@@ -713,6 +713,11 @@ async function runSmokeTest() {
     assert.match(updateManagerSource, /Get-FileHash[\s\S]*SHA256/);
     assert.match(maxPkgFilesSource, /version\.ini/);
     assert.match(maxPkgFilesSource, /CHANGELOG\.md/);
+    assert.match(maxPkgFilesSource, /^core\/package\.json$/m);
+    assert.match(maxPkgFilesSource, /^AGENTS\.md$/m);
+    assert.match(maxPkgFilesSource, /^\.agents\/coding-rules\.md$/m);
+    assert.match(maxPkgFilesSource, /^\.agents\/release-rules\.md$/m);
+    assert.match(maxPkgFilesSource, /^docs\/MAXPKG\.md$/m);
     assert.match(maxPkgFilesSource, /scripts\/update-manager\.ps1/);
     assert.match(maxPkgFilesSource, /scripts\/project-version\.ps1/);
     assert.match(releaseVersionSource, /max-ultra-mcp@\(\?<version>/);

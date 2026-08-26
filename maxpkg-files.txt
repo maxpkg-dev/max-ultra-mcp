@@ -5,11 +5,16 @@ CHANGELOG.md
 version.ini
 01_START_MAX_ULTRA_MCP_FIRST.ms
 README.md
+AGENTS.md
+.agents/coding-rules.md
+.agents/release-rules.md
 docs/README.md
 docs/V1.md
 docs/USE_CASES.md
 docs/PRIVACY.md
 docs/SEA.md
+docs/MAXPKG.md
+core/package.json
 core/bridge-control-client.js
 core/floor-plan.js
 core/image-utils.js
