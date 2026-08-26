@@ -135,9 +135,12 @@ try {
     $ownedNodePid = [int]$ownership.pid
     $ownedLauncherPid = [int]$ownership.launcherPid
 
-    $invocationMatches = [int]$ownership.port -eq $Port -or
-        (-not [string]::IsNullOrWhiteSpace($OwnerToken) -and
-            [string]::Equals($requiredToken, $OwnerToken, [StringComparison]::Ordinal))
+    $invocationMatches = if (-not [string]::IsNullOrWhiteSpace($OwnerToken)) {
+        [string]::Equals($requiredToken, $OwnerToken, [StringComparison]::Ordinal)
+    }
+    else {
+        [int]$ownership.port -eq $Port
+    }
     if ([int]$ownership.schemaVersion -ne 1 -or [string]$ownership.server -ne 'max-ultra-mcp' -or
         -not $invocationMatches -or [string]::IsNullOrWhiteSpace($requiredToken) -or
         -not (Test-SamePath ([string]$ownership.ownerFile) $selectedOwnershipFile) -or

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: MaxPkg uninstall preserves quoted package-root paths that end in a backslash, allowing the focused cleanup helper to start correctly.
+- Fixed: A stale detached shutdown helper can no longer terminate a replacement daemon that reuses the same loopback port with a different owner token.
+
 ## 1.2.1 - 2026-08-26
 
 - Changed: Release tooling is pinned to the official MaxPkg Packager 1.2.0 revision and exact SHA-256.

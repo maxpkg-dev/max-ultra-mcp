@@ -119,6 +119,22 @@ async function runBatDetachedShutdownTest() {
     controlClient.close();
     controlClient = undefined;
 
+    const staleOwnerResult = await runCommandBat(helperPath, [
+      "-OwnershipFile", ownershipFile,
+      "-Port", String(port),
+      "-OwnerToken", ownerToken + "-stale",
+      "-ClosingMaxPid", "22022",
+      "-MaxProcessCountOverride", "1",
+    ], PROJECT_ROOT);
+    assert.equal(staleOwnerResult.exitCode, 3, staleOwnerResult.output);
+    assert.match(staleOwnerResult.output, /Ownership record does not match/);
+
+    controlClient = new BridgeControlClient({ port, timeoutMs: 1000 });
+    await controlClient.connect();
+    await controlClient.probe();
+    controlClient.close();
+    controlClient = undefined;
+
     const multiMaxResult = await runCommandBat(helperPath, [
       "-OwnershipFile", ownershipFile,
       "-Port", String(port),
@@ -769,6 +785,9 @@ async function runSmokeTest() {
     assert.match(maxPkgUninstallHookSource, /RedirectStandardError = true/);
     assert.match(maxPkgUninstallHookSource, /cleanup failed: /);
     assert.match(maxPkgUninstallHookSource, /maxpkg-uninstall\.ps1/);
+    assert.match(maxPkgUninstallHookSource, /fn maxUltraMcpQuoteUninstallArgument/);
+    assert.match(maxPkgUninstallHookSource, /trailingBackslashCount/);
+    assert.match(maxPkgUninstallHookSource, /maxUltraMcpQuoteUninstallArgument packageRoot/);
     assert.doesNotMatch(maxPkgIconSource, /<rect\b/);
     assert.match(maxPkgIconSource, /<circle cx="8" cy="8"/);
     assert.match(maxPkgIconSource, /<circle cx="56" cy="8"/);

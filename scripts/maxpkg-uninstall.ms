@@ -3,6 +3,26 @@
 -- Project website: https://3dground.net
 -- Developed by Lukianenko Vasyl
 (
+    fn maxUltraMcpQuoteUninstallArgument sourceContent = (
+        local quoteCharacter = bit.intAsChar 34
+        local argumentContent = sourceContent as string
+        if ((findString argumentContent quoteCharacter) != undefined or (findString argumentContent "\r") != undefined or (findString argumentContent "\n") != undefined) do throw "An uninstall process argument contains unsupported characters"
+
+        -- Windows command-line parsing consumes a backslash immediately before
+        -- a closing quote. Double every trailing backslash so package folders
+        -- remain one complete argument instead of swallowing the next switch.
+        local trailingBackslashCount = 0
+        local characterIndex = argumentContent.count
+        while (characterIndex > 0 and (substring argumentContent characterIndex 1) == "\\") do (
+            trailingBackslashCount += 1
+            characterIndex -= 1
+        )
+        if (trailingBackslashCount > 0) do (
+            for slashIndex in 1 to trailingBackslashCount do argumentContent += "\\"
+        )
+        return quoteCharacter + argumentContent + quoteCharacter
+    )
+
     local hookFilePath = getThisScriptFileName()
     local hookDirectory = getFilenamePath hookFilePath
     local cleanupScriptPath = hookDirectory + "maxpkg-uninstall.ps1"
@@ -11,7 +31,7 @@
     local packageRoot = (dotNetClass "System.IO.Path").GetFullPath (hookDirectory + "..\\")
     local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
     startInfo.FileName = "powershell.exe"
-    startInfo.Arguments = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + cleanupScriptPath + "\" -PackageRoot \"" + packageRoot + "\""
+    startInfo.Arguments = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + (maxUltraMcpQuoteUninstallArgument cleanupScriptPath) + " -PackageRoot " + (maxUltraMcpQuoteUninstallArgument packageRoot)
     startInfo.WorkingDirectory = hookDirectory
     startInfo.UseShellExecute = false
     startInfo.CreateNoWindow = true
