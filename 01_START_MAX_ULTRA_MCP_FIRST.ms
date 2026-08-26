@@ -30,8 +30,7 @@ global MaxUltraMcpActiveClient
         button btnAgents "AI setup" pos: [516,8] width: 72 height: 22
         button btnHide "Hide panel" pos: [596,8] width: 72 height: 22
 
-        dotNetControl pnlLogOutline "System.Windows.Forms.Panel" pos: [4,62] width: 672 height: 386
-        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [5,63] width: 670 height: 384
+        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [4,62] width: 672 height: 386
 
         button btnReconnect "Reconnect" pos: [12,456] width: 120 height: 30
         button btnStop "Stop / Exit" pos: [140,456] width: 120 height: 30
@@ -48,7 +47,21 @@ global MaxUltraMcpActiveClient
         )
 
         on MaxUltraMcpStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.resizePanelControls panelSize
-        on MaxUltraMcpStatusDialog close do if (bridgeClient != undefined) do bridgeClient.handlePanelRolloutClosed()
+        on MaxUltraMcpStatusDialog close do (
+            enableAccelerators = true
+            if (bridgeClient != undefined) do bridgeClient.handlePanelRolloutClosed()
+        )
+        on rtbActivity MouseEnter eventSender eventArgs do (
+            enableAccelerators = false
+            if (bridgeClient != undefined) do bridgeClient.handleActivityLogMouseEnter()
+        )
+        on rtbActivity MouseLeave eventSender eventArgs do (
+            enableAccelerators = true
+            if (bridgeClient != undefined) do bridgeClient.handleActivityLogMouseLeave()
+        )
+        on rtbActivity GotFocus eventSender eventArgs do enableAccelerators = false
+        on rtbActivity LostFocus eventSender eventArgs do enableAccelerators = true
+        on rtbActivity VScroll eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleActivityLogScrolled()
         on btnReconnect pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
         on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
@@ -176,6 +189,8 @@ global MaxUltraMcpActiveClient
         activityEntries = #(),
         maximumActivityEntries = 30,
         activityLogDirty = true,
+        activityAutoScroll = true,
+        activityLogUpdating = false,
         maximumPendingRequests = 100,
         maximumInboundLinesPerTick = 16,
         maximumRequestsPerTick = 1,
@@ -370,19 +385,18 @@ global MaxUltraMcpActiveClient
             if (isDisposed or not panelIsOpen()) do return false
             try (
                 statusDialog.rtbActivity.ReadOnly = true
-                statusDialog.rtbActivity.WordWrap = true
+                statusDialog.rtbActivity.WordWrap = false
                 statusDialog.rtbActivity.DetectUrls = false
                 statusDialog.rtbActivity.HideSelection = false
                 statusDialog.rtbActivity.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").Vertical
                 local colorClass = dotNetClass "System.Drawing.Color"
-                statusDialog.pnlLogOutline.BackColor = (dotNetClass "System.Drawing.Color").Black
-                statusDialog.pnlLogOutline.AccessibleName = "Flat black boundary for Max Ultra MCP activity log"
                 statusDialog.rtbActivity.ForeColor = themeDrawingColor #text 220 220 220
                 statusDialog.rtbActivity.BackColor = lighterThemeSurface()
-                statusDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
+                statusDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").FixedSingle
                 statusDialog.rtbActivity.AccessibleName = "Max Ultra MCP color-coded activity log"
                 statusDialog.rtbActivity.TabStop = true
                 activityLogDirty = true
+                activityAutoScroll = true
                 statusDialog.rtbActivity.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0
                 local panelThemeBackground = themeDrawingColor #background 68 68 68
                 statusDialog.lblStatus.BackColor = panelThemeBackground
@@ -413,11 +427,55 @@ global MaxUltraMcpActiveClient
                 if (statusDialog.rtbActivity.TextLength <= 0) do return true
                 local lastCharacterIndex = amax 0 (statusDialog.rtbActivity.TextLength - 1)
                 local lastCharacterPosition = statusDialog.rtbActivity.GetPositionFromCharIndex lastCharacterIndex
-                local bottomTolerance = amax 2 (statusDialog.rtbActivity.Font.Height * 2)
-                return lastCharacterPosition.Y >= 0 and lastCharacterPosition.Y <= (statusDialog.rtbActivity.ClientSize.Height + bottomTolerance)
+                local lastLineBottom = lastCharacterPosition.Y + statusDialog.rtbActivity.Font.Height
+                local bottomTolerance = amax 2 (statusDialog.rtbActivity.Font.Height / 2)
+                return lastCharacterPosition.Y >= 0 and lastLineBottom <= (statusDialog.rtbActivity.ClientSize.Height + bottomTolerance)
             ) catch (
                 return true
             )
+        ),
+
+        fn activityLogFirstVisibleLine = (
+            if (isDisposed or not panelIsOpen()) do return 0
+            try (
+                local logWindowHandle = statusDialog.rtbActivity.Handle.ToInt64()
+                local richEditMessageGetFirstVisibleLine = 0x00CE
+                return windows.sendMessage logWindowHandle richEditMessageGetFirstVisibleLine 0 0
+            ) catch (
+                return 0
+            )
+        ),
+
+        fn restoreActivityLogFirstVisibleLine lineNumber = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (
+                local logWindowHandle = statusDialog.rtbActivity.Handle.ToInt64()
+                local richEditMessageGetFirstVisibleLine = 0x00CE
+                local richEditMessageLineScroll = 0x00B6
+                local currentFirstVisibleLine = windows.sendMessage logWindowHandle richEditMessageGetFirstVisibleLine 0 0
+                windows.sendMessage logWindowHandle richEditMessageLineScroll 0 (lineNumber - currentFirstVisibleLine)
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn handleActivityLogMouseEnter = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (statusDialog.rtbActivity.Focus()) catch ()
+            activityAutoScroll = activityLogIsNearBottom()
+            return true
+        ),
+
+        fn handleActivityLogMouseLeave = (
+            activityAutoScroll = activityLogIsNearBottom()
+            return true
+        ),
+
+        fn handleActivityLogScrolled = (
+            if (activityLogUpdating) do return true
+            activityAutoScroll = activityLogIsNearBottom()
+            return true
         ),
 
         fn activityTextStartsWith sourceText prefixText = (
@@ -461,12 +519,13 @@ global MaxUltraMcpActiveClient
                     activityLogDirty = false
                     return true
                 )
-                local shouldAutoScroll = activityLogIsNearBottom()
+                activityLogUpdating = true
+                local shouldAutoScroll = activityAutoScroll and activityLogIsNearBottom()
                 local savedSelectionStart = statusDialog.rtbActivity.SelectionStart
                 local savedSelectionLength = statusDialog.rtbActivity.SelectionLength
-                local firstClientPoint = dotNetObject "System.Drawing.Point" 1 1
-                local savedFirstVisibleCharacter = statusDialog.rtbActivity.GetCharIndexFromPosition firstClientPoint
+                local savedFirstVisibleLine = activityLogFirstVisibleLine()
                 local removedCharacterCount = 0
+                local removedLineCount = 0
                 local appendedActivityText = ""
                 local changedIncrementally = false
                 local appendPrefix = currentActivityText + "\r\n"
@@ -481,6 +540,7 @@ global MaxUltraMcpActiveClient
                         if (activityTextStartsWith expectedActivityText rollingPrefix) do (
                             appendedActivityText = substring expectedActivityText (rollingPrefix.count + 1) -1
                             removedCharacterCount = firstLineBreak + 1
+                            removedLineCount = 1
                             changedIncrementally = appendedActivityText != ""
                         )
                     )
@@ -506,21 +566,22 @@ global MaxUltraMcpActiveClient
                 )
                 activityLogDirty = false
                 statusDialog.rtbActivity.ResumeLayout()
-                statusDialog.rtbActivity.Update()
                 if (shouldAutoScroll) then (
                     scrollActivityLogToBottom()
+                    activityAutoScroll = true
                 ) else (
-                    local adjustedFirstVisibleCharacter = amax 0 (savedFirstVisibleCharacter - removedCharacterCount)
-                    adjustedFirstVisibleCharacter = amin adjustedFirstVisibleCharacter statusDialog.rtbActivity.TextLength
-                    statusDialog.rtbActivity.Select adjustedFirstVisibleCharacter 0
-                    statusDialog.rtbActivity.ScrollToCaret()
                     local adjustedSelectionStart = amax 0 (savedSelectionStart - removedCharacterCount)
                     adjustedSelectionStart = amin adjustedSelectionStart statusDialog.rtbActivity.TextLength
                     local availableSelectionLength = statusDialog.rtbActivity.TextLength - adjustedSelectionStart
-                    if (savedSelectionLength > 0) do statusDialog.rtbActivity.Select adjustedSelectionStart (amin savedSelectionLength availableSelectionLength)
+                    statusDialog.rtbActivity.Select adjustedSelectionStart (amin savedSelectionLength availableSelectionLength)
+                    restoreActivityLogFirstVisibleLine (amax 0 (savedFirstVisibleLine - removedLineCount))
                 )
+                statusDialog.rtbActivity.Invalidate true
+                activityLogUpdating = false
             ) catch (
                 try (statusDialog.rtbActivity.ResumeLayout()) catch ()
+                try (statusDialog.rtbActivity.Invalidate true) catch ()
+                activityLogUpdating = false
             )
             return true
         ),
@@ -543,10 +604,8 @@ global MaxUltraMcpActiveClient
             statusDialog.lblStatus.width = panelWidth - 188
             statusDialog.lblContext.width = contentWidth
             local logHeight = amax 260 (panelHeight - 114)
-            statusDialog.pnlLogOutline.width = panelWidth - 8
-            statusDialog.pnlLogOutline.height = logHeight
-            statusDialog.rtbActivity.width = panelWidth - 10
-            statusDialog.rtbActivity.height = logHeight - 2
+            statusDialog.rtbActivity.width = panelWidth - 8
+            statusDialog.rtbActivity.height = logHeight
             local buttonY = panelHeight - 44
             statusDialog.btnReconnect.pos.y = buttonY
             statusDialog.btnStop.pos.y = buttonY
