@@ -1029,7 +1029,22 @@ global MaxUltraMcpActiveClient
 
         fn quoteProcessArgument sourceContent = (
             local quoteCharacter = bit.intAsChar 34
-            return quoteCharacter + (sourceContent as string) + quoteCharacter
+            local argumentContent = sourceContent as string
+            if ((findString argumentContent quoteCharacter) != undefined or (findString argumentContent "\r") != undefined or (findString argumentContent "\n") != undefined) do throw "A process argument contains unsupported characters"
+
+            -- Windows command-line parsing consumes a backslash immediately before
+            -- a closing quote. Double every trailing backslash so directory paths
+            -- remain one complete argument instead of swallowing the next switch.
+            local trailingBackslashCount = 0
+            local characterIndex = argumentContent.count
+            while (characterIndex > 0 and (substring argumentContent characterIndex 1) == "\\") do (
+                trailingBackslashCount += 1
+                characterIndex -= 1
+            )
+            if (trailingBackslashCount > 0) do (
+                for slashIndex in 1 to trailingBackslashCount do argumentContent += "\\"
+            )
+            return quoteCharacter + argumentContent + quoteCharacter
         ),
 
         fn readUpdateValue keyName fallbackValue: "" = (
@@ -1130,9 +1145,10 @@ global MaxUltraMcpActiveClient
             updateProcess = undefined
             updateBusy = false
             updateAutomaticCheck = false
+            local updateResultExists = updateResultFilePath != undefined and updateResultFilePath != "" and doesFileExist updateResultFilePath
             local stateValue = toLower (readUpdateValue "state" fallbackValue: "error")
             updateLatestVersion = readUpdateValue "latestVersion" fallbackValue: ""
-            updateMessage = readUpdateValue "message" fallbackValue: "Update check failed."
+            updateMessage = readUpdateValue "message" fallbackValue: (if updateResultExists then "Update check failed." else ("Update helper exited before writing a result (exit code " + (helperExitCode as string) + ")."))
             if (stateValue == "current" and helperExitCode == 0) then (
                 updateState = #current
                 addActivity "info" "Max Ultra MCP is current"

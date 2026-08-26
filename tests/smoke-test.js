@@ -727,6 +727,8 @@ async function runSmokeTest() {
       bootstrapSource.indexOf("fn quoteProcessArgument") < bootstrapSource.indexOf("fn startUpdateCheck"),
       "Update process arguments must be quoted by a helper defined before startUpdateCheck",
     );
+    assert.match(bootstrapSource, /trailingBackslashCount[\s\S]*argumentContent \+= "\\\\"/);
+    assert.match(bootstrapSource, /Update helper exited before writing a result \(exit code/);
     assert.match(updateManagerSource, /Get-FileHash[\s\S]*SHA256/);
     assert.match(maxPkgFilesSource, /version\.ini/);
     assert.match(maxPkgFilesSource, /CHANGELOG\.md/);

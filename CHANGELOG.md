@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed: Update checks preserve quoted package-root paths that end in a backslash, allowing the hidden helper to receive its result-file argument.
+- Improved: Update-check startup failures now report the helper exit code when no result file was produced.
+
 ## 1.2.0 - 2026-08-26
 
 - Added: Deterministic release preparation and publishing safeguards from one version source.
