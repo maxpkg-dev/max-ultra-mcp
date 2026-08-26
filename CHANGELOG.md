@@ -11,6 +11,8 @@
 - Fixed: Automatic update checks now start correctly in supported 3ds Max versions.
 - Fixed: MaxPkg production archives include required Node package metadata and linked user and agent documentation.
 - Fixed: Release preparation can be rerun safely after a verification failure without duplicating its changelog section.
+- Fixed: UI Automation safely normalizes non-finite Qt element bounds instead of failing during window-tree inspection.
+- Fixed: MaxPkg launches resolve the active bootstrap from the installed package entry instead of a previously loaded source file.
 
 ## 1.1.0 - 2026-08-26
 

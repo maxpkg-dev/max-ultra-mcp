@@ -2983,7 +2983,7 @@ global MaxUltraMcpActiveClient
             processStartedAt = processStartTime.ToString("o")
             instanceId = "max-" + (currentMaxYear() as string) + "-pid-" + (processId as string) + "-" + (processStartTime.Ticks as string)
             processInfo.Dispose()
-            bootstrapFilePath = getSourceFileName()
+            bootstrapFilePath = getThisScriptFileName()
             local guidClass = dotNetClass "System.Guid"
             local ownerGuid = guidClass.NewGuid()
             serverOwnerToken = ownerGuid.ToString()

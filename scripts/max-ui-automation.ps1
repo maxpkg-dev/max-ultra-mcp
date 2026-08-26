@@ -87,6 +87,18 @@ function Test-ElementMatch($Element, $Selector) {
     return $true
 }
 
+function Convert-ToSafeInt32($Value) {
+    try {
+        $number = [double]$Value
+        if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) { return 0 }
+        if ($number -gt [int]::MaxValue) { return [int]::MaxValue }
+        if ($number -lt [int]::MinValue) { return [int]::MinValue }
+        return [int][Math]::Round($number)
+    } catch {
+        return 0
+    }
+}
+
 function Convert-Element($Element, [int]$Depth = 0) {
     $rectangle = $Element.Current.BoundingRectangle
     return [ordered]@{
@@ -100,7 +112,12 @@ function Convert-Element($Element, [int]$Depth = 0) {
         enabled = [bool]$Element.Current.IsEnabled
         offscreen = [bool]$Element.Current.IsOffscreen
         depth = $Depth
-        rect = [ordered]@{ x = [int]$rectangle.X; y = [int]$rectangle.Y; width = [int]$rectangle.Width; height = [int]$rectangle.Height }
+        rect = [ordered]@{
+            x = Convert-ToSafeInt32 $rectangle.X
+            y = Convert-ToSafeInt32 $rectangle.Y
+            width = Convert-ToSafeInt32 $rectangle.Width
+            height = Convert-ToSafeInt32 $rectangle.Height
+        }
     }
 }
 
@@ -192,7 +209,7 @@ switch ($Operation) {
                 foreach ($child in $children) { $queue.Enqueue(@($child, $depth + 1)) }
             }
         }
-        $result = [ordered]@{ count = $items.Count; truncated = $queue.Count -gt 0; controls = @($items) }
+        $result = [ordered]@{ count = $items.Count; truncated = $queue.Count -gt 0; controls = $items.ToArray() }
     }
     'find' {
         $element = Find-Control $windowSelector $controlSelector

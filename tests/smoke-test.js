@@ -475,6 +475,7 @@ async function runSmokeTest() {
     const githubReleaseBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "RELEASE_MZP_TO_GITHUB.bat"), "utf8");
     const prepareReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-release.ps1"), "utf8");
     const updateManagerSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "update-manager.ps1"), "utf8");
+    const uiAutomationSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "max-ui-automation.ps1"), "utf8");
     const versionIniSource = fs.readFileSync(path.join(PROJECT_ROOT, "version.ini"), "utf8");
     const changelogSource = fs.readFileSync(path.join(PROJECT_ROOT, "CHANGELOG.md"), "utf8");
     const releaseRulesSource = fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "release-rules.md"), "utf8");
@@ -552,12 +553,18 @@ async function runSmokeTest() {
     for (const documentedToolName of documentedToolNames) {
       assert.equal(implementedToolNames.has(documentedToolName), true, `Skill references unavailable tool ${documentedToolName}`);
     }
+    assert.match(bootstrapSource, /bootstrapFilePath = getThisScriptFileName\(\)/);
+    assert.doesNotMatch(bootstrapSource, /bootstrapFilePath = getSourceFileName\(\)/);
     assertBalancedMaxScript(bootstrapSource);
     assertBalancedMaxScript(maxPkgUninstallHookSource);
     const uiRolloutSource = fs.readFileSync(path.join(PROJECT_ROOT, "tests", "fixtures", "ui-automation-rollout", "test-ui-rollout.ms"), "utf8");
     assertBalancedMaxScript(uiRolloutSource);
     assert.match(uiRolloutSource, /Max Ultra MCP UI Automation Test/);
     assert.match(uiRolloutSource, /button applyButton "Apply with MCP"/);
+    assert.match(uiAutomationSource, /function Convert-ToSafeInt32/);
+    assert.match(uiAutomationSource, /\[double\]::IsInfinity\(\$number\)/);
+    assert.match(uiAutomationSource, /x = Convert-ToSafeInt32 \$rectangle\.X/);
+    assert.match(uiAutomationSource, /controls = \$items\.ToArray\(\)/);
     const legacyInfoTerm = "snap" + "shot";
     assert.equal(bootstrapSource.includes("build" + "Snap" + "shotJson"), false);
     assert.equal(bootstrapSource.includes(`"${legacyInfoTerm}"`), false);
