@@ -464,6 +464,7 @@ async function runSmokeTest() {
     const maxPkgFilesSource = fs.readFileSync(path.join(PROJECT_ROOT, "maxpkg-files.txt"), "utf8");
     const maxPkgPrepareSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-maxpkg.ps1"), "utf8");
     const maxPkgSyncSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "sync-maxpkg-tooling.ps1"), "utf8");
+    const maxPkgUpstreamSkillSource = fs.readFileSync(path.join(PROJECT_ROOT, "skills", "max-ultra-maxpkg-packaging", "scripts", "get-maxpkg-upstream.ps1"), "utf8");
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
     const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "max-ultra-mcp.svg"), "utf8");
@@ -476,7 +477,7 @@ async function runSmokeTest() {
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
       .map((entry) => entry.name)
       .sort();
-    assert.deepEqual(skillNames, ["max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-spline-modeling"]);
+    assert.deepEqual(skillNames, ["max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-maxpkg-packaging", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-spline-modeling"]);
     const skillReferenceNamesBySkill = new Map();
     const skillDocumentationParts = [];
     for (const skillName of skillNames) {
@@ -515,6 +516,19 @@ async function runSmokeTest() {
     assert.match(rendererSkillDocumentation, /show renderers\.current/);
     assert.match(rendererSkillDocumentation, /read-back/i);
     assert.match(rendererSkillDocumentation, /applied[\s\S]*unchanged[\s\S]*unsupported[\s\S]*warnings/i);
+    const maxPkgSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-maxpkg-packaging")];
+    assert.match(maxPkgSkillDocumentation, /get-maxpkg-upstream\.ps1/);
+    assert.match(maxPkgSkillDocumentation, /Both hooks are mandatory/i);
+    assert.match(maxPkgSkillDocumentation, /<slug>@<major\.minor\.patch>@<guid>\.mzp/);
+    assert.match(maxPkgSkillDocumentation, /original `maxpkg-packager\.ms`/i);
+    assert.equal(fs.existsSync(path.join(skillsRoot, "max-ultra-maxpkg-packaging", "references", "maxpkg-adaptation-prompt.md")), false);
+    assert.equal(fs.existsSync(path.join(skillsRoot, "max-ultra-maxpkg-packaging", "references", "maxpkg-full-onboarding-prompt.md")), false);
+    assert.match(maxPkgUpstreamSkillSource, /api\.github\.com\/repos\/maxpkg-dev\/max-dev-tool\/commits\/HEAD/);
+    assert.match(maxPkgUpstreamSkillSource, /maxpkg-adaptation-prompt\.md/);
+    assert.match(maxPkgUpstreamSkillSource, /maxpkg-full-onboarding-prompt\.md/);
+    assert.match(maxPkgUpstreamSkillSource, /toolingFiles = @\('maxpkg-packager\.ms', '_install\.ms', '_uninstall\.ms'\)/);
+    assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
+    assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/scripts\/get-maxpkg-upstream\.ps1/);
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {
@@ -550,7 +564,10 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /UseShellExecute = true/);
     assert.match(bootstrapSource, /--no-pause/);
     assert.match(bootstrapSource, /ConnectAsync workerHost workerPort/);
-    assert.match(bootstrapSource, /retryDelays = #\(150, 250, 500, 750, 1000, 1500, 2000\)/);
+    assert.match(bootstrapSource, /retryDelays = #\(150, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000\)/);
+    assert.match(bootstrapSource, /workerLauncherExitCode launchedServerProcess/);
+    assert.match(bootstrapSource, /launcher exited with code/);
+    assert.match(bootstrapSource, /run scripts\\\\start-server\.bat to view the launcher error/);
     assert.match(bootstrapSource, /MAX_ULTRA_MCP_ROOT/);
     assert.match(bootstrapSource, /scripts\\\\start-server\.bat/);
     assert.match(bootstrapSource, /MaxUltraMcpActiveClient/);

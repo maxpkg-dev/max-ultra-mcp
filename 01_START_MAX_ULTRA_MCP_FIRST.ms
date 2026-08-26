@@ -2551,7 +2551,21 @@ global MaxUltraMcpActiveClient
             )
             local serverProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
             if (serverProcess == undefined) do throw "Windows did not start the Max Ultra MCP launcher"
-            serverProcess.Dispose()
+            return serverProcess
+        ),
+
+        fn workerLauncherExitCode launcherProcess = (
+            if (launcherProcess == undefined) do return undefined
+            try (
+                if (launcherProcess.HasExited) do return launcherProcess.ExitCode
+            ) catch (
+            )
+            return undefined
+        ),
+
+        fn workerDisposeProcessHandle launcherProcess = (
+            if (launcherProcess == undefined) do return true
+            try (launcherProcess.Dispose()) catch ()
             return true
         ),
 
@@ -2571,11 +2585,12 @@ global MaxUltraMcpActiveClient
             local workerServerConsoleVisible = workerArguments.Item[11]
             local workerControlTokenFilePath = workerArguments.Item[12]
             local workerRestartExistingServer = workerArguments.Item[13]
-            local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000)
+            local retryDelays = #(150, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000)
             local probeTimeoutMilliseconds = 500
             local lifecycleMutex = undefined
             local ownsLifecycleMutex = false
             local launchedServer = false
+            local launchedServerProcess = undefined
             local workerClient = undefined
             local workerStream = undefined
             local workerReader = undefined
@@ -2643,7 +2658,7 @@ global MaxUltraMcpActiveClient
                             if (workerSender.CancellationPending) do throw "Server startup cancelled"
                             local launchModeLabel = if (workerServerConsoleVisible) then "a visible console" else "a hidden console"
                             workerEncodeEvent workerInboundQueue "server_launching" launchModeLabel
-                            workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid workerServerConsoleVisible
+                            launchedServerProcess = workerLaunchServer workerLauncherPath workerWorkingDirectory workerPort workerOwnershipDirectory workerOwnerToken workerMaxPid workerServerConsoleVisible
                             launchedServer = true
                         )
                     ) else (
@@ -2653,14 +2668,18 @@ global MaxUltraMcpActiveClient
                     serverUsable = probeReply.controlState == #healthy or probeReply.controlState == #legacy
                     for retryDelay in retryDelays while not serverUsable do (
                         if (workerSender.CancellationPending) do throw "Server startup cancelled"
+                        local launcherExitCode = workerLauncherExitCode launchedServerProcess
+                        if (launcherExitCode != undefined) do throw ("Max Ultra MCP launcher exited with code " + (launcherExitCode as string) + ". Enable Show server console when starting in Settings or run scripts\\start-server.bat to view the launcher error.")
                         (dotNetClass "System.Threading.Thread").Sleep retryDelay
                         probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
                         if (probeReply.controlState == #occupied) do throw "The selected loopback endpoint was taken by an unverified service during startup; no process was terminated"
                         serverUsable = probeReply.controlState == #healthy or probeReply.controlState == #legacy
                     )
-                    if (not serverUsable) do throw "Max Ultra MCP server did not become healthy within the bounded startup timeout"
+                    if (not serverUsable) do throw "Max Ultra MCP server did not become healthy within the bounded startup timeout. Enable Show server console when starting in Settings or run scripts\\start-server.bat to view the launcher error."
                 )
 
+                workerDisposeProcessHandle launchedServerProcess
+                launchedServerProcess = undefined
                 if (probeReply.controlState == #legacy) then (
                     workerEncodeEvent workerInboundQueue "legacy_server" ""
                 ) else if (launchedServer) then (
@@ -2701,6 +2720,7 @@ global MaxUltraMcpActiveClient
             try (if (workerStream != undefined) do workerStream.Close()) catch ()
             try (if (workerClient != undefined) do workerClient.Close()) catch ()
             if (ownsLifecycleMutex) do try (lifecycleMutex.ReleaseMutex()) catch ()
+            workerDisposeProcessHandle launchedServerProcess
             try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
             workerInboundQueue.Enqueue "EVENT\tdisconnected\t-"
             return true

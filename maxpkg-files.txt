@@ -37,6 +37,10 @@ skills/max-ultra-renderer-settings/SKILL.md
 skills/max-ultra-renderer-settings/references/property-introspection.md
 skills/max-ultra-spline-modeling/SKILL.md
 skills/max-ultra-spline-modeling/references/maxscript-patterns.md
+skills/max-ultra-maxpkg-packaging/SKILL.md
+skills/max-ultra-maxpkg-packaging/references/adaptation-workflow.md
+skills/max-ultra-maxpkg-packaging/references/build-and-verify.md
+skills/max-ultra-maxpkg-packaging/scripts/get-maxpkg-upstream.ps1
 scripts/agent-integration.ps1
 scripts/max-ui-automation.ps1
 scripts/maxpkg-uninstall.ps1

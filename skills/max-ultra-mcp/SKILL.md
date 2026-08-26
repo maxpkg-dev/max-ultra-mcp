@@ -5,7 +5,7 @@ description: Control and inspect already-open Autodesk 3ds Max scenes through Ma
 
 # Max Ultra MCP
 
-Use `max-ultra-renderer-settings` for renderer configuration based on runtime property introspection. Use `max-ultra-camera-composition` for camera placement, Safe Frame, lens, and visual-composition tasks. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
+Use `max-ultra-renderer-settings` for renderer configuration based on runtime property introspection. Use `max-ultra-camera-composition` for camera placement, Safe Frame, lens, and visual-composition tasks. Use `max-ultra-maxpkg-packaging` when a new or existing script must be adapted, configured, built, or verified for MaxPkg. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
 
 Use the semantic MCP surface to produce a verified result in the selected 3ds Max process. Keep raw MaxScript and UI automation as explicit fallbacks, not the default implementation path.
 
@@ -18,7 +18,7 @@ For reference-driven character, creature, product, or prop subdivision modeling,
 3. Read the smallest useful state with `max_scene_summary`, `max_query_scene`, or a domain-specific read tool.
 4. Prefer a semantic tool with structured arguments and post-state evidence. Respect write approval, `dryRun`, validation tokens, scene revisions, and NodeRefs when the selected tool exposes them.
 5. Run mutations serially. Do not assume a write succeeded from transport success alone.
-6. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image. Before presenting a finished result in chat, follow the showcase-capture sequence in [references/workflows.md](references/workflows.md).
+6. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image. Before presenting a finished result in chat, follow the final showcase sequence in the workflows reference listed below.
 
 ## Tool priority
 

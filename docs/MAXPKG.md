@@ -56,7 +56,8 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 ## Maintainer files
 
 - `maxpkg-files.txt` is the reviewed production file allowlist.
-- `skills\max-ultra-mcp`, `skills\max-ultra-camera-composition`, `skills\max-ultra-character-object-modeling`, `skills\max-ultra-renderer-settings`, `skills\max-ultra-spline-modeling`, and `skills\max-ultra-floor-plan` are the optional file-based agent skills shipped with the package; MCP operation does not depend on installing them.
+- `skills\max-ultra-mcp`, `skills\max-ultra-camera-composition`, `skills\max-ultra-character-object-modeling`, `skills\max-ultra-renderer-settings`, `skills\max-ultra-spline-modeling`, `skills\max-ultra-floor-plan`, and `skills\max-ultra-maxpkg-packaging` are the optional file-based agent skills shipped with the package; MCP operation does not depend on installing them.
+- The MaxPkg adaptation skill fetches the current official README, coding rules, both official prompts, `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` from one resolved `maxpkg-dev/max-dev-tool` commit. Prompt content is not embedded in Max Ultra MCP. Its stricter workflow requires both standard hooks in every adapted project.
 - `assets/max-ultra-mcp.svg` is the square package icon source.
 - `scripts/prepare-maxpkg.ps1` creates machine-local packager INI files with absolute source paths.
 - `scripts/sync-maxpkg-tooling.ps1` provides reproducible MaxPkg tooling.
