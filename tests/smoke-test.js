@@ -706,6 +706,10 @@ async function runSmokeTest() {
     assert.doesNotMatch(updateManagerSource, /Invoke-(?:RestMethod|WebRequest)/);
     assert.match(bootstrapSource, /fileIn pendingPackagePath quiet: true[\s\S]*fileIn restartBootstrapPath quiet: true/);
     assert.match(bootstrapSource, /updateProcess = \(dotNetClass "System\.Diagnostics\.Process"\)\.Start startInfo/);
+    assert.ok(
+      bootstrapSource.indexOf("fn quoteProcessArgument") < bootstrapSource.indexOf("fn startUpdateCheck"),
+      "Update process arguments must be quoted by a helper defined before startUpdateCheck",
+    );
     assert.match(updateManagerSource, /Get-FileHash[\s\S]*SHA256/);
     assert.match(maxPkgFilesSource, /version\.ini/);
     assert.match(maxPkgFilesSource, /CHANGELOG\.md/);

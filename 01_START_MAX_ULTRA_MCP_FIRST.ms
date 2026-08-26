@@ -1012,6 +1012,11 @@ global MaxUltraMcpActiveClient
             return updateResultFilePath
         ),
 
+        fn quoteProcessArgument sourceContent = (
+            local quoteCharacter = bit.intAsChar 34
+            return quoteCharacter + (sourceContent as string) + quoteCharacter
+        ),
+
         fn readUpdateValue keyName fallbackValue: "" = (
             if (updateResultFilePath == undefined or updateResultFilePath == "" or not (doesFileExist updateResultFilePath)) do return fallbackValue
             try (
@@ -1265,11 +1270,6 @@ global MaxUltraMcpActiveClient
             try (if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory) catch (return "")
             integrationResultFilePath = uiStateDirectory + "agent-integration-" + (processId as string) + "-" + serverOwnerToken + ".ini"
             return integrationResultFilePath
-        ),
-
-        fn quoteProcessArgument sourceContent = (
-            local quoteCharacter = bit.intAsChar 34
-            return quoteCharacter + (sourceContent as string) + quoteCharacter
         ),
 
         fn readIntegrationValue sectionName keyName fallbackValue: "" = (
