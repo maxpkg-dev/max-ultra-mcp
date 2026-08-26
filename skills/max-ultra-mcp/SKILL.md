@@ -18,7 +18,7 @@ For reference-driven character, creature, product, or prop subdivision modeling,
 3. Read the smallest useful state with `max_scene_summary`, `max_query_scene`, or a domain-specific read tool.
 4. Prefer a semantic tool with structured arguments and post-state evidence. Respect write approval, `dryRun`, validation tokens, scene revisions, and NodeRefs when the selected tool exposes them.
 5. Run mutations serially. Do not assume a write succeeded from transport success alone.
-6. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image.
+6. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image. Before presenting a finished result in chat, follow the showcase-capture sequence in [references/workflows.md](references/workflows.md).
 
 ## Tool priority
 

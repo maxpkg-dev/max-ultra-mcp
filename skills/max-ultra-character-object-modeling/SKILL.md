@@ -14,8 +14,9 @@ Read [references/subdivision-topology.md](references/subdivision-topology.md) be
 1. Call `max_list_instances`, select explicitly when needed, then call `max_get_info` and `max_capabilities`. Preserve scene units and require the `full` tool profile for generic modifier access.
 2. Treat explicit user dimensions as authoritative. Otherwise infer proportions from supplied references. Ask one concrete question when an unseen side or critical proportion cannot be reconstructed reliably.
 3. Identify primary masses, silhouette landmarks, centerline, major cross-sections, hard/soft transitions, openings, articulation zones, and intentional asymmetry before defining vertices.
-4. Choose a middle-poly density that describes the silhouette and required deformations without relying on TurboSmooth to invent missing form.
-5. Plan loop routes, poles, boundary loops, support loops, material boundaries, and areas where density may change before creation.
+4. For a character, prepare a topology map before defining vertices: facial feature loops, jaw and neck flow, shoulder and hip transitions, joint rings, hand and finger flow, and every intentional disconnected Element.
+5. Choose a middle-poly density that describes the silhouette and required deformations without relying on TurboSmooth to invent missing form. Facial features and hands may require denser topology than the torso, but transitions must remain gradual.
+6. Plan loop routes, poles, boundary loops, support loops, material boundaries, and areas where density may change before creation.
 
 ## Required construction workflow
 
@@ -38,6 +39,9 @@ Read [references/subdivision-topology.md](references/subdivision-topology.md) be
 - Quads form useful loops with gradual density changes. Poles are intentional and placed in low-deformation, low-curvature areas.
 - Character joints and facial features have deformation-aware loops. Hard-surface edges have support loops with deliberate, visually consistent spacing.
 - Hard-surface overlays, inserts, trims, fasteners, and floating panels may be separate polygon Elements inside the same Editable Poly node. Each Element must have deliberate clearance or thickness, clean boundaries, and subdivision support.
+- Facial topology forms readable masks around each eye and the mouth, then redirects cleanly through the nose, cheeks, jaw, and neck. It does not use a uniform grid merely to appear orderly.
+- Shoulders, armpits, hips, elbows, knees, wrists, ankles, and finger bases have enough ring flow to bend without collapsing volume. Poles do not sit on the bend apex or principal silhouette.
+- Eyeballs, eyelid inserts, teeth, hair masses, beard masses, glasses, clothing, and accessories may be separate intentional Elements when this produces cleaner topology. They remain documented parts of the same Editable Poly node rather than disguised primitive substitutes.
 - TurboSmooth uses one iteration, remains live in the stack, and does not replace the middle-poly source cage.
 - Final screenshots show clean shading, correct normals, stable highlights, and requested likeness from multiple useful views.
 
