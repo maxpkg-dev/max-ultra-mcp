@@ -92,7 +92,7 @@ The complete image-to-scene example is in [examples/house-plan-from-image](examp
 2. Send the English prompt from `PROMPT.md`.
 3. The model interprets dimensions into structured JSON.
 4. MCP validates the plan and returns a validation token.
-5. MCP builds wall segments, openings, placeholders, and the floor in one undo transaction.
+5. MCP creates and preserves a wall-plan source spline, extrudes a separate copy, builds opening-aware wall topology through `meshOp`, and adds placeholders and the floor in one undo transaction.
 6. The model captures top and perspective viewport screenshots and verifies the result.
 
 The source image is interpreted by the model. Raw image bytes are not passed to 3ds Max.
@@ -105,11 +105,11 @@ The source image is interpreted by the model. Raw image bytes are not passed to 
 
 Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
-## Optional agent skill
+## Optional agent skills
 
-The release includes [`skills/max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md), a portable optional skill for agents that support file-based skills. It teaches instance selection, semantic-tool priority, verification, renderer/UI boundaries, and reviewed MaxScript escape-hatch patterns without duplicating the generated MCP tool catalog.
+The release includes two portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control and [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved source spline.
 
-The MCP server remains fully usable without the skill. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
+The MCP server remains fully usable without these skills. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
 
 ## Security model
 
@@ -145,6 +145,7 @@ Before a production release, also test real 3ds Max versions and installed Coron
 - [MaxPkg packaging and lifecycle](docs/MAXPKG.md)
 - [Instructions for AI coding agents](AGENTS.md)
 - [Optional Max Ultra MCP agent skill](skills/max-ultra-mcp/SKILL.md)
+- [Optional Max Ultra floor-plan agent skill](skills/max-ultra-floor-plan/SKILL.md)
 
 ## Repository layout
 

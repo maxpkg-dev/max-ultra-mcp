@@ -23,6 +23,8 @@ skills/max-ultra-mcp/references/polygon-modeling.md
 skills/max-ultra-mcp/references/maxscript.md
 skills/max-ultra-mcp/references/workflows.md
 skills/max-ultra-mcp/references/capabilities-and-boundaries.md
+skills/max-ultra-floor-plan/SKILL.md
+skills/max-ultra-floor-plan/references/plan-schema.md
 scripts/agent-integration.ps1
 scripts/max-ui-automation.ps1
 scripts/maxpkg-uninstall.ps1

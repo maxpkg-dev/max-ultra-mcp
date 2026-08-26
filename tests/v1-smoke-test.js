@@ -109,8 +109,30 @@ async function run() {
   assertBalancedGeneratedMaxScript(generatedExample.script);
   assert.match(generatedExample.script, /units\.decodeValue/);
   assert.match(generatedExample.script, /Max Ultra MCP: Build floor plan/);
+  assert.match(generatedExample.script, /splineShape name:sourceSplineName/);
+  assert.match(generatedExample.script, /local wallMesh = copy wallPlanSource/);
+  assert.match(generatedExample.script, /addModifier wallMesh \(Extrude/);
+  assert.match(generatedExample.script, /convertToMesh wallMesh/);
+  assert.match(generatedExample.script, /meshop\.deleteFaces wallMesh/);
+  assert.match(generatedExample.script, /meshop\.setNumVerts wallMesh/);
+  assert.match(generatedExample.script, /meshop\.setVert wallMesh/);
+  assert.match(generatedExample.script, /meshop\.createPolygon targetMesh/);
+  assert.match(generatedExample.script, /convertToPoly wallMesh/);
+  assert.match(generatedExample.script, /wallPlanSource\.isHidden = true/);
+  const sourceSplineIndex = generatedExample.script.indexOf("local wallPlanSource = splineShape");
+  const copiedWallIndex = generatedExample.script.indexOf("local wallMesh = copy wallPlanSource");
+  const extrudeIndex = generatedExample.script.indexOf("addModifier wallMesh (Extrude");
+  const collapseIndex = generatedExample.script.indexOf("convertToMesh wallMesh");
+  const meshOpIndex = generatedExample.script.indexOf("meshop.deleteFaces wallMesh");
+  assert.ok(sourceSplineIndex < copiedWallIndex && copiedWallIndex < extrudeIndex && extrudeIndex < collapseIndex && collapseIndex < meshOpIndex);
+  assert.doesNotMatch(generatedExample.script, /addModifier wallPlanSource|convertToMesh wallPlanSource|convertToPoly wallPlanSource/);
   assert.match(generatedExample.script, /dummy name:"MCP_Door_DOOR_MAIN"/);
+  assert.doesNotMatch(generatedExample.script, /box name:/i);
   assert.doesNotMatch(generatedExample.script, /boolean|ProBoolean/i);
+  assert.equal(generatedExample.sourceSplineName, "MCP_WallPlan_SOURCE");
+  assert.equal(generatedExample.wallMeshName, "MCP_Walls");
+  assert.equal(generatedExample.modelingWorkflow, "spline-copy-extrude-meshop");
+  assert.ok(generatedExample.segmentCount > exampleValidation.counts.walls);
 
   assert.notEqual(validateFloorPlan(changed).validationToken, validation.validationToken);
 
@@ -207,7 +229,12 @@ async function run() {
     const build = await rpc(hostA, { jsonrpc: "2.0", id: 11, method: "tools/call", params: { name: "max_build_floor_plan", arguments: { plan: PLAN, validationToken: token } } });
     assert.equal(build.result.isError, false);
     assert.equal(build.result.structuredContent.data.counts.walls, 4);
+    assert.equal(build.result.structuredContent.data.sourceSplineName, "MCP_WallPlan_SOURCE");
+    assert.equal(build.result.structuredContent.data.wallMeshName, "MCP_Walls");
+    assert.equal(build.result.structuredContent.data.modelingWorkflow, "spline-copy-extrude-meshop");
     assert.match(max2022.executeRequests.at(-1), /Max Ultra MCP: Build floor plan/);
+    assert.match(max2022.executeRequests.at(-1), /local wallMesh = copy wallPlanSource/);
+    assert.match(max2022.executeRequests.at(-1), /meshop\.createPolygon targetMesh/);
     assert.match(max2022.executeRequests.at(-1), /MCP_Door_D1/);
 
     const screenshot = await rpc(hostA, { jsonrpc: "2.0", id: 12, method: "tools/call", params: { name: "max_capture_viewport", arguments: { width: 64, height: 32 } } });

@@ -44,16 +44,6 @@ Never invent progress when the renderer reports none. Renderer-specific interact
 
 Reinspect after a window is recreated. Never reuse an HWND or selector without process ownership validation.
 
-## Floor plan interpreted from an image
-
-1. Interpret dimensions in the model and produce structured plan data in millimeters. The source image remains in the conversation.
-2. Do not change the scene's system units.
-3. Ask one concrete question when critical geometry cannot be determined reliably.
-4. Call `max_validate_floor_plan` and resolve every blocker.
-5. Call `max_build_floor_plan` with the unchanged payload and returned validation token.
-6. Capture top and perspective views, compare them with the plan, and use undo before rebuilding when a clear error is found.
-7. Report wall, opening, door, and window counts plus the verified model bounds.
-
 ## Read-only connection check
 
 1. `max_list_instances` and explicit selection when needed.

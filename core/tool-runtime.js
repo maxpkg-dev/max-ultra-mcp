@@ -543,8 +543,18 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     const validation = validateFloorPlan(args.plan);
     if (validation.validationToken !== args.validationToken) throw new Error("VALIDATION_FAILED: floor-plan payload differs from the validated payload");
     const generated = generateFloorPlanScript(validation.normalizedPlan, { layer: args.layer, prefix: args.prefix });
-    if (args.dryRun) return dryRunResult(toolName, instance, generated.script, { validation, segmentCount: generated.segmentCount });
-    return executeMutation(bridge, instance, generated.script, 600000, { validationToken: validation.validationToken, counts: validation.counts, boundingBox: validation.boundingBox, segmentCount: generated.segmentCount, placeholderCount: generated.placeholderCount });
+    const buildEvidence = {
+      validationToken: validation.validationToken,
+      counts: validation.counts,
+      boundingBox: validation.boundingBox,
+      segmentCount: generated.segmentCount,
+      placeholderCount: generated.placeholderCount,
+      sourceSplineName: generated.sourceSplineName,
+      wallMeshName: generated.wallMeshName,
+      modelingWorkflow: generated.modelingWorkflow,
+    };
+    if (args.dryRun) return dryRunResult(toolName, instance, generated.script, { validation, ...buildEvidence });
+    return executeMutation(bridge, instance, generated.script, 600000, buildEvidence);
   }
 
   return NOT_HANDLED;

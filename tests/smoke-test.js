@@ -472,7 +472,19 @@ async function runSmokeTest() {
     const linkedSkillReferences = [...skillSource.matchAll(/\]\(references\/([a-z0-9-]+\.md)\)/g)].map((entry) => entry[1]).sort();
     assert.deepEqual(linkedSkillReferences, skillReferenceNames, "Every skill reference must be linked exactly once from SKILL.md");
     assert.match(skillSource, /^---\r?\nname: max-ultra-mcp\r?\ndescription: .+\r?\n---\r?\n/);
-    const skillDocumentation = [skillSource, ...skillReferenceNames.map((entryName) => fs.readFileSync(path.join(skillReferenceRoot, entryName), "utf8"))].join("\n");
+    const floorPlanSkillRoot = path.join(PROJECT_ROOT, "skills", "max-ultra-floor-plan");
+    const floorPlanSkillSource = fs.readFileSync(path.join(floorPlanSkillRoot, "SKILL.md"), "utf8");
+    const floorPlanSkillReferenceRoot = path.join(floorPlanSkillRoot, "references");
+    const floorPlanSkillReferenceNames = fs.readdirSync(floorPlanSkillReferenceRoot).filter((entryName) => entryName.endsWith(".md")).sort();
+    const linkedFloorPlanReferences = [...floorPlanSkillSource.matchAll(/\]\(references\/([a-z0-9-]+\.md)\)/g)].map((entry) => entry[1]).sort();
+    assert.deepEqual(linkedFloorPlanReferences, floorPlanSkillReferenceNames, "Every floor-plan skill reference must be linked exactly once from SKILL.md");
+    assert.match(floorPlanSkillSource, /^---\r?\nname: max-ultra-floor-plan\r?\ndescription: .+\r?\n---\r?\n/);
+    const skillDocumentation = [
+      skillSource,
+      ...skillReferenceNames.map((entryName) => fs.readFileSync(path.join(skillReferenceRoot, entryName), "utf8")),
+      floorPlanSkillSource,
+      ...floorPlanSkillReferenceNames.map((entryName) => fs.readFileSync(path.join(floorPlanSkillReferenceRoot, entryName), "utf8")),
+    ].join("\n");
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {
@@ -601,6 +613,8 @@ async function runSmokeTest() {
     assert.match(maxPkgFilesSource, /runtime\/win-x64\/node\.exe/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-mcp\/SKILL\.md/);
     for (const skillReferenceName of skillReferenceNames) assert.ok(maxPkgFilesSource.includes(`skills/max-ultra-mcp/references/${skillReferenceName}`));
+    assert.match(maxPkgFilesSource, /skills\/max-ultra-floor-plan\/SKILL\.md/);
+    for (const skillReferenceName of floorPlanSkillReferenceNames) assert.ok(maxPkgFilesSource.includes(`skills/max-ultra-floor-plan/references/${skillReferenceName}`));
     assert.doesNotMatch(maxPkgFilesSource, /smoke-test|mock-max-client|runtime\/state/);
     assert.match(maxPkgPrepareSource, /packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'/);
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);

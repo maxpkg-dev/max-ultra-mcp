@@ -152,7 +152,7 @@ const tools = [
   tool("max_ui_capture_window", "Capture one verified Max-owned window as an MCP image.", schema({ window: selector }), readOnly),
 
   tool("max_validate_floor_plan", "Normalize and validate a structured wall/opening plan without changing the scene.", schema({ plan: { type: "object", additionalProperties: true } }, ["plan"]), readOnly, "archviz"),
-  tool("max_build_floor_plan", "Build a previously validated floor plan in one undo transaction.", schema({ plan: { type: "object", additionalProperties: true }, validationToken: { type: "string", minLength: 64, maxLength: 64 }, layer: { type: "string", default: "MCP_ARCHVIZ" }, prefix: { type: "string", default: "MCP" }, dryRun: { type: "boolean", default: false } }, ["plan", "validationToken"]), write, "archviz"),
+  tool("max_build_floor_plan", "Build a validated floor plan from a preserved source spline, an extruded working copy, and meshOp opening topology in one undo transaction.", schema({ plan: { type: "object", additionalProperties: true }, validationToken: { type: "string", minLength: 64, maxLength: 64 }, layer: { type: "string", default: "MCP_ARCHVIZ" }, prefix: { type: "string", default: "MCP" }, dryRun: { type: "boolean", default: false } }, ["plan", "validationToken"]), write, "archviz"),
 ];
 
 const profileRank = { core: 0, archviz: 1, full: 2 };

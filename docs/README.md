@@ -107,7 +107,7 @@ The normal packaged-release flow starts inside 3ds Max:
 The onboarding status/install work runs in a hidden Windows PowerShell 5.1 child process. The Max UI timer only polls process completion, so CLI discovery and registration do not block the 3ds Max main thread. It resolves known per-user Codex and Claude Code CLI locations in addition to `PATH`, which handles a 3ds Max process started before an agent was installed or updated. `scripts\agent-integration.ps1` writes a short per-run INI result below the existing per-user `MaxUltraMCP` state directory. It contains status labels and local runtime paths, never raw CLI output, environment dumps, access tokens, or client configuration contents.
 If a configured STDIO host started before the installed MCP runtime was updated, onboarding reports **Restart required** in amber. Restart or reconnect the AI client once; restarting the 3ds Max bridge does not reload a stale client-owned STDIO process. Control clients reload the package token file before subsequent requests, so later token-file rotation does not require another code change.
 
-The MaxPkg release also contains the optional file-based skill at `skills\max-ultra-mcp\SKILL.md`. MCP registration does not silently copy skill files into an AI client profile. Clients that support skills can load or install that folder separately; clients without skill support continue to use the complete MCP schemas and initialization instructions.
+The MaxPkg release contains the general file-based skill at `skills\max-ultra-mcp\SKILL.md` and the dedicated architectural plan skill at `skills\max-ultra-floor-plan\SKILL.md`. MCP registration does not silently copy skill files into an AI client profile. Clients that support skills can load or install either folder separately; clients without skill support continue to use the complete MCP schemas and initialization instructions.
 
 Supported automatic targets:
 
@@ -179,4 +179,4 @@ Or with Node 22+:
 node .\tests\smoke-test.js
 ```
 
-The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 52–63 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.
+The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 54-65 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.

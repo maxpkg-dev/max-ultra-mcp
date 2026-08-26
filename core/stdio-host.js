@@ -10,7 +10,7 @@ const { BridgeControlClient } = require("./bridge-control-client");
 const { getMcpTools, normalizeProfile } = require("./tool-catalog");
 
 const SERVER_VERSION = "1.0.0";
-const INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, build it, then capture and inspect the viewport. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits.";
+const INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, and build it with the unchanged token. The floor-plan builder preserves a source wall spline, extrudes a separate working copy, and creates door/window topology through meshOp before viewport verification. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits.";
 
 function writeRpc(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);

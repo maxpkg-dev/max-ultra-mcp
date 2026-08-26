@@ -67,7 +67,7 @@ The daemon is shared. Instance selection and jobs belong to the individual MCP s
 | Max bootstrap and main-thread queue | `01_START_MAX_ULTRA_MCP_FIRST.ms` |
 | AI-client onboarding and registration | `01_START_MAX_ULTRA_MCP_FIRST.ms`, `scripts/agent-integration.ps1` |
 | Mock and contract tests | `tests/smoke-test.js`, `tests/v1-smoke-test.js`, `tests/cli-integration-test.js` |
-| Optional agent skill | `skills/max-ultra-mcp/SKILL.md`, `skills/max-ultra-mcp/references/` |
+| Optional agent skills | `skills/max-ultra-mcp/`, `skills/max-ultra-floor-plan/` |
 | Release/runtime tooling | `scripts/prepare-portable-node.ps1`, `scripts/build-release.ps1`, `scripts/build-sea.ps1` |
 | MaxPkg packaging | `docs/MAXPKG.md`, `maxpkg-files.txt`, `scripts/prepare-maxpkg.ps1`, `scripts/sync-maxpkg-tooling.ps1` |
 

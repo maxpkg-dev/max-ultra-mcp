@@ -16,7 +16,7 @@ This example demonstrates the complete vision-to-3ds-Max workflow.
 5. `max_set_view`, `max_zoom_extents`, and `max_capture_viewport` for top and perspective checks.
 6. `max_undo` and repeat validation/build if visual comparison exposes a mistake.
 
-The builder keeps current 3ds Max system units unchanged and converts every millimeter value with `units.decodeValue`. Walls are built from box segments around openings in one undo transaction. Door and window locations receive named Dummy placeholders; no Boolean operations, furniture, door models, or window models are added in v1.
+The builder keeps current 3ds Max system units unchanged and converts every millimeter value with `units.decodeValue`. It preserves a hidden wall-footprint SplineShape, copies and extrudes a separate working object, and creates the opening-aware Editable Poly topology through `meshOp` in one undo transaction. Door and window locations receive named Dummy placeholders; no Boolean operations, furniture, door models, or window models are added in v1.
 
 ## Deterministic acceptance values
 
