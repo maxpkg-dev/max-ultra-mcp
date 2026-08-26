@@ -472,6 +472,11 @@ async function runSmokeTest() {
     const githubReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "publish-github-release.ps1"), "utf8");
     const releaseVersionSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "release-mzp-utils.ps1"), "utf8");
     const githubReleaseBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "RELEASE_MZP_TO_GITHUB.bat"), "utf8");
+    const prepareReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-release.ps1"), "utf8");
+    const updateManagerSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "update-manager.ps1"), "utf8");
+    const versionIniSource = fs.readFileSync(path.join(PROJECT_ROOT, "version.ini"), "utf8");
+    const changelogSource = fs.readFileSync(path.join(PROJECT_ROOT, "CHANGELOG.md"), "utf8");
+    const releaseRulesSource = fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "release-rules.md"), "utf8");
     const skillsRoot = path.join(PROJECT_ROOT, "skills");
     const skillNames = fs.readdirSync(skillsRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
@@ -605,7 +610,10 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /lblStatus\.width = panelWidth - 188/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings"/);
     assert.match(bootstrapSource, /groupBox grpAutostart "Autostart" pos: \[12,10\] width: 356 height: 58/);
-    assert.match(bootstrapSource, /groupBox grpAbout "About" pos: \[12,216\] width: 356 height: 72/);
+    assert.match(bootstrapSource, /groupBox grpUpdates "Updates" pos: \[12,146\] width: 356 height: 94/);
+    assert.match(bootstrapSource, /checkbox chkAutomaticUpdates "Check and install updates automatically"/);
+    assert.match(bootstrapSource, /button btnCheckUpdates "Check now"/);
+    assert.match(bootstrapSource, /groupBox grpAbout "About" pos: \[12,320\] width: 356 height: 72/);
     assert.match(bootstrapSource, /label lblAboutVersion "Version: 1\.1\.0"/);
     assert.match(bootstrapSource, /local activityLabel = if \(wireFields\.count >= 5\) then decodeWireField\(wireFields\[5\]\) else ""/);
     assert.match(bootstrapSource, /operationLabel \+ " \[" \+ shortRequestId \+ "\]"/);
@@ -618,7 +626,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /checkbox chkShowServerConsole "Show server console when starting"/);
     assert.match(bootstrapSource, /on chkShowServerConsole changed isChecked do if \(bridgeClient != undefined\) do bridgeClient\.handleServerConsoleVisibilityChanged isChecked/);
     assert.doesNotMatch(bootstrapSource, /btnSave|on btnSave pressed|btnClose|on btnClose pressed/);
-    assert.match(bootstrapSource, /createDialog settingsDialog width: 380 height: 300/);
+    assert.match(bootstrapSource, /createDialog settingsDialog width: 380 height: 402/);
     assert.match(bootstrapSource, /button btnAgentSetup "Open AI client setup\.\.\."/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingTabsDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingSetupDialog ""/);
@@ -681,6 +689,23 @@ async function runSmokeTest() {
     assert.doesNotMatch(maxPkgFilesSource, /publish-github-release|release-mzp-utils|RELEASE_MZP_TO_GITHUB/);
     assert.match(gitIgnoreSource, /^dist\/$/m);
     assert.match(githubReleaseBatSource, /scripts\\publish-github-release\.ps1/);
+    assert.match(versionIniSource, /\[MaxUltraMCP\][\s\S]*Version=1\.1\.0[\s\S]*Channel=stable/);
+    assert.match(changelogSource, /^## Unreleased/m);
+    assert.match(releaseRulesSource, /does not authorize a push, tag, GitHub Release/i);
+    assert.match(prepareReleaseSource, /Get-MaxUltraProjectVersionInfo/);
+    assert.match(prepareReleaseSource, /CHANGELOG\.md Unreleased is empty/);
+    assert.match(updateManagerSource, /api\.github\.com\/repos\/\$expectedRepository\/releases\/latest/);
+    assert.match(updateManagerSource, /function Get-CurlExecutable/);
+    assert.match(updateManagerSource, /CreateNoWindow = \$true/);
+    assert.match(updateManagerSource, /Remove-StaleUpdateTemporaryFiles[\s\S]*AddHours\(-6\)/);
+    assert.doesNotMatch(updateManagerSource, /Invoke-(?:RestMethod|WebRequest)/);
+    assert.match(bootstrapSource, /fileIn pendingPackagePath quiet: true[\s\S]*fileIn restartBootstrapPath quiet: true/);
+    assert.match(bootstrapSource, /updateProcess = \(dotNetClass "System\.Diagnostics\.Process"\)\.Start startInfo/);
+    assert.match(updateManagerSource, /Get-FileHash[\s\S]*SHA256/);
+    assert.match(maxPkgFilesSource, /version\.ini/);
+    assert.match(maxPkgFilesSource, /CHANGELOG\.md/);
+    assert.match(maxPkgFilesSource, /scripts\/update-manager\.ps1/);
+    assert.match(maxPkgFilesSource, /scripts\/project-version\.ps1/);
     assert.match(releaseVersionSource, /max-ultra-mcp@\(\?<version>/);
     assert.match(githubReleaseSource, /Assert-MzpArchive/);
     assert.match(githubReleaseSource, /git[\s\S]*ls-remote/);
@@ -730,7 +755,8 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /local workerServerConsoleVisible = workerArguments\.Item\[11\]/);
     assert.match(bootstrapSource, /disposeSettingsDialog\(\)/);
     assert.match(bootstrapSource, /settingsDialog: MaxUltraMcpSettingsDialog/);
-    assert.match(bootstrapSource, /3DGROUND - Max Ultra MCP \| First Step/);
+    assert.match(bootstrapSource, /3DGROUND - Max Ultra MCP 1\.1\.0/);
+    assert.doesNotMatch(bootstrapSource, /MaxUltraMcpStatusDialog ".*First Step/);
     assert.doesNotMatch(bootstrapSource, /3D\sGround/);
     assert.doesNotMatch(bootstrapSource, /on MaxUltraMcpStatusDialog moved panelPosition/);
     assert.match(bootstrapSource, /dotNet\.addEventHandler panelForm "FormClosing" handlePanelFormClosing/);

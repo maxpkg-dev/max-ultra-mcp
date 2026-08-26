@@ -51,6 +51,24 @@ try {
         $invalidVersionRejected = $true
     }
     Assert-ReleaseTest $invalidVersionRejected 'Incomplete versions must be rejected.'
+
+    $projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath (Join-Path $projectRoot 'version.ini')
+    Assert-ReleaseTest ($projectVersion.Version -eq '1.1.0') 'version.ini project metadata was not parsed.'
+    Assert-ReleaseTest ($projectVersion.Channel -eq 'stable') 'Only the stable project channel should be accepted.'
+
+    $releaseMetadataPath = Join-Path $temporaryRoot 'release.json'
+    $updateResultPath = Join-Path $temporaryRoot 'update-result.ini'
+    $releaseMetadata = @{
+        tag_name = 'v1.1.0'
+        draft = $false
+        prerelease = $false
+        assets = @()
+    } | ConvertTo-Json -Depth 4
+    [IO.File]::WriteAllText($releaseMetadataPath, $releaseMetadata, (New-Object Text.UTF8Encoding($false)))
+    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\update-manager.ps1') -Action CheckAndStage -ProjectRoot $projectRoot -ResultFile $updateResultPath -ReleaseMetadataFile $releaseMetadataPath
+    Assert-ReleaseTest ($LASTEXITCODE -eq 0) 'The offline current-version update check failed.'
+    $updateResultContent = [IO.File]::ReadAllText($updateResultPath)
+    Assert-ReleaseTest ($updateResultContent -match '(?m)^state=current\s*$') 'The offline updater did not report the current state.'
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) {

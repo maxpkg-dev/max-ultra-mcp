@@ -22,9 +22,15 @@ Max Ultra MCP is adapted for the standard [MaxPkg Packager](https://github.com/m
 4. Review all four packager tabs and resolve every validation issue.
 5. Choose **Build MZP** and test the archive in a clean 3ds Max profile.
 
+## Prepare a versioned release
+
+`version.ini` is the canonical version/channel source. Keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, using the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat -Version <VERSION>` (or `scripts\prepare-release.ps1`) to synchronize `core\package.json`, the MaxScript panel title, About text, and the dated changelog section; regenerate MaxPkg inputs; and run the full suite. The command prepares local sources only and never commits, pushes, tags, or publishes by itself. AI agents follow `.agents\release-rules.md`, review the exact diff, and create a focused local release commit when the user asks to release.
+
+The generated `maxpkg-changelog.ini` is derived from the tracked current-version section in `CHANGELOG.md`; release notes are no longer a hard-coded placeholder.
+
 ## Publish the MZP to GitHub Releases
 
-`dist/` is ignored by Git and remains the local MaxPkg output area. The project version in `core\package.json` is the release source of truth. MaxPkg embeds that version in both `manifest.json` and the filename `max-ultra-mcp@<VERSION>@c6977570-25a6-41b0-b9bb-b3be8101123c.mzp`.
+`dist/` is ignored by Git and remains the local MaxPkg output area. The project version in `version.ini` is the release source of truth; `core\package.json` and the MaxScript UI must match it. MaxPkg embeds that version in both `manifest.json` and the filename `max-ultra-mcp@<VERSION>@c6977570-25a6-41b0-b9bb-b3be8101123c.mzp`.
 
 After testing the generated package:
 
@@ -35,11 +41,15 @@ After testing the generated package:
 
 The launcher delegates to `scripts\publish-github-release.ps1`. It requires an authenticated GitHub CLI, validates the MZP filename and internal manifest, confirms the portable runtime is present, rejects duplicate/current/older versions, requires a clean `main` whose HEAD exactly matches `origin/main`, creates `v<VERSION>` with generated notes, uploads the MZP plus SHA-256 file, and verifies both release assets. Existing releases are never overwritten automatically. Use `RELEASE_MZP_TO_GITHUB.bat -CheckOnly` to perform all checks without publishing.
 
-No separate `version.ini` is required on GitHub. The three compared sources are `core\package.json`, the version parsed from the newest MZP filename below `dist`, and stable GitHub Release tags.
+The three compared sources are `version.ini` (cross-checked against `core\package.json`), the version parsed from the newest MZP filename below `dist`, and stable GitHub Release tags.
 
 `scripts/sync-maxpkg-tooling.ps1` downloads the MaxPkg Packager and standard hooks from pinned revision `93ceb0e018b44ca53546cf2c274b196160495699`. Every downloaded file is checked against a committed SHA-256 value before it replaces a local tooling file.
 
 Pinned `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` live in the project root and are source controlled. Generated `maxpkg-packager.ini`, `maxpkg-changelog.ini`, `maxpkg-icon.svg`, and build output are machine-local release artifacts and are not committed.
+
+## Automatic update lifecycle
+
+The bootstrap starts `scripts\update-manager.ps1` as a hidden detached process and polls only its bounded INI result from the Max main thread. That helper starts hidden Windows `curl.exe` processes for both release metadata and assets, requires the exact package filename and GUID, downloads the MZP and adjacent checksum into the per-user Max Ultra MCP update staging directory, and verifies SHA-256 before reporting readiness. The bootstrap then disposes the active bridge, opens the verified MZP through MaxPkg, and restarts `01_START_MAX_ULTRA_MCP_FIRST.ms` from the updated package. Failed checks, downloads, installer launches, or restarts leave a retryable package status and never report success. No update code rewrites the package directory directly.
 
 ## Package lifecycle
 

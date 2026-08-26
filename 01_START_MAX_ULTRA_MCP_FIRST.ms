@@ -9,6 +9,65 @@ global MaxUltraMcpActiveClient
 (
     local bridgeClient
     local restartServerForReload = MaxUltraMcpActiveClient != undefined
+    local stagedUpdateStatus = ""
+    local bootstrapRestartedAfterUpdate = false
+    local updateStateDirectory = (getDir #userScripts) + @"\MaxUltraMCP\"
+    local updateStateFilePath = updateStateDirectory + "panel-ui.ini"
+    local pendingPackagePath = ""
+    try (
+        if (doesFileExist updateStateFilePath) do (
+            stagedUpdateStatus = getINISetting updateStateFilePath "updates" "lastStatus"
+            setINISetting updateStateFilePath "updates" "lastStatus" ""
+            pendingPackagePath = getINISetting updateStateFilePath "updates" "pendingPackage"
+        )
+    ) catch (
+        stagedUpdateStatus = ""
+        pendingPackagePath = ""
+    )
+
+    if (pendingPackagePath != "") do (
+        local pendingPackageIsValid = false
+        try (
+            local pathClass = dotNetClass "System.IO.Path"
+            local comparisonClass = dotNetClass "System.StringComparison"
+            local normalizedPackagePath = pathClass.GetFullPath pendingPackagePath
+            local normalizedUpdateRoot = pathClass.GetFullPath (updateStateDirectory + @"updates\")
+            pendingPackageIsValid = normalizedPackagePath.StartsWith normalizedUpdateRoot comparisonClass.OrdinalIgnoreCase
+            pendingPackageIsValid = pendingPackageIsValid and doesFileExist normalizedPackagePath
+            pendingPackageIsValid = pendingPackageIsValid and (toLower (getFilenameType normalizedPackagePath)) == ".mzp"
+            pendingPackageIsValid = pendingPackageIsValid and matchPattern (getFilenameFile normalizedPackagePath) pattern: "max-ultra-mcp@*@c6977570-25a6-41b0-b9bb-b3be8101123c" ignoreCase: true
+            pendingPackagePath = normalizedPackagePath
+        ) catch (
+            pendingPackageIsValid = false
+        )
+
+        if (not pendingPackageIsValid) then (
+            try (setINISetting updateStateFilePath "updates" "pendingPackage" "") catch ()
+            stagedUpdateStatus = "The staged update package was rejected by local path validation"
+        ) else (
+            if (MaxUltraMcpActiveClient != undefined) do (
+                try (MaxUltraMcpActiveClient.disposeForReload()) catch ()
+                MaxUltraMcpActiveClient = undefined
+            )
+            try (
+                local restartBootstrapPath = getSourceFileName()
+                if (restartBootstrapPath == undefined or restartBootstrapPath == "" or not (doesFileExist restartBootstrapPath)) do throw "The bootstrap file could not be resolved before installation."
+                setINISetting updateStateFilePath "updates" "pendingPackage" ""
+                fileIn pendingPackagePath quiet: true
+                local dateTimeClass = dotNetClass "System.DateTime"
+                setINISetting updateStateFilePath "updates" "lastInstallerLaunch" (dateTimeClass.UtcNow.ToString "o")
+                setINISetting updateStateFilePath "updates" "lastStatus" "A verified update was installed through MaxPkg and Max Ultra MCP restarted"
+                if (not (doesFileExist restartBootstrapPath)) do throw "The updated bootstrap file could not be resolved."
+                fileIn restartBootstrapPath quiet: true
+                bootstrapRestartedAfterUpdate = true
+            ) catch (
+                try (setINISetting updateStateFilePath "updates" "pendingPackage" pendingPackagePath) catch ()
+                stagedUpdateStatus = "The staged update could not be installed or restarted: " + (getCurrentException() as string)
+            )
+        )
+    )
+
+    if (not bootstrapRestartedAfterUpdate) do (
     if (MaxUltraMcpActiveClient != undefined) do (
         try (
             MaxUltraMcpActiveClient.disposeForReload()
@@ -25,7 +84,7 @@ global MaxUltraMcpActiveClient
         failureMessage = ""
     )
 
-    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP | First Step" width: 680 height: 500 (
+    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP 1.1.0" width: 680 height: 500 (
         dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 480 height: 20
         dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
         button btnAgents "AI setup" pos: [516,8] width: 72 height: 22
@@ -71,25 +130,30 @@ global MaxUltraMcpActiveClient
         on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
-    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 300 (
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 402 (
         groupBox grpAutostart "Autostart" pos: [12,10] width: 356 height: 58
         checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
         groupBox grpServerConsole "Server console" pos: [12,78] width: 356 height: 58
         checkbox chkShowServerConsole "Show server console when starting" pos: [24,102] width: 300 height: 20
-        groupBox grpAgents "AI client integration" pos: [12,146] width: 356 height: 60
-        button btnAgentSetup "Open AI client setup..." pos: [24,168] width: 210 height: 26
-        groupBox grpAbout "About" pos: [12,216] width: 356 height: 72
-        label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,238] width: 190 height: 18
-        label lblAboutVersion "Version: 1.1.0" pos: [250,238] width: 100 height: 18
-        label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,262] width: 180 height: 18
-        hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,260] width: 138 height: 20 address: "https://3dground.net"
+        groupBox grpUpdates "Updates" pos: [12,146] width: 356 height: 94
+        checkbox chkAutomaticUpdates "Check and install updates automatically" pos: [24,168] width: 250 height: 20
+        button btnCheckUpdates "Check now" pos: [276,166] width: 80 height: 24
+        dotNetControl lblUpdateStatus "System.Windows.Forms.Label" pos: [24,198] width: 332 height: 24
+        groupBox grpAgents "AI client integration" pos: [12,250] width: 356 height: 60
+        button btnAgentSetup "Open AI client setup..." pos: [24,272] width: 210 height: 26
+        groupBox grpAbout "About" pos: [12,320] width: 356 height: 72
+        label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 190 height: 18
+        label lblAboutVersion "Version: 1.1.0" pos: [250,342] width: 100 height: 18
+        label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,366] width: 180 height: 18
+        hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,364] width: 138 height: 20 address: "https://3dground.net"
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
         on chkShowServerConsole changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleServerConsoleVisibilityChanged isChecked
+        on chkAutomaticUpdates changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutomaticUpdateSettingChanged isChecked
+        on btnCheckUpdates pressed do if (bridgeClient != undefined) do bridgeClient.startUpdateCheck automaticCheck: false
         on btnAgentSetup pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
     )
-
     rollout MaxUltraMcpOnboardingTabsDialog "" width: 540 height: 36 (
         dotNetControl dncPages "System.Windows.Forms.TabControl" pos: [8,2] width: 524 height: 30
 
@@ -181,6 +245,13 @@ global MaxUltraMcpActiveClient
         integrationResultFilePath = "",
         integrationAutomaticCheck = false,
         integrationBusy = false,
+        updateProcess,
+        updateResultFilePath = "",
+        updateBusy = false,
+        updateAutomaticCheck = false,
+        updateState = #idle,
+        updateMessage = "Not checked",
+        updateLatestVersion = "",
         suppressOnboardingDismissal = false,
         integrationOpenAIConfigured = false,
         integrationClaudeCodeConfigured = false,
@@ -925,6 +996,183 @@ global MaxUltraMcpActiveClient
             )
         ),
 
+        fn updateHelperFilePath = (
+            if (bootstrapFilePath == undefined or bootstrapFilePath == "") do return ""
+            local helperPath = (ensureSlash (getFilenamePath bootstrapFilePath)) + @"scripts\update-manager.ps1"
+            if (doesFileExist helperPath) do return helperPath
+            return ""
+        ),
+
+        fn ensureUpdateResultFilePath = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return ""
+            if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+            local guidClass = dotNetClass "System.Guid"
+            local updateGuid = guidClass.NewGuid()
+            updateResultFilePath = uiStateDirectory + "update-result-" + updateGuid.ToString() + ".ini"
+            return updateResultFilePath
+        ),
+
+        fn readUpdateValue keyName fallbackValue: "" = (
+            if (updateResultFilePath == undefined or updateResultFilePath == "" or not (doesFileExist updateResultFilePath)) do return fallbackValue
+            try (
+                local storedValue = getINISetting updateResultFilePath "update" keyName
+                if (storedValue == undefined or storedValue == "") do return fallbackValue
+                return storedValue
+            ) catch (return fallbackValue)
+        ),
+
+        fn persistAutomaticUpdateSetting isEnabled = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "updates" "automatic" (if (isEnabled) then "true" else "false")
+                return true
+            ) catch (return false)
+        ),
+
+        fn loadAutomaticUpdateSetting = (
+            local storedSetting = ""
+            try (
+                if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do storedSetting = toLower (getINISetting uiStateFilePath "updates" "automatic")
+            ) catch (storedSetting = "")
+            if (storedSetting != "true" and storedSetting != "false") do (
+                persistAutomaticUpdateSetting true
+                return true
+            )
+            return storedSetting == "true"
+        ),
+
+        fn refreshUpdateStatusControl = (
+            if (not (settingsDialogIsOpen())) do return false
+            try (
+                local rolloutBackground = themeDrawingColor #rollupTitleFace 81 81 81
+                local statusColor = themeDrawingColor #text 225 225 225
+                if (updateState == #current or updateState == #ready) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 72 210 130
+                if (updateState == #checking) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 247 185 85
+                if (updateState == #error) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 255 96 96
+                settingsDialog.lblUpdateStatus.BackColor = rolloutBackground
+                settingsDialog.lblUpdateStatus.ForeColor = statusColor
+                settingsDialog.lblUpdateStatus.Text = updateMessage
+                settingsDialog.btnCheckUpdates.enabled = not updateBusy
+                return true
+            ) catch (return false)
+        ),
+
+        fn startUpdateCheck automaticCheck: false = (
+            if (isDisposed or updateBusy) do return false
+            local helperPath = updateHelperFilePath()
+            local resultPath = ensureUpdateResultFilePath()
+            if (helperPath == "" or resultPath == "") do (
+                updateState = #error
+                updateMessage = "Update helper is missing."
+                refreshUpdateStatusControl()
+                return false
+            )
+            try (if (doesFileExist resultPath) do deleteFile resultPath) catch ()
+            try (
+                local projectRoot = ensureSlash (getFilenamePath bootstrapFilePath)
+                local argumentText = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + quoteProcessArgument helperPath + " -Action CheckAndStage -ProjectRoot " + quoteProcessArgument projectRoot + " -ResultFile " + quoteProcessArgument resultPath
+                local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
+                startInfo.FileName = "powershell.exe"
+                startInfo.Arguments = argumentText
+                startInfo.WorkingDirectory = projectRoot
+                startInfo.UseShellExecute = false
+                startInfo.CreateNoWindow = true
+                startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
+                updateProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
+                if (updateProcess == undefined) do throw "Windows did not start the update helper"
+                updateBusy = true
+                updateAutomaticCheck = automaticCheck
+                updateState = #checking
+                updateMessage = "Checking for updates..."
+                refreshUpdateStatusControl()
+                return true
+            ) catch (
+                updateProcess = undefined
+                updateBusy = false
+                updateAutomaticCheck = false
+                updateState = #error
+                updateMessage = "Could not start the update check."
+                addActivity "error" ("Could not start update check: " + (getCurrentException() as string))
+                refreshUpdateStatusControl()
+                return false
+            )
+        ),
+
+        fn pollUpdateOperation = (
+            if (updateProcess == undefined or not updateBusy) do return true
+            local hasExited = false
+            try (hasExited = updateProcess.HasExited) catch (hasExited = true)
+            if (not hasExited) do return true
+            local helperExitCode = -1
+            try (helperExitCode = updateProcess.ExitCode) catch ()
+            try (updateProcess.Dispose()) catch ()
+            updateProcess = undefined
+            updateBusy = false
+            updateAutomaticCheck = false
+            local stateValue = toLower (readUpdateValue "state" fallbackValue: "error")
+            updateLatestVersion = readUpdateValue "latestVersion" fallbackValue: ""
+            updateMessage = readUpdateValue "message" fallbackValue: "Update check failed."
+            if (stateValue == "current" and helperExitCode == 0) then (
+                updateState = #current
+                addActivity "info" "Max Ultra MCP is current"
+            ) else if (stateValue == "ready" and helperExitCode == 0) then (
+                local stagedPackagePath = readUpdateValue "packagePath" fallbackValue: ""
+                local normalizedPackagePath = ""
+                local normalizedUpdatesRoot = ""
+                local stringComparisonClass = dotNetClass "System.StringComparison"
+                try (
+                    normalizedPackagePath = (dotNetClass "System.IO.Path").GetFullPath stagedPackagePath
+                    normalizedUpdatesRoot = ensureSlash ((dotNetClass "System.IO.Path").GetFullPath (uiStateDirectory + "updates"))
+                ) catch ()
+                if (normalizedPackagePath != "" and normalizedUpdatesRoot != "" and normalizedPackagePath.StartsWith normalizedUpdatesRoot stringComparisonClass.OrdinalIgnoreCase and doesFileExist normalizedPackagePath and matchPattern (getFilenameFile normalizedPackagePath) pattern: "max-ultra-mcp@*@c6977570-25a6-41b0-b9bb-b3be8101123c" ignoreCase: true) then (
+                    setINISetting uiStateFilePath "updates" "pendingPackage" normalizedPackagePath
+                    updateState = #ready
+                    updateMessage = "Update " + updateLatestVersion + " is verified. Installing through MaxPkg..."
+                    addActivity "success" updateMessage
+                    refreshUpdateStatusControl()
+                    local restartBootstrapPath = bootstrapFilePath
+                    if (restartBootstrapPath == undefined or restartBootstrapPath == "" or not (doesFileExist restartBootstrapPath)) then (
+                        updateState = #error
+                        updateMessage = "The bootstrap file could not be resolved for the update restart."
+                        addActivity "error" updateMessage
+                    ) else (
+                        try (
+                            fileIn restartBootstrapPath quiet: true
+                        ) catch (
+                            updateState = #error
+                            updateMessage = "The verified update could not restart Max Ultra MCP."
+                            addActivity "error" (updateMessage + " " + (getCurrentException() as string))
+                        )
+                    )
+                ) else (
+                    updateState = #error
+                    updateMessage = "The staged package path failed local validation."
+                    addActivity "error" updateMessage
+                )
+            ) else (
+                updateState = #error
+                if (updateMessage == "") do updateMessage = "Update check failed."
+                addActivity "warning" ("Update check failed: " + updateMessage)
+            )
+            try (if (updateResultFilePath != "" and doesFileExist updateResultFilePath) do deleteFile updateResultFilePath) catch ()
+            updateResultFilePath = ""
+            refreshUpdateStatusControl()
+            return true
+        ),
+
+        fn handleAutomaticUpdateSettingChanged isEnabled = (
+            if (settingsRefreshInProgress) do return true
+            if (persistAutomaticUpdateSetting isEnabled) do (
+                if (isEnabled) do startUpdateCheck automaticCheck: false
+                return true
+            )
+            settingsRefreshInProgress = true
+            try (if (settingsDialogIsOpen()) do settingsDialog.chkAutomaticUpdates.checked = not isEnabled) catch ()
+            settingsRefreshInProgress = false
+            messageBox "Could not update the automatic update setting." title: "Max Ultra MCP Settings"
+            return false
+        ),
         fn disposeSettingsDialog = (
             settingsRefreshInProgress = true
             try (if (settingsDialogIsOpen()) do destroyDialog settingsDialog) catch ()
@@ -937,6 +1185,8 @@ global MaxUltraMcpActiveClient
             settingsRefreshInProgress = true
             try (settingsDialog.chkAutostart.checked = loadAutostartSetting()) catch ()
             try (settingsDialog.chkShowServerConsole.checked = loadServerConsoleVisibleSetting()) catch ()
+            try (settingsDialog.chkAutomaticUpdates.checked = loadAutomaticUpdateSetting()) catch ()
+            refreshUpdateStatusControl()
             settingsRefreshInProgress = false
             return true
         ),
@@ -968,7 +1218,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (settingsDialogIsOpen()) do return true
             try (
-                createDialog settingsDialog width: 380 height: 300 style: #(#style_titlebar, #style_sysmenu)
+                createDialog settingsDialog width: 380 height: 402 style: #(#style_titlebar, #style_sysmenu)
                 return settingsDialogIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)
@@ -2808,6 +3058,15 @@ global MaxUltraMcpActiveClient
             integrationProcess = undefined
             integrationBusy = false
             integrationAutomaticCheck = false
+            try (
+                if (updateProcess != undefined and not updateProcess.HasExited) do updateProcess.Kill()
+            ) catch ()
+            try (if (updateProcess != undefined) do updateProcess.Dispose()) catch ()
+            updateProcess = undefined
+            updateBusy = false
+            updateAutomaticCheck = false
+            try (if (updateResultFilePath != "" and doesFileExist updateResultFilePath) do deleteFile updateResultFilePath) catch ()
+            updateResultFilePath = ""
             if (integrationProcessFinished and integrationResultFilePath != "") do try (if (doesFileExist integrationResultFilePath) do deleteFile integrationResultFilePath) catch ()
             try (if (transportWorker != undefined) do dotNet.removeEventHandler transportWorker "DoWork" transportDoWork) catch ()
             pendingRequestLines = #()
@@ -2869,6 +3128,7 @@ global MaxUltraMcpActiveClient
             try (
                 tickCount += 1
                 pollIntegrationOperation()
+                pollUpdateOperation()
                 local handledInboundLines = 0
                 while (inboundQueue != undefined and inboundQueue.Count > 0 and handledInboundLines < maximumInboundLinesPerTick) do (
                     handleInboundLine (inboundQueue.Dequeue())
@@ -2912,7 +3172,8 @@ global MaxUltraMcpActiveClient
             connectionState = #starting
             connectionError = ""
             if (not (restoreSavedPanelVisibility())) do addActivity "error" "Could not restore the saved panel visibility"
-            addActivity "info" "First-step file started: ensuring local server is healthy"
+            addActivity "info" "Max Ultra MCP started: ensuring the local server is healthy"
+            if (stagedUpdateStatus != "") do addActivity (if (matchPattern stagedUpdateStatus pattern: "The staged update*" ignoreCase: false) then "error" else "success") stagedUpdateStatus
             if (serverLauncherPath == "") do addActivity "warning" "scripts\\start-server.bat not found below this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
             startTransport allowServerLaunch: true
             try (
@@ -2921,6 +3182,7 @@ global MaxUltraMcpActiveClient
                 dotNet.addEventHandler pollTimer "Tick" handleTimerTick
                 pollTimer.Start()
                 beginAutomaticOnboardingCheck()
+                if (loadAutomaticUpdateSetting()) do startUpdateCheck automaticCheck: true
             ) catch (
                 local timerStartFailure = getCurrentException() as string
                 isDisposed = true
@@ -2938,4 +3200,5 @@ global MaxUltraMcpActiveClient
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient
+    )
 )

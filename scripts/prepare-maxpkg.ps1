@@ -13,13 +13,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $fileManifestPath = Join-Path $projectRoot 'maxpkg-files.txt'
+$versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
+$trackedChangelogPath = Join-Path $projectRoot 'CHANGELOG.md'
 $sourceIconPath = Join-Path $projectRoot 'assets\max-ultra-mcp.svg'
 $packagerIconPath = Join-Path $projectRoot 'maxpkg-icon.svg'
 $settingsPath = Join-Path $projectRoot 'maxpkg-packager.ini'
 $changelogPath = Join-Path $projectRoot 'maxpkg-changelog.ini'
 $outputFolder = Join-Path $projectRoot 'dist\maxpkg'
 $packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'
+
+. (Join-Path $PSScriptRoot 'release-mzp-utils.ps1')
 
 if (-not $SkipToolSync) {
     & (Join-Path $PSScriptRoot 'sync-maxpkg-tooling.ps1')
@@ -31,10 +35,35 @@ foreach ($requiredTool in @('maxpkg-packager.ms','_install.ms','_uninstall.ms'))
 }
 if (-not (Test-Path -LiteralPath $fileManifestPath -PathType Leaf)) { throw 'maxpkg-files.txt is missing.' }
 if (-not (Test-Path -LiteralPath $sourceIconPath -PathType Leaf)) { throw 'The MaxPkg SVG icon is missing.' }
+if (-not (Test-Path -LiteralPath $trackedChangelogPath -PathType Leaf)) { throw 'CHANGELOG.md is missing.' }
 
+$projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath
 $packageData = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$version = [string]$packageData.version
-$releaseDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
+$version = $projectVersion.Version
+if ([string]$packageData.version -ne $version) {
+    throw 'core\package.json does not match version.ini. Run scripts\prepare-release.ps1.'
+}
+$changelogContent = [IO.File]::ReadAllText($trackedChangelogPath)
+$releaseSection = [regex]::Match(
+    $changelogContent,
+    "(?ms)^## $([regex]::Escape($version)) - (?<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*\r?\n(?<body>.*?)(?=^## |\z)"
+)
+if (-not $releaseSection.Success) {
+    throw "CHANGELOG.md does not contain a dated $version release section."
+}
+$releaseDate = $releaseSection.Groups['date'].Value
+$changelogEntries = New-Object System.Collections.Generic.List[object]
+foreach ($releaseLine in $releaseSection.Groups['body'].Value -split '\r?\n') {
+    if ([string]::IsNullOrWhiteSpace($releaseLine)) { continue }
+    $entryMatch = [regex]::Match($releaseLine, '^- (?<type>Added|Changed|Improved|Fixed|Removed): (?<message>.+)$')
+    if (-not $entryMatch.Success) { throw "Unsupported $version changelog entry: $releaseLine" }
+    $changelogEntries.Add([pscustomobject]@{
+        Type = $entryMatch.Groups['type'].Value
+        Message = $entryMatch.Groups['message'].Value.Trim()
+    })
+}
+if ($changelogEntries.Count -eq 0) { throw "CHANGELOG.md release $version has no entries." }
+
 $relativeFiles = @(Get-Content -LiteralPath $fileManifestPath -Encoding UTF8 |
     ForEach-Object { $_.Trim() } |
     Where-Object { $_ -and -not $_.StartsWith('#') })
@@ -81,7 +110,7 @@ $settingsLines.Add("svgIcon=$packagerIconPath")
 $settingsLines.Add('entry=01_START_MAX_ULTRA_MCP_FIRST.ms')
 $settingsLines.Add('compileEntry=false')
 $settingsLines.Add("version=$version")
-$settingsLines.Add('releaseChannel=stable')
+$settingsLines.Add("releaseChannel=$($projectVersion.Channel)")
 $settingsLines.Add("releaseDate=$releaseDate")
 $settingsLines.Add('min3dsMax=2022')
 $settingsLines.Add('max3dsMax=2027')
@@ -100,19 +129,22 @@ $settingsLines.Add('')
 $settingsLines.Add('[extraMacros]')
 $settingsLines.Add('count=0')
 
-$changelogLines = @(
-    "[version_$version]",
-    "version=$version",
-    "releaseDate=$releaseDate",
-    'releaseChannel=stable',
-    'min3dsMax=2022',
-    'count=1',
-    '1_type=Added',
-    '1_text=Initial MaxPkg-compatible release workflow.'
-)
+$changelogLines = New-Object System.Collections.Generic.List[string]
+$changelogLines.Add("[version_$version]")
+$changelogLines.Add("version=$version")
+$changelogLines.Add("releaseDate=$releaseDate")
+$changelogLines.Add("releaseChannel=$($projectVersion.Channel)")
+$changelogLines.Add('min3dsMax=2022')
+$changelogLines.Add("count=$($changelogEntries.Count)")
+for ($entryIndex = 0; $entryIndex -lt $changelogEntries.Count; $entryIndex++) {
+    $iniIndex = $entryIndex + 1
+    $changelogLines.Add("${iniIndex}_type=$($changelogEntries[$entryIndex].Type)")
+    $changelogLines.Add("${iniIndex}_text=$($changelogEntries[$entryIndex].Message)")
+}
+
 $utf8Bom = New-Object Text.UTF8Encoding($true)
 [IO.File]::WriteAllLines($settingsPath, $settingsLines.ToArray(), $utf8Bom)
-[IO.File]::WriteAllLines($changelogPath, $changelogLines, $utf8Bom)
+[IO.File]::WriteAllLines($changelogPath, $changelogLines.ToArray(), $utf8Bom)
 
 if ([string]::IsNullOrWhiteSpace($License)) {
     Write-Warning 'MaxPkg settings are prepared, but License is intentionally blank. Choose the correct legal value in 1. Info before building.'

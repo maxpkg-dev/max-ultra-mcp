@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
 $distDirectory = Join-Path $projectRoot 'dist'
 $expectedRepository = 'maxpkg-dev/max-ultra-mcp'
@@ -92,11 +93,13 @@ function Assert-MzpArchive {
     }
 }
 
-if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf)) {
-    throw 'core\package.json is missing.'
-}
+if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf)) { throw 'core\package.json is missing.' }
+$projectVersionInfo = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath
 $packageData = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$projectVersion = (ConvertTo-MaxUltraReleaseVersion -Text ([string]$packageData.version)).Text
+$projectVersion = $projectVersionInfo.Version
+if ([string]$packageData.version -ne $projectVersion) {
+    throw 'core\package.json does not match version.ini. Run scripts\prepare-release.ps1.'
+}
 $releaseTag = "v$projectVersion"
 
 $allMzpFiles = if (Test-Path -LiteralPath $distDirectory -PathType Container) {
@@ -139,7 +142,7 @@ if ($latestPackage.VersionValue.CompareTo([Version]$projectVersion) -lt 0) {
     throw "The latest local MZP is $($latestPackage.Version), but the project is $projectVersion. Rebuild the MZP before releasing."
 }
 if ($latestPackage.VersionValue.CompareTo([Version]$projectVersion) -gt 0) {
-    throw "The latest local MZP is newer than core\package.json. Update the project version deliberately before releasing."
+    throw "The latest local MZP is newer than version.ini. Prepare the intended release version deliberately."
 }
 $currentVersionPackages = @($packages | Where-Object { $_.Version -eq $projectVersion })
 if ($currentVersionPackages.Count -ne 1) {

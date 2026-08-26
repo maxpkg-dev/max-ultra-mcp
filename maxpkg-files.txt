@@ -1,6 +1,8 @@
 # Production files included by scripts/prepare-maxpkg.ps1.
 # Paths are relative to the repository root and use forward slashes.
 THIRD_PARTY_NOTICES.md
+CHANGELOG.md
+version.ini
 01_START_MAX_ULTRA_MCP_FIRST.ms
 README.md
 docs/README.md
@@ -43,6 +45,8 @@ skills/max-ultra-maxpkg-packaging/references/adaptation-workflow.md
 skills/max-ultra-maxpkg-packaging/references/build-and-verify.md
 skills/max-ultra-maxpkg-packaging/scripts/get-maxpkg-upstream.ps1
 scripts/agent-integration.ps1
+scripts/update-manager.ps1
+scripts/project-version.ps1
 scripts/max-ui-automation.ps1
 scripts/maxpkg-uninstall.ps1
 scripts/resize-image.ps1

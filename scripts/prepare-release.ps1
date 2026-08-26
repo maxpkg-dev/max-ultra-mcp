@@ -1,0 +1,112 @@
+# Synchronizes version metadata and promotes the reviewed Unreleased changelog for a local release.
+# Copyright (c) 2026 Lukianenko Vasyl
+# Project website: https://3dground.net
+# Developed by Lukianenko Vasyl
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
+
+    [ValidateSet('stable')]
+    [string]$Channel = 'stable',
+
+    [ValidateSet('','Free','Shareware','Commercial','Open source','Trial')]
+    [string]$License = '',
+
+    [switch]$SkipTests,
+    [switch]$SkipMaxPkgPreparation
+)
+
+$ErrorActionPreference = 'Stop'
+$projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$versionIniPath = Join-Path $projectRoot 'version.ini'
+$packageJsonPath = Join-Path $projectRoot 'core\package.json'
+$bootstrapPath = Join-Path $projectRoot '01_START_MAX_ULTRA_MCP_FIRST.ms'
+$changelogPath = Join-Path $projectRoot 'CHANGELOG.md'
+
+. (Join-Path $PSScriptRoot 'release-mzp-utils.ps1')
+
+$releaseVersion = (ConvertTo-MaxUltraReleaseVersion -Text $Version).Text
+$releaseDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
+$utf8WithoutBom = New-Object Text.UTF8Encoding($false)
+
+foreach ($requiredPath in @($versionIniPath, $packageJsonPath, $bootstrapPath, $changelogPath)) {
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Required release source is missing: $requiredPath"
+    }
+}
+
+$currentInfo = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath
+if ($currentInfo.VersionValue.CompareTo([Version]$releaseVersion) -gt 0) {
+    throw "The requested version $releaseVersion is older than $($currentInfo.Version)."
+}
+
+$changelogContent = [IO.File]::ReadAllText($changelogPath)
+$unreleasedMatch = [regex]::Match(
+    $changelogContent,
+    '(?ms)^## Unreleased\s*\r?\n(?<body>.*?)(?=^## |\z)'
+)
+if (-not $unreleasedMatch.Success) {
+    throw 'CHANGELOG.md must contain a top-level ## Unreleased section.'
+}
+$unreleasedBody = $unreleasedMatch.Groups['body'].Value.Trim()
+if ([string]::IsNullOrWhiteSpace($unreleasedBody)) {
+    throw 'CHANGELOG.md Unreleased is empty. Add factual release notes before preparing a release.'
+}
+foreach ($entryLine in $unreleasedBody -split '\r?\n') {
+    if ([string]::IsNullOrWhiteSpace($entryLine)) { continue }
+    if ($entryLine -notmatch '^- (Added|Changed|Improved|Fixed|Removed): .+') {
+        throw "Unsupported changelog entry: $entryLine"
+    }
+}
+if ($changelogContent -match "(?m)^## $([regex]::Escape($releaseVersion))(?:\s|$)") {
+    throw "CHANGELOG.md already contains version $releaseVersion."
+}
+
+$versionIniContent = "[MaxUltraMCP]`r`nVersion=$releaseVersion`r`nChannel=$Channel`r`n"
+[IO.File]::WriteAllText($versionIniPath, $versionIniContent, $utf8WithoutBom)
+
+$packageData = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$packageData.version = $releaseVersion
+$packageJsonContent = ($packageData | ConvertTo-Json -Depth 20) + "`n"
+[IO.File]::WriteAllText($packageJsonPath, $packageJsonContent, $utf8WithoutBom)
+
+$bootstrapContent = [IO.File]::ReadAllText($bootstrapPath)
+$bootstrapContent = [regex]::Replace(
+    $bootstrapContent,
+    'rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP [0-9]+\.[0-9]+\.[0-9]+"',
+    "rollout MaxUltraMcpStatusDialog `"3DGROUND - Max Ultra MCP $releaseVersion`"",
+    1
+)
+$bootstrapContent = [regex]::Replace(
+    $bootstrapContent,
+    'label lblAboutVersion "Version: [0-9]+\.[0-9]+\.[0-9]+"',
+    "label lblAboutVersion `"Version: $releaseVersion`"",
+    1
+)
+if ($bootstrapContent -notmatch "MaxUltraMcpStatusDialog `"3DGROUND - Max Ultra MCP $([regex]::Escape($releaseVersion))`"") {
+    throw 'Could not synchronize the MaxScript panel title.'
+}
+if ($bootstrapContent -notmatch "lblAboutVersion `"Version: $([regex]::Escape($releaseVersion))`"") {
+    throw 'Could not synchronize the MaxScript About version.'
+}
+[IO.File]::WriteAllText($bootstrapPath, $bootstrapContent, $utf8WithoutBom)
+
+$releasedSection = "## $releaseVersion - $releaseDate`r`n`r`n$unreleasedBody`r`n`r`n"
+$newUnreleasedSection = "## Unreleased`r`n`r`n"
+$newChangelogContent = $changelogContent.Remove($unreleasedMatch.Index, $unreleasedMatch.Length).Insert(
+    $unreleasedMatch.Index,
+    $newUnreleasedSection + $releasedSection
+)
+[IO.File]::WriteAllText($changelogPath, $newChangelogContent, $utf8WithoutBom)
+
+if (-not $SkipMaxPkgPreparation) {
+    & (Join-Path $PSScriptRoot 'prepare-maxpkg.ps1') -License $License
+}
+if (-not $SkipTests) {
+    & (Join-Path $PSScriptRoot 'run-smoke.ps1')
+    if ($LASTEXITCODE -ne 0) { throw "Verification failed with exit code $LASTEXITCODE." }
+}
+
+Write-Host "Max Ultra MCP $releaseVersion sources are prepared locally. Review and commit them; no push or GitHub release was created."

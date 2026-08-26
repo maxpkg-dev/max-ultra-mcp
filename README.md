@@ -36,6 +36,10 @@ The first production-foundations increment adds session-owned common jobs and re
 - Validate and build a dimensioned house plan interpreted from an attached image.
 - Use unrestricted `max_execute` when a semantic tool does not exist yet.
 
+## Automatic updates
+
+The Settings window enables automatic update checks by default. Version metadata and release assets are downloaded with Windows `curl.exe` from a hidden detached helper process, so network waits never block the 3ds Max UI thread. Only a stable official GitHub Release whose MZP filename, package GUID, asset URLs, and SHA-256 all match is accepted. The verified MZP is installed through MaxPkg, the active bridge is disposed, and `01_START_MAX_ULTRA_MCP_FIRST.ms` restarts automatically from the updated package. Failed checks or installation attempts keep the previous installation recoverable. Disable automatic checks or use **Check now** in Settings at any time.
+
 ## Installation for release users
 
 MaxPkg release packages bundle a portable Node.js runtime. Users do not install Node.js, change `PATH`, require administrator rights, or download dependencies at runtime.
@@ -56,7 +60,7 @@ Closing onboarding dismisses its automatic display without stopping the bridge. 
 
 > The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1`, then prepare the pinned MaxPkg Packager project with `scripts\prepare-maxpkg.ps1`.
 
-Maintainers publish a tested MZP with `RELEASE_MZP_TO_GITHUB.bat`. The guarded workflow compares `core\package.json`, the newest versioned package below ignored `dist/`, and GitHub Releases before creating a `v<VERSION>` release and uploading the MZP plus its SHA-256 file. See [MaxPkg packaging](docs/MAXPKG.md#publish-the-mzp-to-github-releases).
+Maintainers say or run a local release preparation through `PREPARE_RELEASE.bat -Version <VERSION>`. `version.ini` is the single version source; preparation synchronizes Node metadata and the MaxScript title/About text, promotes reviewed `CHANGELOG.md` entries, regenerates MaxPkg settings, and runs verification. Publishing remains a separate confirmed step through `RELEASE_MZP_TO_GITHUB.bat`. See [MaxPkg packaging](docs/MAXPKG.md#prepare-a-versioned-release).
 
 ## Development checkout
 

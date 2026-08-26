@@ -1,28 +1,9 @@
-# Parses and compares stable Max Ultra MCP release versions and MZP filenames.
+# Parses and compares Max Ultra MCP MZP filenames and GitHub Release records.
 # Copyright (c) 2026 Lukianenko Vasyl
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
 
-function ConvertTo-MaxUltraReleaseVersion {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Text,
-
-        [switch]$AllowTagPrefix
-    )
-
-    $normalized = $Text.Trim()
-    if ($AllowTagPrefix -and $normalized.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) {
-        $normalized = $normalized.Substring(1)
-    }
-    if ($normalized -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
-        throw "Unsupported release version '$Text'. Use stable semantic versioning such as 1.2.3."
-    }
-    return [pscustomobject]@{
-        Text = $normalized
-        Value = [Version]$normalized
-    }
-}
+. (Join-Path $PSScriptRoot 'project-version.ps1')
 
 function Get-MaxUltraMzpInfo {
     param(

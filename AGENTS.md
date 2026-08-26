@@ -10,6 +10,7 @@ This file is the repository entry point for AI coding agents. It describes what 
 4. [.agents/coding-rules.md](.agents/coding-rules.md) for authoritative source, MaxScript, lifecycle, UI, and verification rules.
 5. [docs/PRIVACY.md](docs/PRIVACY.md) for required anonymization, placeholders, and sensitive-data review.
 6. [docs/MAXPKG.md](docs/MAXPKG.md) before changing release layout, package lifecycle, or installation behavior.
+7. [.agents/release-rules.md](.agents/release-rules.md) before preparing, building, or publishing a release.
 
 Do not infer that a documented backlog tool is implemented. Confirm it in `core/tool-catalog.js`, `core/tool-runtime.js`, and tests.
 
@@ -68,7 +69,7 @@ The daemon is shared. Instance selection and jobs belong to the individual MCP s
 | AI-client onboarding and registration | `01_START_MAX_ULTRA_MCP_FIRST.ms`, `scripts/agent-integration.ps1` |
 | Mock and contract tests | `tests/smoke-test.js`, `tests/v1-smoke-test.js`, `tests/cli-integration-test.js` |
 | Optional agent skills | `skills/` |
-| Release/runtime tooling | `scripts/prepare-portable-node.ps1`, `scripts/build-release.ps1`, `scripts/build-sea.ps1` |
+| Release/runtime tooling | `version.ini`, `CHANGELOG.md`, `.agents/release-rules.md`, `scripts/prepare-release.ps1`, `scripts/prepare-portable-node.ps1`, `scripts/build-release.ps1`, `scripts/build-sea.ps1` |
 | MaxPkg packaging | `docs/MAXPKG.md`, `maxpkg-files.txt`, `scripts/prepare-maxpkg.ps1`, `scripts/sync-maxpkg-tooling.ps1` |
 | GitHub MZP release | `RELEASE_MZP_TO_GITHUB.bat`, `scripts/publish-github-release.ps1`, `scripts/release-mzp-utils.ps1` |
 
