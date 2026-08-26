@@ -465,26 +465,33 @@ async function runSmokeTest() {
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
     const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "max-ultra-mcp.svg"), "utf8");
-    const skillRoot = path.join(PROJECT_ROOT, "skills", "max-ultra-mcp");
-    const skillSource = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
-    const skillReferenceRoot = path.join(skillRoot, "references");
-    const skillReferenceNames = fs.readdirSync(skillReferenceRoot).filter((entryName) => entryName.endsWith(".md")).sort();
-    const linkedSkillReferences = [...skillSource.matchAll(/\]\(references\/([a-z0-9-]+\.md)\)/g)].map((entry) => entry[1]).sort();
-    assert.deepEqual(linkedSkillReferences, skillReferenceNames, "Every skill reference must be linked exactly once from SKILL.md");
-    assert.match(skillSource, /^---\r?\nname: max-ultra-mcp\r?\ndescription: .+\r?\n---\r?\n/);
-    const floorPlanSkillRoot = path.join(PROJECT_ROOT, "skills", "max-ultra-floor-plan");
-    const floorPlanSkillSource = fs.readFileSync(path.join(floorPlanSkillRoot, "SKILL.md"), "utf8");
-    const floorPlanSkillReferenceRoot = path.join(floorPlanSkillRoot, "references");
-    const floorPlanSkillReferenceNames = fs.readdirSync(floorPlanSkillReferenceRoot).filter((entryName) => entryName.endsWith(".md")).sort();
-    const linkedFloorPlanReferences = [...floorPlanSkillSource.matchAll(/\]\(references\/([a-z0-9-]+\.md)\)/g)].map((entry) => entry[1]).sort();
-    assert.deepEqual(linkedFloorPlanReferences, floorPlanSkillReferenceNames, "Every floor-plan skill reference must be linked exactly once from SKILL.md");
-    assert.match(floorPlanSkillSource, /^---\r?\nname: max-ultra-floor-plan\r?\ndescription: .+\r?\n---\r?\n/);
-    const skillDocumentation = [
-      skillSource,
-      ...skillReferenceNames.map((entryName) => fs.readFileSync(path.join(skillReferenceRoot, entryName), "utf8")),
-      floorPlanSkillSource,
-      ...floorPlanSkillReferenceNames.map((entryName) => fs.readFileSync(path.join(floorPlanSkillReferenceRoot, entryName), "utf8")),
-    ].join("\n");
+    const skillsRoot = path.join(PROJECT_ROOT, "skills");
+    const skillNames = fs.readdirSync(skillsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
+      .map((entry) => entry.name)
+      .sort();
+    assert.deepEqual(skillNames, ["max-ultra-floor-plan", "max-ultra-mcp", "max-ultra-spline-modeling"]);
+    const skillReferenceNamesBySkill = new Map();
+    const skillDocumentationParts = [];
+    for (const skillName of skillNames) {
+      const skillRoot = path.join(skillsRoot, skillName);
+      const skillSource = fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8");
+      const skillReferenceRoot = path.join(skillRoot, "references");
+      const skillReferenceNames = fs.existsSync(skillReferenceRoot)
+        ? fs.readdirSync(skillReferenceRoot).filter((entryName) => entryName.endsWith(".md")).sort()
+        : [];
+      const linkedSkillReferences = [...skillSource.matchAll(/\]\(references\/([a-z0-9-]+\.md)\)/g)].map((entry) => entry[1]).sort();
+      assert.deepEqual(linkedSkillReferences, skillReferenceNames, `Every ${skillName} reference must be linked exactly once from SKILL.md`);
+      assert.match(skillSource, new RegExp(`^---\\r?\\nname: ${skillName}\\r?\\ndescription: .+\\r?\\n---\\r?\\n`));
+      const currentSkillDocumentation = [
+        skillSource,
+        ...skillReferenceNames.map((entryName) => fs.readFileSync(path.join(skillReferenceRoot, entryName), "utf8")),
+      ].join("\n");
+      for (const scriptBlock of currentSkillDocumentation.matchAll(/```maxscript\r?\n([\s\S]*?)```/g)) assertBalancedMaxScript(scriptBlock[1]);
+      skillReferenceNamesBySkill.set(skillName, skillReferenceNames);
+      skillDocumentationParts.push(currentSkillDocumentation);
+    }
+    const skillDocumentation = skillDocumentationParts.join("\n");
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {
@@ -611,10 +618,12 @@ async function runSmokeTest() {
     assert.match(fs.readFileSync(path.join(PROJECT_ROOT, "core", "bridge-control-client.js"), "utf8"), /const currentControlToken = readControlToken\(\)/);
     assert.match(localAuthSource, /path\.resolve\(__dirname, "\.\.", "runtime", "state", "control-token"\)/);
     assert.match(maxPkgFilesSource, /runtime\/win-x64\/node\.exe/);
-    assert.match(maxPkgFilesSource, /skills\/max-ultra-mcp\/SKILL\.md/);
-    for (const skillReferenceName of skillReferenceNames) assert.ok(maxPkgFilesSource.includes(`skills/max-ultra-mcp/references/${skillReferenceName}`));
-    assert.match(maxPkgFilesSource, /skills\/max-ultra-floor-plan\/SKILL\.md/);
-    for (const skillReferenceName of floorPlanSkillReferenceNames) assert.ok(maxPkgFilesSource.includes(`skills/max-ultra-floor-plan/references/${skillReferenceName}`));
+    for (const skillName of skillNames) {
+      assert.ok(maxPkgFilesSource.includes(`skills/${skillName}/SKILL.md`));
+      for (const skillReferenceName of skillReferenceNamesBySkill.get(skillName)) {
+        assert.ok(maxPkgFilesSource.includes(`skills/${skillName}/references/${skillReferenceName}`));
+      }
+    }
     assert.doesNotMatch(maxPkgFilesSource, /smoke-test|mock-max-client|runtime\/state/);
     assert.match(maxPkgPrepareSource, /packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'/);
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);

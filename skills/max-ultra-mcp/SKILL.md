@@ -1,13 +1,13 @@
 ---
 name: max-ultra-mcp
-description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for general scene, polygon modeling, viewport, rendering, MaxScript, or Max-owned UI automation tasks when Max Ultra MCP tools are available. Use the dedicated max-ultra-floor-plan skill for dimensional architectural floor-plan construction. Do not use for editing the Max Ultra MCP repository itself.
+description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for general scene, polygon modeling, viewport, rendering, MaxScript, or Max-owned UI automation tasks when Max Ultra MCP tools are available. Use max-ultra-spline-modeling for spline paths/profiles and max-ultra-floor-plan for dimensional architectural plans. Do not use for editing the Max Ultra MCP repository itself.
 ---
 
 # Max Ultra MCP
 
 Use the semantic MCP surface to produce a verified result in the selected 3ds Max process. Keep raw MaxScript and UI automation as explicit fallbacks, not the default implementation path.
 
-For dimensional architectural floor plans, use the dedicated `max-ultra-floor-plan` skill so the source-spline preservation workflow is loaded.
+For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. For dimensional architectural floor plans, use `max-ultra-floor-plan` so its stricter wall-source preservation workflow is loaded.
 
 ## Operating workflow
 

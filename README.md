@@ -107,7 +107,7 @@ Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
 ## Optional agent skills
 
-The release includes two portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control and [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved source spline.
+The release includes three portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control, [`max-ultra-spline-modeling`](skills/max-ultra-spline-modeling/SKILL.md) for paths/profiles and non-destructive modifier sources, and [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved wall spline.
 
 The MCP server remains fully usable without these skills. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
 
@@ -145,6 +145,7 @@ Before a production release, also test real 3ds Max versions and installed Coron
 - [MaxPkg packaging and lifecycle](docs/MAXPKG.md)
 - [Instructions for AI coding agents](AGENTS.md)
 - [Optional Max Ultra MCP agent skill](skills/max-ultra-mcp/SKILL.md)
+- [Optional Max Ultra spline-modeling agent skill](skills/max-ultra-spline-modeling/SKILL.md)
 - [Optional Max Ultra floor-plan agent skill](skills/max-ultra-floor-plan/SKILL.md)
 
 ## Repository layout
