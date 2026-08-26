@@ -52,7 +52,7 @@ The compact panel shows two status/context rows above a tall log.
 ## Concise MCP tools
 
 The mandatory production workflow backlog and acceptance contracts are defined in [USE_CASES.md](USE_CASES.md).
-The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 59–73 tools; see [V1.md](V1.md).
+The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 60–74 tools; see [V1.md](V1.md).
 
 
 | Tool | Purpose |
@@ -107,7 +107,7 @@ The normal packaged-release flow starts inside 3ds Max:
 The onboarding status/install work runs in a hidden Windows PowerShell 5.1 child process. The Max UI timer only polls process completion, so CLI discovery and registration do not block the 3ds Max main thread. It resolves known per-user Codex and Claude Code CLI locations in addition to `PATH`, which handles a 3ds Max process started before an agent was installed or updated. `scripts\agent-integration.ps1` writes a short per-run INI result below the existing per-user `MaxUltraMCP` state directory. It contains status labels and local runtime paths, never raw CLI output, environment dumps, access tokens, or client configuration contents.
 If a configured STDIO host started before the installed MCP runtime was updated, onboarding reports **Restart required** in amber. Restart or reconnect the AI client once. A STDIO host with a live daemon connection now exits when that verified daemon is replaced; a host that has not connected yet remains owned by its AI-client session. Control clients reload the package token file before subsequent requests, so later token-file rotation does not require another code change. One `core/server.js --stdio` process per active AI-client session is expected. `node_repl.exe` belongs to the AI client and is never terminated by Max Ultra MCP.
 
-The MaxPkg release contains the general skill at `skills\max-ultra-mcp\SKILL.md`, the camera-composition skill at `skills\max-ultra-camera-composition\SKILL.md`, the character/object-modeling skill at `skills\max-ultra-character-object-modeling\SKILL.md`, the generic spline-modeling skill at `skills\max-ultra-spline-modeling\SKILL.md`, and the architectural plan skill at `skills\max-ultra-floor-plan\SKILL.md`. MCP registration does not silently copy skill files into an AI client profile. Clients that support skills can load or install any folder separately; clients without skill support continue to use the complete MCP schemas and initialization instructions.
+The MaxPkg release contains the general skill at `skills\max-ultra-mcp\SKILL.md`, the camera-composition skill at `skills\max-ultra-camera-composition\SKILL.md`, the character/object-modeling skill at `skills\max-ultra-character-object-modeling\SKILL.md`, the renderer-settings skill at `skills\max-ultra-renderer-settings\SKILL.md`, the generic spline-modeling skill at `skills\max-ultra-spline-modeling\SKILL.md`, and the architectural plan skill at `skills\max-ultra-floor-plan\SKILL.md`. MCP registration does not silently copy skill files into an AI client profile. Clients that support skills can load or install any folder separately; clients without skill support continue to use the complete MCP schemas and initialization instructions.
 
 Supported automatic targets:
 
@@ -179,4 +179,4 @@ Or with Node 22+:
 node .\tests\smoke-test.js
 ```
 
-The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 59-73 profile tools, envelopes, revisions, floor plans, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.
+The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 60-74 profile tools, envelopes, revisions, floor plans, renderer introspection, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.

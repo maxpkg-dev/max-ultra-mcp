@@ -476,7 +476,7 @@ async function runSmokeTest() {
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
       .map((entry) => entry.name)
       .sort();
-    assert.deepEqual(skillNames, ["max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-mcp", "max-ultra-spline-modeling"]);
+    assert.deepEqual(skillNames, ["max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-spline-modeling"]);
     const skillReferenceNamesBySkill = new Map();
     const skillDocumentationParts = [];
     for (const skillName of skillNames) {
@@ -510,6 +510,11 @@ async function runSmokeTest() {
     assert.match(modelingSkillDocumentation, /Do not collapse/i);
     assert.match(modelingSkillDocumentation, /overlay Elements/i);
     assert.match(modelingSkillDocumentation, /coplanar[\s\S]*z-fighting/i);
+    const rendererSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-renderer-settings")];
+    assert.match(rendererSkillDocumentation, /max_renderer_properties_get/);
+    assert.match(rendererSkillDocumentation, /show renderers\.current/);
+    assert.match(rendererSkillDocumentation, /read-back/i);
+    assert.match(rendererSkillDocumentation, /applied[\s\S]*unchanged[\s\S]*unsupported[\s\S]*warnings/i);
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {

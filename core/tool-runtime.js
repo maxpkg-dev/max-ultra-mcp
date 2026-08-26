@@ -26,6 +26,7 @@ function activityLabelForTool(toolName, args = {}) {
     max_add_normal_modifier: "Add Normal modifier",
     max_add_smooth_modifier: "Add Smooth modifier",
     max_capture_viewport: "Capture viewport",
+    max_renderer_properties_get: "Inspect renderer properties",
     max_render_start: `Start ${args.mode || "production"} render`,
     max_render_settings_set: "Update render settings",
   };
@@ -514,6 +515,51 @@ undo "Max Ultra MCP: Auto Smooth" on addModifier n m
   if (toolName === "max_render_settings_get") {
     const info = await bridge.request(instance.instanceId, "get_info", "", 30000);
     return { instanceId: instance.instanceId, render: info?.scene?.render || null, sceneRevision: revisionFor(bridge, instance.instanceId) };
+  }
+  if (toolName === "max_renderer_properties_get") {
+    const maxChars = Math.trunc(finite(args.maxChars, 200000, "maxChars", { positive: true }));
+    if (maxChars < 1024 || maxChars > 500000) throw new Error("maxChars must be from 1024 to 500000");
+    const info = await bridge.request(instance.instanceId, "get_info", "", 30000);
+    const rendererName = info?.scene?.render?.renderer || "Unknown";
+    const script = `(
+local currentRenderer=renderers.current
+if currentRenderer==undefined do throw "RENDERER_UNSUPPORTED: no active renderer"
+local rendererProperties=getPropNames currentRenderer
+local inspectionStream=stringStream ""
+format "__MAX_ULTRA_RENDERER_CLASS__=%\\n" ((classOf currentRenderer) as string) to:inspectionStream
+for propertyName in rendererProperties do format "__MAX_ULTRA_RENDERER_PROPERTY__=%\\n" (propertyName as string) to:inspectionStream
+format "__MAX_ULTRA_RENDERER_SHOW_BEGIN__\\n" to:inspectionStream
+show currentRenderer to:inspectionStream
+local inspectionText=inspectionStream as string
+free inspectionStream
+inspectionText
+)`;
+    const execution = await bridge.request(instance.instanceId, "execute", script, 60000);
+    const inspectionText = String(execution?.result || "");
+    const showMarker = "__MAX_ULTRA_RENDERER_SHOW_BEGIN__";
+    const showMarkerIndex = inspectionText.indexOf(showMarker);
+    const metadataText = showMarkerIndex >= 0 ? inspectionText.slice(0, showMarkerIndex) : inspectionText;
+    const rawShowOutput = showMarkerIndex >= 0
+      ? inspectionText.slice(showMarkerIndex + showMarker.length).replace(/^\r?\n/, "")
+      : inspectionText;
+    const classMatch = /^__MAX_ULTRA_RENDERER_CLASS__=(.+)$/m.exec(metadataText);
+    const properties = [...new Set(
+      [...metadataText.matchAll(/^__MAX_ULTRA_RENDERER_PROPERTY__=(.+)$/gm)]
+        .map((match) => match[1].trim())
+        .filter(Boolean),
+    )];
+    const truncated = rawShowOutput.length > maxChars;
+    return {
+      instanceId: instance.instanceId,
+      sceneRevision: revisionFor(bridge, instance.instanceId),
+      renderer: rendererName,
+      className: classMatch?.[1]?.trim() || rendererName,
+      propertyCount: properties.length,
+      properties,
+      showOutput: truncated ? rawShowOutput.slice(0, maxChars) : rawShowOutput,
+      showOutputCharacters: rawShowOutput.length,
+      truncated,
+    };
   }
   if (toolName === "max_render_settings_set") {
     const assignments = [];

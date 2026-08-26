@@ -139,6 +139,17 @@ class MockMaxClient {
           },
           coverage: { missingMaps: "Bitmaptexture file inputs; renderer-specific assets require max_assets_scan" },
         });
+      } else if (actionPayload.includes("__MAX_ULTRA_RENDERER_SHOW_BEGIN__")) {
+        executionResult = [
+          "__MAX_ULTRA_RENDERER_CLASS__=MockRenderer",
+          "__MAX_ULTRA_RENDERER_PROPERTY__=samples",
+          "__MAX_ULTRA_RENDERER_PROPERTY__=denoise",
+          "__MAX_ULTRA_RENDERER_PROPERTY__=giMode",
+          "__MAX_ULTRA_RENDERER_SHOW_BEGIN__",
+          ".samples : integer",
+          ".denoise : boolean",
+          ".giMode : integer",
+        ].join("\n");
       } else if (actionPayload.includes("local b=render()")) {
         const outputPathMatch = /b\.filename=("(?:\\.|[^"\\])*")/.exec(actionPayload);
         if (outputPathMatch) {

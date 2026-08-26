@@ -5,7 +5,7 @@ description: Control and inspect already-open Autodesk 3ds Max scenes through Ma
 
 # Max Ultra MCP
 
-Use the dedicated `max-ultra-camera-composition` skill for camera placement, Safe Frame, lens, and visual-composition tasks. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
+Use `max-ultra-renderer-settings` for renderer configuration based on runtime property introspection. Use `max-ultra-camera-composition` for camera placement, Safe Frame, lens, and visual-composition tasks. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
 
 Use the semantic MCP surface to produce a verified result in the selected 3ds Max process. Keep raw MaxScript and UI automation as explicit fallbacks, not the default implementation path.
 

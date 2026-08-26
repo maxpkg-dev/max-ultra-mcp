@@ -50,6 +50,8 @@ The plan expands the request into exact common Max settings and version-specific
 
 Acceptance requires deterministic preview and final-still presets plus explicit custom settings for supported Corona and V-Ray versions.
 
+The implemented read-only `max_renderer_properties_get` tool and packaged `max-ultra-renderer-settings` skill provide the discovery-first foundation for this workflow. They inspect the actual active renderer class and properties before any mutation. The dedicated capability/plan/apply adapters listed above remain backlog and must not be presented as implemented.
+
 ## 3. Collect assets into one folder
 
 Tools:

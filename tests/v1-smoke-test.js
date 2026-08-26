@@ -126,6 +126,7 @@ async function run() {
   assert.equal(coreTools.some((entry) => entry.name === "max_viewport_screenshot"), false);
   assert.equal(coreTools.some((entry) => entry.name === "max_validate_polygon_mesh"), true);
   assert.equal(coreTools.some((entry) => entry.name === "max_create_polygon_mesh"), true);
+  assert.equal(coreTools.some((entry) => entry.name === "max_renderer_properties_get"), true);
   assert.equal(archvizTools.some((entry) => entry.name === "max_validate_floor_plan"), true);
   assert.equal(archvizTools.some((entry) => entry.name === "max_add_smooth_modifier"), true);
   assert.equal(fullTools.find((entry) => entry.name === "max_execute").annotations.openWorldHint, true);
@@ -401,6 +402,23 @@ async function run() {
     assert.equal(zoomExtents.result.isError, false, JSON.stringify(zoomExtents.result.structuredContent));
     assert.match(max2022.executeRequests.at(-1), /max tool zoomextents;/);
     assert.doesNotMatch(max2022.executeRequests.at(-1), /max zoomext all|zoomextents all/);
+
+    const rendererProperties = await rpc(hostA, {
+      jsonrpc: "2.0",
+      id: 123,
+      method: "tools/call",
+      params: { name: "max_renderer_properties_get", arguments: {} },
+    });
+    assert.equal(rendererProperties.result.isError, false, JSON.stringify(rendererProperties.result.structuredContent));
+    assert.equal(rendererProperties.result.structuredContent.data.renderer, "MockRenderer");
+    assert.equal(rendererProperties.result.structuredContent.data.className, "MockRenderer");
+    assert.deepEqual(rendererProperties.result.structuredContent.data.properties, ["samples", "denoise", "giMode"]);
+    assert.equal(rendererProperties.result.structuredContent.data.propertyCount, 3);
+    assert.equal(rendererProperties.result.structuredContent.data.truncated, false);
+    assert.match(rendererProperties.result.structuredContent.data.showOutput, /\.samples : integer/);
+    assert.match(max2022.executeRequests.at(-1), /show currentRenderer to:inspectionStream/);
+    assert.match(max2022.executeRequests.at(-1), /getPropNames currentRenderer/);
+    assert.match(max2022.executeRequests.at(-1), /free inspectionStream/);
 
     const renderStart = await rpc(hostA, { jsonrpc: "2.0", id: 13, method: "tools/call", params: { name: "max_render_start", arguments: { mode: "production" } } });
     const jobId = renderStart.result.structuredContent.data.jobId;

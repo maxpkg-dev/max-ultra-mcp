@@ -33,6 +33,8 @@ skills/max-ultra-camera-composition/SKILL.md
 skills/max-ultra-camera-composition/references/composition-workflow.md
 skills/max-ultra-character-object-modeling/SKILL.md
 skills/max-ultra-character-object-modeling/references/subdivision-topology.md
+skills/max-ultra-renderer-settings/SKILL.md
+skills/max-ultra-renderer-settings/references/property-introspection.md
 skills/max-ultra-spline-modeling/SKILL.md
 skills/max-ultra-spline-modeling/references/maxscript-patterns.md
 scripts/agent-integration.ps1
