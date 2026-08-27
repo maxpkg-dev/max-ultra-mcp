@@ -1219,7 +1219,7 @@ global MaxUltraMcpActiveClient
             updateMessage = readUpdateValue "message" fallbackValue: (if updateResultExists then "Update check failed." else ("Update helper exited before writing a result (exit code " + (helperExitCode as string) + ")."))
             if (stateValue == "current" and helperExitCode == 0) then (
                 updateState = #current
-                addActivity "system" ("Update check completed: version " + updateLatestVersion + " is up to date")
+                addActivity "success" ("Update check completed: version " + updateLatestVersion + " is up to date")
             ) else if (stateValue == "ready" and helperExitCode == 0) then (
                 local stagedPackagePath = readUpdateValue "packagePath" fallbackValue: ""
                 local normalizedPackagePath = ""
@@ -2667,9 +2667,9 @@ global MaxUltraMcpActiveClient
                     hasConnectedThisSession = true
                     connectionState = #connected
                     connectionError = ""
-                    addActivity "system" ("Connected to local MCP server at " + hostAddress + ":" + (hostPort as string))
+                    addActivity "success" ("Connected to local MCP server at " + hostAddress + ":" + (hostPort as string))
                 )
-                "server_ready": addActivity "system" "Local MCP server health check passed"
+                "server_ready": addActivity "success" "Local MCP server health check passed"
                 "server_restarting": addActivity "warning" "First-step file re-run: stopping the verified previous server before replacement"
                 "server_restart_shared": addActivity "warning" "Previous server is shared by another 3ds Max process; reused without interrupting it"
                 "legacy_server": addActivity "warning" "Compatible legacy Max Ultra MCP server detected; attached without terminating its process"
@@ -2690,7 +2690,7 @@ global MaxUltraMcpActiveClient
                     connectionState = #starting
                     addActivity "warning" "Another Max instance is starting the local server; waiting"
                 )
-                "server_started": addActivity "system" "Local MCP server started and ownership verified"
+                "server_started": addActivity "success" "Local MCP server started and ownership verified"
                 "error": (
                     connectionState = #error
                     connectionError = if (eventMessage != "") then eventMessage else "Transport error"

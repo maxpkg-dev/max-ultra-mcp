@@ -491,6 +491,9 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /Local MCP server health check passed/);
     assert.match(bootstrapSource, /Connected to local MCP server at/);
     assert.match(bootstrapSource, /Update check completed: version/);
+    assert.match(bootstrapSource, /addActivity "success" \("Connected to local MCP server at "/);
+    assert.match(bootstrapSource, /"server_ready": addActivity "success" "Local MCP server health check passed"/);
+    assert.match(bootstrapSource, /addActivity "system" "Initializing Max Ultra MCP services"/);
     assert.doesNotMatch(bootstrapSource, /Custom scene operation|Max Ultra MCP is current|Healthy Max Ultra MCP server already running/);
     const serverSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "server.js"), "utf8");
     const stdioHostSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "stdio-host.js"), "utf8");
