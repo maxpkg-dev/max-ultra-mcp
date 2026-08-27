@@ -748,6 +748,9 @@ async function runSmokeTest() {
     assert.doesNotMatch(maxPkgFilesSource, /publish-github-release|release-mzp-utils|RELEASE_MZP_TO_GITHUB/);
     assert.match(gitIgnoreSource, /^dist\/$/m);
     assert.match(githubReleaseBatSource, /scripts\\publish-github-release\.ps1/);
+    assert.match(githubReleaseSource, /Read-Host "Publish \$releaseTag to GitHub\? \[Y\/N\]"/);
+    assert.match(githubReleaseSource, /\.Trim\(\)\.ToUpperInvariant\(\) -ne \x27Y\x27/);
+    assert.doesNotMatch(githubReleaseSource, /Type RELEASE/);
     assert.match(versionIniSource, /\[MaxUltraMCP\][\s\S]*Version=\d+\.\d+\.\d+[\s\S]*Channel=stable/);
     assert.match(changelogSource, /^## Unreleased/m);
     assert.match(releaseRulesSource, /authorizes local release-metadata preparation and verification only/i);

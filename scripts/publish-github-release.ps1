@@ -220,8 +220,8 @@ if ($CheckOnly) {
     exit 0
 }
 if (-not $Yes) {
-    $confirmation = Read-Host "Type RELEASE $projectVersion to publish this GitHub release"
-    if ($confirmation -ne "RELEASE $projectVersion") {
+    $confirmation = Read-Host "Publish $releaseTag to GitHub? [Y/N]"
+    if ($confirmation.Trim().ToUpperInvariant() -ne 'Y') {
         throw 'Release cancelled. Nothing was published.'
     }
 }
