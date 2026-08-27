@@ -84,18 +84,22 @@ global MaxUltraMcpActiveClient
         failureMessage = ""
     )
 
-    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP 1.2.1" width: 680 height: 500 (
-        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 480 height: 20
+    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP 1.2.1" width: 680 height: 540 (
+        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 428 height: 20
         dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
-        button btnAgents "AI setup" pos: [516,8] width: 72 height: 22
+        button btnAgents "AI setup" pos: [448,8] width: 72 height: 22
+        button btnDonate "Donate" pos: [528,8] width: 60 height: 22
         button btnHide "Hide panel" pos: [596,8] width: 72 height: 22
 
-        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [4,62] width: 672 height: 386
+        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [4,62] width: 672 height: 398
 
-        button btnReconnect "Reconnect" pos: [12,456] width: 120 height: 30
-        button btnStop "Stop / Exit" pos: [140,456] width: 120 height: 30
-        button btnStart "Connect only" pos: [268,456] width: 120 height: 30
-        button btnSettings "Settings" pos: [548,456] width: 120 height: 30
+        button btnReconnect "Reconnect" pos: [12,468] width: 120 height: 30
+        button btnStop "Stop / Exit" pos: [140,468] width: 120 height: 30
+        button btnStart "Connect only" pos: [268,468] width: 120 height: 30
+        button btnSettings "Settings" pos: [548,468] width: 120 height: 30
+
+        hyperLink lnkMaxPkg "maxpkg.dev" pos: [12,509] width: 82 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://maxpkg.dev/catalog/max-ultra-mcp"
+        hyperLink lnk3DGround "3dground.net" pos: [102,509] width: 100 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://3dground.net"
 
         on MaxUltraMcpStatusDialog open do (
             if (bridgeClient != undefined) do (
@@ -128,9 +132,10 @@ global MaxUltraMcpActiveClient
         on btnAgents pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
         on btnHide pressed do if (bridgeClient != undefined) do bridgeClient.hidePanel()
         on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
+        on btnDonate pressed do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
 
-    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 402 (
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 426 (
         groupBox grpAutostart "Autostart" pos: [12,10] width: 356 height: 58
         checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
         groupBox grpServerConsole "Server console" pos: [12,78] width: 356 height: 58
@@ -141,11 +146,13 @@ global MaxUltraMcpActiveClient
         dotNetControl lblUpdateStatus "System.Windows.Forms.Label" pos: [24,198] width: 332 height: 24
         groupBox grpAgents "AI client integration" pos: [12,250] width: 356 height: 60
         button btnAgentSetup "Open AI client setup..." pos: [24,272] width: 210 height: 26
-        groupBox grpAbout "About" pos: [12,320] width: 356 height: 72
+        groupBox grpAbout "About" pos: [12,320] width: 356 height: 96
         label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 190 height: 18
         label lblAboutVersion "Version: 1.2.1" pos: [250,342] width: 100 height: 18
         label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,366] width: 180 height: 18
-        hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,364] width: 138 height: 20 address: "https://3dground.net"
+        hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,364] width: 138 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://3dground.net"
+        label lblAboutPackageManager "Package Manager:" pos: [24,390] width: 104 height: 18
+        hyperLink lnkAboutPackageManager "maxpkg.dev" pos: [132,388] width: 90 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://maxpkg.dev"
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
@@ -703,29 +710,33 @@ global MaxUltraMcpActiveClient
         fn resizePanelControls panelSize = (
             if (isDisposed or not panelIsOpen()) do return false
             local panelWidth = amax 540 panelSize.x
-            local panelHeight = amax 420 panelSize.y
+            local panelHeight = amax 540 panelSize.y
             local contentWidth = panelWidth - 24
-            statusDialog.lblStatus.width = panelWidth - 188
+            statusDialog.lblStatus.width = panelWidth - 252
             statusDialog.lblContext.width = contentWidth
-            local logHeight = amax 260 (panelHeight - 114)
+            local footerY = panelHeight - 32
+            local buttonY = footerY - 40
+            local logHeight = amax 260 (buttonY - 70)
             statusDialog.rtbActivity.width = panelWidth - 8
             statusDialog.rtbActivity.height = logHeight
-            local buttonY = panelHeight - 44
             statusDialog.btnReconnect.pos.y = buttonY
             statusDialog.btnStop.pos.y = buttonY
             statusDialog.btnStart.pos.y = buttonY
             statusDialog.btnSettings.pos = [panelWidth - 132, buttonY]
-            statusDialog.btnAgents.pos = [panelWidth - 164, 8]
+            statusDialog.lnkMaxPkg.pos = [12, footerY + 1]
+            statusDialog.lnk3DGround.pos = [102, footerY + 1]
+            statusDialog.btnAgents.pos = [panelWidth - 232, 8]
+            statusDialog.btnDonate.pos = [panelWidth - 152, 8]
             statusDialog.btnHide.pos = [panelWidth - 84, 8]
             return true
         ),
 
         fn requestedPanelSize panelSize = (
             local requestedWidth = 680
-            local requestedHeight = 500
+            local requestedHeight = 540
             if (panelSize != undefined) do (
                 try (requestedWidth = panelSize.x as integer) catch (requestedWidth = 680)
-                try (requestedHeight = panelSize.y as integer) catch (requestedHeight = 500)
+                try (requestedHeight = panelSize.y as integer) catch (requestedHeight = 540)
             )
             return [requestedWidth, requestedHeight]
         ),
@@ -735,7 +746,7 @@ global MaxUltraMcpActiveClient
             local maximumWidth = amax 1 (workingArea.Width as integer)
             local maximumHeight = amax 1 (workingArea.Height as integer)
             local minimumWidth = amin 540 maximumWidth
-            local minimumHeight = amin 420 maximumHeight
+            local minimumHeight = amin 540 maximumHeight
             local clampedWidth = amax minimumWidth (amin maximumWidth requestedSize.x)
             local clampedHeight = amax minimumHeight (amin maximumHeight requestedSize.y)
             return [clampedWidth as integer, clampedHeight as integer]
@@ -1254,7 +1265,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (settingsDialogIsOpen()) do return true
             try (
-                createDialog settingsDialog width: 380 height: 402 style: #(#style_titlebar, #style_sysmenu)
+                createDialog settingsDialog width: 380 height: 426 style: #(#style_titlebar, #style_sysmenu)
                 return settingsDialogIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)

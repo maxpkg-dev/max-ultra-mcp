@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added: The main panel includes a header Donate action, left-aligned maxpkg.dev and 3dground.net footer links, and a linked maxpkg.dev package-manager entry in About.
+
 - Fixed: MaxPkg uninstall preserves quoted package-root paths that end in a backslash, allowing the focused cleanup helper to start correctly.
 - Fixed: A stale detached shutdown helper can no longer terminate a replacement daemon that reuses the same loopback port with a different owner token.
 
