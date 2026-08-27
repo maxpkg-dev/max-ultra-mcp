@@ -14,7 +14,6 @@ $fileManifestPath = Join-Path $projectRoot 'maxpkg-files.txt'
 $versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
 $trackedChangelogPath = Join-Path $projectRoot 'CHANGELOG.md'
-$sourceIconPath = Join-Path $projectRoot 'assets\max-ultra-mcp.svg'
 $packagerIconPath = Join-Path $projectRoot 'maxpkg-icon.svg'
 $settingsPath = Join-Path $projectRoot 'maxpkg-packager.ini'
 $changelogPath = Join-Path $projectRoot 'maxpkg-changelog.ini'
@@ -32,7 +31,7 @@ foreach ($requiredTool in @('maxpkg-packager.ms','_install.ms','_uninstall.ms'))
     }
 }
 if (-not (Test-Path -LiteralPath $fileManifestPath -PathType Leaf)) { throw 'maxpkg-files.txt is missing.' }
-if (-not (Test-Path -LiteralPath $sourceIconPath -PathType Leaf)) { throw 'The MaxPkg SVG icon is missing.' }
+if (-not (Test-Path -LiteralPath $packagerIconPath -PathType Leaf)) { throw 'The source-controlled maxpkg-icon.svg file is missing.' }
 if (-not (Test-Path -LiteralPath $trackedChangelogPath -PathType Leaf)) { throw 'CHANGELOG.md is missing.' }
 
 $projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath
@@ -83,7 +82,6 @@ foreach ($relativeFile in $relativeFiles) {
     $packageFiles.Add([pscustomobject]@{ Absolute = $absoluteFile; Relative = $normalizedRelative })
 }
 
-Copy-Item -LiteralPath $sourceIconPath -Destination $packagerIconPath -Force
 New-Item -ItemType Directory -Path $outputFolder -Force | Out-Null
 
 $settingsLines = New-Object System.Collections.Generic.List[string]

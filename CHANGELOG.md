@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.2.4 - 2026-08-27
+
+- Improved: GitHub release publication now uses a concise Y/N confirmation prompt.
+- Changed: Missing MaxPkg tooling now bootstraps from the current official revision while existing self-updated tooling is preserved.
+- Fixed: Release preparation preserves the reviewed maxpkg-icon.svg instead of overwriting it from a secondary asset copy.
+- Fixed: Release preparation no longer replaces an existing self-updated MaxPkg Packager.
+
 ## 1.2.3 - 2026-08-27
 
 - Fixed: Release, update, and portable-runtime helpers use a self-contained .NET SHA-256 implementation when PowerShell module autoloading is unavailable.

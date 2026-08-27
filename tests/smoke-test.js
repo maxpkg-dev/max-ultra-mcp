@@ -489,7 +489,7 @@ async function runSmokeTest() {
     const maxPkgUpstreamSkillSource = fs.readFileSync(path.join(PROJECT_ROOT, "skills", "max-ultra-maxpkg-packaging", "scripts", "get-maxpkg-upstream.ps1"), "utf8");
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
-    const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "max-ultra-mcp.svg"), "utf8");
+    const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "maxpkg-icon.svg"), "utf8");
     const gitIgnoreSource = fs.readFileSync(path.join(PROJECT_ROOT, ".gitignore"), "utf8");
     const githubReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "publish-github-release.ps1"), "utf8");
     const releaseVersionSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "release-mzp-utils.ps1"), "utf8");
@@ -801,8 +801,12 @@ async function runSmokeTest() {
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);
     assert.match(maxPkgPrepareSource, /compileEntry=false/);
     assert.match(maxPkgPrepareSource, /customUninstallScript=/);
-    assert.match(maxPkgSyncSource, /4412adcf06b1f62b27fc42fc7a252a4a96b95402/);
+    assert.match(maxPkgSyncSource, /3727cfd6fe98f8fa6bfd31b900f44ee0c37d9417/);
+    assert.match(maxPkgSyncSource, /if \(-not \$Force -and \(Test-Path[^\r\n]+\)\) \{[\s\S]*\$preservedFiles\.Add\(\$fileName\)[\s\S]*continue/);
+    assert.doesNotMatch(maxPkgSyncSource, /existingHash|differs from pinned/);
     assert.match(maxPkgSyncSource, /Get-MaxUltraSha256Hash -LiteralPath \$temporaryPath/);
+    assert.doesNotMatch(maxPkgPrepareSource, /Copy-Item[^\r\n]+maxpkg-icon/i);
+    assert.doesNotMatch(maxPkgPrepareSource, /sourceIconPath/);
     assert.match(maxPkgUninstallSource, /function Get-PackageOwnedNodeProcesses/);
     assert.match(maxPkgUninstallSource, /function Stop-PackageOwnedNodeProcess/);
     assert.match(maxPkgUninstallSource, /Close ChatGPT Desktop, Codex, and Claude Code/);
@@ -815,10 +819,8 @@ async function runSmokeTest() {
     assert.match(maxPkgUninstallHookSource, /fn maxUltraMcpQuoteUninstallArgument/);
     assert.match(maxPkgUninstallHookSource, /trailingBackslashCount/);
     assert.match(maxPkgUninstallHookSource, /maxUltraMcpQuoteUninstallArgument packageRoot/);
-    assert.doesNotMatch(maxPkgIconSource, /<rect\b/);
-    assert.match(maxPkgIconSource, /<circle cx="8" cy="8"/);
-    assert.match(maxPkgIconSource, /<circle cx="56" cy="8"/);
-    assert.ok(maxPkgIconSource.lastIndexOf('fill="#55d88a"') > maxPkgIconSource.lastIndexOf('stroke="#f5b942"'), "The M mark must render above the connection graphics");
+    assert.match(maxPkgIconSource, /<svg\b/i);
+    assert.doesNotMatch(maxPkgIconSource, /<script\b|javascript:|onload\s*=|onclick\s*=|onerror\s*=|<foreignObject\b/i);
     assert.match(bootstrapSource, /getDir #userStartupScripts/);
     assert.match(bootstrapSource, /3DGROUND-Max-Ultra-MCP-Autostart\.ms/);
     assert.match(bootstrapSource, /getINISetting uiStateFilePath "settings" "autostart"/);

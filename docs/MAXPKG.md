@@ -45,9 +45,9 @@ The launcher delegates to `scripts\publish-github-release.ps1`. It requires an a
 
 The three compared sources are `version.ini` (cross-checked against `core\package.json`), the version parsed from the newest MZP filename below `dist`, and stable GitHub Release tags.
 
-`scripts/sync-maxpkg-tooling.ps1` downloads the MaxPkg Packager and standard hooks from pinned revision `4412adcf06b1f62b27fc42fc7a252a4a96b95402`. Every downloaded file is checked against a committed SHA-256 value before it replaces a local tooling file.
+`scripts/sync-maxpkg-tooling.ps1` uses pinned revision `3727cfd6fe98f8fa6bfd31b900f44ee0c37d9417` only as a verified bootstrap for missing tooling files. Existing MaxPkg Packager and hook files are preserved because the official packager may update itself. Every downloaded bootstrap file is checked against a committed SHA-256 value; replacing an existing file requires the explicit `-Force` option.
 
-Pinned `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` live in the project root and are source controlled. Generated `maxpkg-packager.ini`, `maxpkg-changelog.ini`, `maxpkg-icon.svg`, and build output are machine-local release artifacts and are not committed.
+`maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` live in the project root and are source controlled. Existing files are never replaced by normal release preparation, so official MaxPkg self-updates persist. The reviewed `maxpkg-icon.svg` is also source controlled and is the package icon source of truth. Generated `maxpkg-packager.ini`, `maxpkg-changelog.ini`, and build output are machine-local release artifacts and are not committed.
 
 ## Automatic update lifecycle
 
@@ -70,7 +70,7 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 - `maxpkg-files.txt` is the reviewed production file allowlist.
 - `skills\max-ultra-mcp`, `skills\max-ultra-camera-composition`, `skills\max-ultra-character-object-modeling`, `skills\max-ultra-renderer-settings`, `skills\max-ultra-spline-modeling`, `skills\max-ultra-floor-plan`, and `skills\max-ultra-maxpkg-packaging` are the optional file-based agent skills shipped with the package; MCP operation does not depend on installing them.
 - The MaxPkg adaptation skill fetches the current official README, coding rules, both official prompts, API documentation, `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` from one resolved `maxpkg-dev/max-dev-tool` commit. Prompt content is not embedded in Max Ultra MCP. Its stricter workflow requires both standard hooks in every adapted project.
-- `assets/max-ultra-mcp.svg` is the square package icon source.
+- `maxpkg-icon.svg` is the reviewed square package icon used by MaxPkg Packager.
 - `scripts/prepare-maxpkg.ps1` creates machine-local packager INI files with absolute source paths.
 - `scripts/sync-maxpkg-tooling.ps1` provides reproducible MaxPkg tooling.
 - `scripts/maxpkg-uninstall.ms` and `scripts/maxpkg-uninstall.ps1` implement focused package-specific cleanup.
