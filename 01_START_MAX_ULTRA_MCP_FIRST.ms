@@ -84,7 +84,7 @@ global MaxUltraMcpActiveClient
         failureMessage = ""
     )
 
-    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP 1.2.1" width: 680 height: 540 (
+    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP 1.2.2" width: 680 height: 540 (
         dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 428 height: 20
         dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
         button btnAgents "AI setup" pos: [448,8] width: 72 height: 22
@@ -148,7 +148,7 @@ global MaxUltraMcpActiveClient
         button btnAgentSetup "Open AI client setup..." pos: [24,272] width: 210 height: 26
         groupBox grpAbout "About" pos: [12,320] width: 356 height: 96
         label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 190 height: 18
-        label lblAboutVersion "Version: 1.2.1" pos: [250,342] width: 100 height: 18
+        label lblAboutVersion "Version: 1.2.2" pos: [250,342] width: 100 height: 18
         label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,366] width: 180 height: 18
         hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,364] width: 138 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://3dground.net"
         label lblAboutPackageManager "Package Manager:" pos: [24,390] width: 104 height: 18
