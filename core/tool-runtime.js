@@ -26,55 +26,21 @@ function sanitizeActivityDescription(value) {
   return normalized.slice(0, 80).trim();
 }
 
-function inferMaxScriptActivity(script) {
-  const rawScript = String(script || "");
-  if (!rawScript.trim()) return "";
-  const source = rawScript
-    .replace(/--.*$/gm, " ")
-    .replace(/"(?:\\.|[^"\\])*"/g, " ");
-  const rules = [
-    ["Reset scene", /\bresetMaxFile\b/i],
-    ["Open scene", /\bloadMaxFile\b/i],
-    ["Merge scene", /\bmergeMaxFile\b/i],
-    ["Save scene", /\b(?:saveMaxFile|saveNodes)\b/i],
-    ["Import scene", /\bimportFile\b/i],
-    ["Export scene", /\bexportFile\b/i],
-    ["Create layers", /\blayerManager\s*\.\s*(?:newLayer|newLayerFromName)\b/i],
-    ["Delete objects", /\bdelete\b/i],
-    ["Create box", /\bbox\b/i],
-    ["Create sphere", /\bsphere\b/i],
-    ["Create cylinder", /\bcylinder\b/i],
-    ["Create plane", /\bplane\b/i],
-    ["Create splines", /\b(?:splineShape|addNewSpline|addKnot)\b/i],
-    ["Create text shape", /\btext\s+(?:name\s*:|text\s*:|size\s*:)/i],
-    ["Edit polygon mesh", /\b(?:polyOp|meshOp)\s*\./i],
-    ["Add modifiers", /\baddModifier\b/i],
-    ["Edit materials", /\b(?:meditMaterials|sceneMaterials)\b|\.material\s*=/i],
-    ["Create or edit camera", /\b(?:freeCamera|targetCamera|physicalCamera|camera)\b/i],
-    ["Create or edit lights", /\b(?:omniLight|freeSpot|targetSpot|photometricLight)\b/i],
-    ["Transform objects", /\b(?:move|rotate|scale)\s+|\.(?:pos|position|rotation|scale)\s*=/i],
-    ["Select objects", /\bselect(?:More)?\b/i],
-    ["Edit animation", /\b(?:animate\s+on|setKey|addNewKey)\b/i],
-    ["Start render", /(?:\brender\s*\(|\bmax\s+quick\s+render\b)/i],
-  ];
-  const matches = rules.filter(([, pattern]) => pattern.test(source)).map(([label]) => label);
-  if (matches.length === 0) return "Custom scene operation via MaxScript";
-  return matches.slice(0, 3).join(" + ") + " via MaxScript";
+function maxScriptActivityLabel(args = {}) {
+  const supplied = String(args.activity || "").trim();
+  const explicit = sanitizeActivityDescription(supplied);
+  const genericActivity = /^(?:(?:run|execute|perform)\s+)?(?:custom\s+)?(?:maxscript|script|scene operation|operation|process scene)(?:\s+via\s+maxscript)?$/i;
+  if (!explicit || explicit !== supplied || genericActivity.test(explicit)) {
+    throw new Error("activity must be a specific privacy-safe operation name, such as Create wall openings, Assign materials, or Delete helper objects");
+  }
+  return /maxscript/i.test(explicit) ? explicit : explicit + " via MaxScript";
 }
 
-function maxScriptActivityLabel(args = {}, fallback = "Custom scene operation via MaxScript") {
-  const explicit = sanitizeActivityDescription(args.activity);
-  if (explicit && !/^run maxscript$/i.test(explicit)) {
-    return /maxscript/i.test(explicit) ? explicit : explicit + " via MaxScript";
-  }
-  const inferred = inferMaxScriptActivity(args.script);
-  return inferred || fallback;
-}
 function activityLabelForTool(toolName, args = {}) {
+  if (toolName === "max_execute" || toolName === "max_run_script" || toolName === "max_run_script_file") {
+    return maxScriptActivityLabel(args);
+  }
   const labels = {
-    max_execute: maxScriptActivityLabel(args),
-    max_run_script: maxScriptActivityLabel(args),
-    max_run_script_file: maxScriptActivityLabel(args, "Custom script file operation via MaxScript"),
     max_create_polygon_mesh: "Create polygon mesh",
     max_build_floor_plan: "Build floor plan",
     max_material_find_unassigned: "Find material issues",

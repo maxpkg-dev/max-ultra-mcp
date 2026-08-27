@@ -14,7 +14,7 @@ result label contains "Result: controlled by MCP". Do not use screen coordinates
 
 Expected sequence:
 
-1. `max_run_script_file` with the absolute path to `test-ui-rollout.ms`.
+1. `max_run_script_file` with the absolute path to `test-ui-rollout.ms` and `activity: "Open UI automation test rollout"`.
 2. `max_ui_wait` with `window.name = "Max Ultra MCP UI Automation Test"`.
 3. `max_ui_inspect` to discover the edit and button selectors.
 4. `max_ui_set_value` for the edit control.

@@ -583,6 +583,7 @@ global MaxUltraMcpActiveClient
             if ((findString normalizedEntry " [error] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 125 125) else (colorClass.FromArgb 180 0 0)
             if ((findString normalizedEntry " [warning] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 195 80) else (colorClass.FromArgb 145 105 0)
             if ((findString normalizedEntry " [success] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 120 225 150) else (colorClass.FromArgb 0 100 0)
+            if ((findString normalizedEntry " [system] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 165 255) else (colorClass.FromArgb 80 55 140)
             if ((findString normalizedEntry " [debug] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 190 140) else (colorClass.FromArgb 90 90 0)
             return if (darkTheme) then (colorClass.FromArgb 110 205 235) else (colorClass.FromArgb 20 90 145)
         ),
@@ -1218,7 +1219,7 @@ global MaxUltraMcpActiveClient
             updateMessage = readUpdateValue "message" fallbackValue: (if updateResultExists then "Update check failed." else ("Update helper exited before writing a result (exit code " + (helperExitCode as string) + ")."))
             if (stateValue == "current" and helperExitCode == 0) then (
                 updateState = #current
-                addActivity "info" "Max Ultra MCP is current"
+                addActivity "system" ("Update check completed: version " + updateLatestVersion + " is up to date")
             ) else if (stateValue == "ready" and helperExitCode == 0) then (
                 local stagedPackagePath = readUpdateValue "packagePath" fallbackValue: ""
                 local normalizedPackagePath = ""
@@ -2666,9 +2667,9 @@ global MaxUltraMcpActiveClient
                     hasConnectedThisSession = true
                     connectionState = #connected
                     connectionError = ""
-                    addActivity "success" ("Connected to " + hostAddress + ":" + (hostPort as string))
+                    addActivity "system" ("Connected to local MCP server at " + hostAddress + ":" + (hostPort as string))
                 )
-                "server_ready": addActivity "info" "Healthy Max Ultra MCP server already running"
+                "server_ready": addActivity "system" "Local MCP server health check passed"
                 "server_restarting": addActivity "warning" "First-step file re-run: stopping the verified previous server before replacement"
                 "server_restart_shared": addActivity "warning" "Previous server is shared by another 3ds Max process; reused without interrupting it"
                 "legacy_server": addActivity "warning" "Compatible legacy Max Ultra MCP server detected; attached without terminating its process"
@@ -2679,17 +2680,17 @@ global MaxUltraMcpActiveClient
                     )
                     local portChangeReason = if (portChangeFields.count >= 2) then portChangeFields[2] else "the configured endpoint is unavailable"
                     addActivity "warning" ("Using safe fallback port " + (hostPort as string) + " because " + portChangeReason)
-                    addActivity "info" ("MCP host setting: MAX_ULTRA_MCP_PORT=" + (hostPort as string))
+                    addActivity "system" ("MCP host setting: MAX_ULTRA_MCP_PORT=" + (hostPort as string))
                 )
                 "server_launching": (
                     connectionState = #starting
-                    addActivity "info" ("Starting local server with " + eventMessage)
+                    addActivity "system" ("Starting local MCP server with " + eventMessage)
                 )
                 "server_waiting": (
                     connectionState = #starting
                     addActivity "warning" "Another Max instance is starting the local server; waiting"
                 )
-                "server_started": addActivity "success" "Fresh Max Ultra MCP server is healthy and recorded for detached ownership-verified shutdown"
+                "server_started": addActivity "system" "Local MCP server started and ownership verified"
                 "error": (
                     connectionState = #error
                     connectionError = if (eventMessage != "") then eventMessage else "Transport error"
@@ -3276,7 +3277,7 @@ global MaxUltraMcpActiveClient
             connectionState = #starting
             connectionError = ""
             if (not (restoreSavedPanelVisibility())) do addActivity "error" "Could not restore the saved panel visibility"
-            addActivity "info" "Max Ultra MCP started: ensuring the local server is healthy"
+            addActivity "system" "Initializing Max Ultra MCP services"
             if (stagedUpdateStatus != "") do addActivity (if (matchPattern stagedUpdateStatus pattern: "The staged update*" ignoreCase: false) then "error" else "success") stagedUpdateStatus
             if (serverLauncherPath == "") do addActivity "warning" "scripts\\start-server.bat not found below this file; MAX_ULTRA_MCP_ROOT fallback will be required if launch is needed"
             startTransport allowServerLaunch: true

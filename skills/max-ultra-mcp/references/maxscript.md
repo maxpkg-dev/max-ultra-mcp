@@ -90,7 +90,7 @@ Positive/negative values turn in opposite directions. Keep each change small, ca
 
 Avoid `execute` and `fileIn` inside arbitrary scripts when the MCP tool can execute the intended text or file directly. `safeExecute` is not a substitute for the product's approval and validation boundary, and unrestricted `max_execute` intentionally remains powerful.
 
-Always include the `activity` argument with `max_run_script`, `max_run_script_file`, and `max_execute`. Use a short imperative English description of the actual operation, such as `Create box`, `Delete objects`, or `Create layers`. Never put MaxScript source, object data, filenames, or local paths in the activity description.
+The `activity` argument is required for `max_run_script`, `max_run_script_file`, and `max_execute`. Name the exact operation with a short imperative English phrase, such as `Create wall openings`, `Assign tree materials`, or `Delete opening helpers`. Generic names such as `Run MaxScript`, `Custom scene operation`, or `Process scene` are rejected. Never put MaxScript source, object data, filenames, or local paths in the activity description.
 
 ## Rendering and UI
 

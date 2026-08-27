@@ -220,11 +220,11 @@ function assertBalancedMaxScript(source) {
 }
 
 async function runSmokeTest() {
-  assert.equal(activityLabelForTool("max_run_script", { script: 'box name:"ActivityBox"' }), "Create box via MaxScript");
-  assert.equal(activityLabelForTool("max_run_script", { script: "delete selection" }), "Delete objects via MaxScript");
-  assert.equal(activityLabelForTool("max_run_script", { script: 'LayerManager.newLayerFromName "Architecture"' }), "Create layers via MaxScript");
+  assert.throws(() => activityLabelForTool("max_run_script", { script: 'box name:"ActivityBox"' }), /activity must be a specific/);
+  assert.throws(() => activityLabelForTool("max_run_script", { script: "delete selection", activity: "Custom scene operation" }), /activity must be a specific/);
+
   assert.equal(activityLabelForTool("max_execute", { script: "1 + 1", activity: "Inspect scene state" }), "Inspect scene state via MaxScript");
-  assert.equal(activityLabelForTool("max_execute", { script: 'box name:"PrivateBox"', activity: "Create box <PROJECT_ROOT>\\private.ms" }), "Create box via MaxScript");
+  assert.throws(() => activityLabelForTool("max_execute", { script: 'box name:"PrivateBox"', activity: "Create box <PROJECT_ROOT>\\private.ms" }), /activity must be a specific/);
   assert.equal(activityLabelForTool("max_run_script_file", { filePath: "<PROJECT_ROOT>\\tool.ms", activity: "Open tool rollout" }), "Open tool rollout via MaxScript");
   let shutdownRequests = 0;
   const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 1000, shutdownHandler: () => { shutdownRequests += 1; } });
@@ -486,6 +486,12 @@ async function runSmokeTest() {
     assert.match(screenshotExampleSource, /fs\.copyFileSync\(sourceFilePath, savedFilePath\)/);
     assert.doesNotMatch(screenshotExampleSource, /cleanup-after-process|startCleanupWatcher|removeScreenshotAfterProcessExit/);
     const bootstrapSource = fs.readFileSync(path.join(PROJECT_ROOT, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
+    assert.match(bootstrapSource, /findString normalizedEntry " \[system\] "/);
+    assert.match(bootstrapSource, /Initializing Max Ultra MCP services/);
+    assert.match(bootstrapSource, /Local MCP server health check passed/);
+    assert.match(bootstrapSource, /Connected to local MCP server at/);
+    assert.match(bootstrapSource, /Update check completed: version/);
+    assert.doesNotMatch(bootstrapSource, /Custom scene operation|Max Ultra MCP is current|Healthy Max Ultra MCP server already running/);
     const serverSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "server.js"), "utf8");
     const stdioHostSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "stdio-host.js"), "utf8");
     const bridgeControlClientSource = fs.readFileSync(path.join(PROJECT_ROOT, "core", "bridge-control-client.js"), "utf8");

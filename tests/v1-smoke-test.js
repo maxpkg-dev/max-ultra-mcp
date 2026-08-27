@@ -133,7 +133,8 @@ async function run() {
   assert.equal(fullTools.find((entry) => entry.name === "max_execute").annotations.openWorldHint, true);
   const runScriptTool = coreTools.find((entry) => entry.name === "max_run_script");
   assert.equal(runScriptTool.inputSchema.properties.activity.maxLength, 80);
-  assert.match(runScriptTool.description, /Always provide a concise activity description/);
+  assert.equal(runScriptTool.inputSchema.required.includes("activity"), true);
+  assert.match(runScriptTool.description, /specific activity name is required/);
 
   const validation = validateFloorPlan(PLAN);
   assert.equal(validation.validationToken.length, 64);
@@ -451,9 +452,9 @@ async function run() {
     assert.equal(explicitActivity.result.isError, false, JSON.stringify(explicitActivity.result.structuredContent));
     assert.equal(max2022.activityLabels.at(-1), "Create preview box via MaxScript");
 
-    const inferredActivity = await rpc(hostA, { jsonrpc: "2.0", id: 162, method: "tools/call", params: { name: "max_run_script", arguments: { script: 'LayerManager.newLayerFromName "MCP_ACTIVITY_TEST"' } } });
-    assert.equal(inferredActivity.result.isError, false, JSON.stringify(inferredActivity.result.structuredContent));
-    assert.equal(max2022.activityLabels.at(-1), "Create layers via MaxScript");
+    const missingActivity = await rpc(hostA, { jsonrpc: "2.0", id: 162, method: "tools/call", params: { name: "max_run_script", arguments: { script: 'LayerManager.newLayerFromName "MCP_ACTIVITY_TEST"' } } });
+    assert.equal(missingActivity.error.code, -32602);
+
 
     const invalidArgs = await rpc(hostA, { jsonrpc: "2.0", id: 17, method: "tools/call", params: { name: "max_create_box", arguments: { unexpected: true } } });
     assert.equal(invalidArgs.error.code, -32602);

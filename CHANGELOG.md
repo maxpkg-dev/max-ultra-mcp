@@ -4,7 +4,8 @@
 
 ## 1.2.5 - 2026-08-27
 
-- Improved: MaxScript activity entries now show an explicit or safely inferred scene operation instead of the generic Run MaxScript label.
+- Improved: MaxScript tools now require an exact privacy-safe operation name and reject missing or generic activity labels instead of logging an ambiguous action.
+- Improved: Startup, server health, connection, and update activity messages now use concise professional wording and a distinct system color.
 
 ## 1.2.4 - 2026-08-27
 

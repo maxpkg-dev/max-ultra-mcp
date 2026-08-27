@@ -197,7 +197,7 @@ try {
     $latestInfo = ConvertTo-MaxUltraReleaseVersion -Text ([string]$release.tag_name) -AllowTagPrefix
     if ($latestInfo.Value.CompareTo($currentInfo.VersionValue) -le 0) {
         Remove-TemporaryUpdateFiles
-        Write-UpdateResult -State 'current' -CurrentVersion $currentVersion -LatestVersion $latestInfo.Text -PackagePath '' -Message 'Max Ultra MCP is current.'
+        Write-UpdateResult -State 'current' -CurrentVersion $currentVersion -LatestVersion $latestInfo.Text -PackagePath '' -Message 'Max Ultra MCP is up to date.'
         exit 0
     }
 
