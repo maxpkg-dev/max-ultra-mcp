@@ -496,7 +496,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed or not panelIsOpen()) do return false
             try (
                 statusDialog.rtbActivity.ReadOnly = true
-                statusDialog.rtbActivity.WordWrap = false
+                statusDialog.rtbActivity.WordWrap = true
                 statusDialog.rtbActivity.DetectUrls = false
                 statusDialog.rtbActivity.HideSelection = false
                 statusDialog.rtbActivity.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").Vertical

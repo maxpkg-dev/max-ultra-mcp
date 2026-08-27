@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Improved: Long activity-log entries wrap onto additional lines instead of being clipped at the right edge.
+
 - Added: The main panel includes a header Donate action, left-aligned maxpkg.dev and 3dground.net footer links, and a linked maxpkg.dev package-manager entry in About.
 
 - Fixed: MaxPkg uninstall preserves quoted package-root paths that end in a backslash, allowing the focused cleanup helper to start correctly.

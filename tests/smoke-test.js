@@ -877,7 +877,7 @@ async function runSmokeTest() {
     assert.doesNotMatch(bootstrapSource, /lbl(?:Status|Context)\.BackColor = statusDialog\.rtbActivity\.BackColor/);
     assert.match(bootstrapSource, /rtbActivity\.BackColor = lighterThemeSurface\(\)/);
     assert.match(bootstrapSource, /rtbActivity\.BorderStyle = \(dotNetClass "System\.Windows\.Forms\.BorderStyle"\)\.FixedSingle/);
-    assert.match(bootstrapSource, /rtbActivity\.WordWrap = false/);
+    assert.match(bootstrapSource, /rtbActivity\.WordWrap = true/);
     assert.match(bootstrapSource, /FontStyle"\)\.Bold/);
     assert.match(bootstrapSource, /AccessibleName = "Max Ultra MCP connection status"/);
     assert.match(bootstrapSource, /maximumActivityEntries = 30/);
