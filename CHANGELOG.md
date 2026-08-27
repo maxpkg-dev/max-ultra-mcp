@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 1.2.3 - 2026-08-27
+
+- Fixed: Release, update, and portable-runtime helpers use a self-contained .NET SHA-256 implementation when PowerShell module autoloading is unavailable.
 - Improved: The panel title and About page now load the installed package version from manifest.ini, with version.ini as the source-development fallback.
 - Changed: Release preparation now uses the permanent Free license without requiring a repeated command-line argument.
 - Changed: The default release handoff stops before MaxPkg build, commits, push, or publication unless the maintainer requests those actions explicitly.

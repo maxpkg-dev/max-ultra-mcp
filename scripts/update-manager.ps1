@@ -20,6 +20,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+function Get-MaxUltraSha256Hash {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($LiteralPath))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '')
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
 $expectedRepository = 'maxpkg-dev/max-ultra-mcp'
 $packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'
 $normalizedRoot = [IO.Path]::GetFullPath($ProjectRoot)
@@ -218,7 +232,7 @@ try {
     if (-not $checksumMatch.Success -or $checksumMatch.Groups['file'].Value -cne $expectedPackageName) {
         throw 'The release checksum file has an invalid format or filename.'
     }
-    $actualHash = (Get-FileHash -LiteralPath $temporaryPackagePath -Algorithm SHA256).Hash
+    $actualHash = (Get-MaxUltraSha256Hash -LiteralPath $temporaryPackagePath)
     if (-not [string]::Equals($actualHash, $checksumMatch.Groups['hash'].Value, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'The staged MZP SHA-256 does not match the published checksum.'
     }

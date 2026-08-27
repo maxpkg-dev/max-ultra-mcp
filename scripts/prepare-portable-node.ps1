@@ -4,6 +4,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+function Get-MaxUltraSha256Hash {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($LiteralPath))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '')
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $destination = [IO.Path]::GetFullPath((Join-Path $projectRoot 'runtime\win-x64'))
 if (-not $destination.StartsWith($projectRoot, [StringComparison]::OrdinalIgnoreCase)) {
@@ -30,7 +44,7 @@ try {
     $checksumLine = Get-Content -LiteralPath $checksumsPath | Where-Object { $_ -match "\s+$([regex]::Escape($archiveName))$" } | Select-Object -First 1
     if (-not $checksumLine) { throw "Official SHASUMS256.txt does not contain $archiveName" }
     $expectedHash = ($checksumLine -split '\s+')[0].ToUpperInvariant()
-    $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToUpperInvariant()
+    $actualHash = (Get-MaxUltraSha256Hash -LiteralPath $archivePath).ToUpperInvariant()
     if ($actualHash -ne $expectedHash) { throw "Node archive SHA-256 mismatch. Expected $expectedHash, received $actualHash" }
 
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force

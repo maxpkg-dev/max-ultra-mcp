@@ -10,6 +10,20 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+function Get-MaxUltraSha256Hash {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($LiteralPath))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '')
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
@@ -194,7 +208,7 @@ if ($headCommit -ne $remoteHeadCommit) {
 }
 
 $checksumPath = $releasePackage.FullName + '.sha256'
-$checksum = (Get-FileHash -LiteralPath $releasePackage.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+$checksum = (Get-MaxUltraSha256Hash -LiteralPath $releasePackage.FullName).ToLowerInvariant()
 $checksumLine = "$checksum  $($releasePackage.Name)`n"
 [IO.File]::WriteAllText($checksumPath, $checksumLine, (New-Object Text.UTF8Encoding($false)))
 

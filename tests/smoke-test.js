@@ -495,6 +495,7 @@ async function runSmokeTest() {
     const releaseVersionSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "release-mzp-utils.ps1"), "utf8");
     const githubReleaseBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "RELEASE_MZP_TO_GITHUB.bat"), "utf8");
     const prepareReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-release.ps1"), "utf8");
+    const portableNodePrepareSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-portable-node.ps1"), "utf8");
     const updateManagerSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "update-manager.ps1"), "utf8");
     const uiAutomationSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "max-ui-automation.ps1"), "utf8");
     const versionIniSource = fs.readFileSync(path.join(PROJECT_ROOT, "version.ini"), "utf8");
@@ -757,6 +758,11 @@ async function runSmokeTest() {
     assert.doesNotMatch(prepareReleaseSource, /\$bootstrapPath|lblAboutVersion|MaxUltraMcpStatusDialog/);
     assert.match(maxPkgPrepareSource, /\$settingsLines\.Add\(\x27license=Free\x27\)/);
     assert.doesNotMatch(maxPkgPrepareSource, /\$License/);
+    for (const hashingScriptSource of [maxPkgSyncSource, portableNodePrepareSource, updateManagerSource, githubReleaseSource]) {
+      assert.match(hashingScriptSource, /function Get-MaxUltraSha256Hash/);
+      assert.match(hashingScriptSource, /SHA256\]::Create\(\)[\s\S]*ComputeHash/);
+      assert.doesNotMatch(hashingScriptSource, /Get-FileHash/);
+    }
     assert.match(updateManagerSource, /api\.github\.com\/repos\/\$expectedRepository\/releases\/latest/);
     assert.match(updateManagerSource, /function Get-CurlExecutable/);
     assert.match(updateManagerSource, /CreateNoWindow = \$true/);
@@ -771,7 +777,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /trailingBackslashCount[\s\S]*argumentContent \+= "\\\\"/);
     assert.match(bootstrapSource, /Update helper exited before writing a result \(exit code/);
     assert.doesNotMatch(bootstrapSource, /rolloutBackground = themeDrawingColor #rollupTitleFace/);
-    assert.match(updateManagerSource, /Get-FileHash[\s\S]*SHA256/);
+    assert.match(updateManagerSource, /Get-MaxUltraSha256Hash[\s\S]*temporaryPackagePath/);
     assert.match(maxPkgFilesSource, /version\.ini/);
     assert.match(maxPkgFilesSource, /CHANGELOG\.md/);
     assert.match(maxPkgFilesSource, /^core\/package\.json$/m);
@@ -793,7 +799,7 @@ async function runSmokeTest() {
     assert.match(maxPkgPrepareSource, /compileEntry=false/);
     assert.match(maxPkgPrepareSource, /customUninstallScript=/);
     assert.match(maxPkgSyncSource, /4412adcf06b1f62b27fc42fc7a252a4a96b95402/);
-    assert.match(maxPkgSyncSource, /Get-FileHash -LiteralPath \$temporaryPath -Algorithm SHA256/);
+    assert.match(maxPkgSyncSource, /Get-MaxUltraSha256Hash -LiteralPath \$temporaryPath/);
     assert.match(maxPkgUninstallSource, /function Get-PackageOwnedNodeProcesses/);
     assert.match(maxPkgUninstallSource, /function Stop-PackageOwnedNodeProcess/);
     assert.match(maxPkgUninstallSource, /Close ChatGPT Desktop, Codex, and Claude Code/);

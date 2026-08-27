@@ -7,6 +7,20 @@
 param([switch]$Force)
 
 $ErrorActionPreference = 'Stop'
+function Get-MaxUltraSha256Hash {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+
+    $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($LiteralPath))
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '')
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $revision = '4412adcf06b1f62b27fc42fc7a252a4a96b95402'
 $baseUri = "https://raw.githubusercontent.com/maxpkg-dev/max-dev-tool/$revision"
@@ -22,13 +36,13 @@ try {
     foreach ($fileName in $toolFiles.Keys) {
         $destinationPath = Join-Path $projectRoot $fileName
         if (-not $Force -and (Test-Path -LiteralPath $destinationPath -PathType Leaf)) {
-            $existingHash = (Get-FileHash -LiteralPath $destinationPath -Algorithm SHA256).Hash
+            $existingHash = (Get-MaxUltraSha256Hash -LiteralPath $destinationPath)
             if ($existingHash -eq $toolFiles[$fileName]) { continue }
         }
 
         $temporaryPath = Join-Path $temporaryRoot $fileName
         Invoke-WebRequest -Uri "$baseUri/$fileName" -OutFile $temporaryPath -UseBasicParsing
-        $downloadHash = (Get-FileHash -LiteralPath $temporaryPath -Algorithm SHA256).Hash
+        $downloadHash = (Get-MaxUltraSha256Hash -LiteralPath $temporaryPath)
         if ($downloadHash -ne $toolFiles[$fileName]) {
             throw "MaxPkg tooling hash mismatch for $fileName."
         }
