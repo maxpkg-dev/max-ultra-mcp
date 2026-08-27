@@ -26,7 +26,7 @@ async function createSplineTextExample(options = {}) {
   const ownsClient = options.client === undefined;
   try {
     await client.connect();
-    const toolResponse = await client.callTool("max_execute", { script: maxscript, timeout_ms: 30000 });
+    const toolResponse = await client.callTool("max_execute", { script: maxscript, activity: "Create spline title", timeout_ms: 30000 });
     (options.output || process.stdout).write(`SUCCESS:\n${JSON.stringify(toolResponse, null, 2)}\n`);
     return toolResponse;
   } finally {

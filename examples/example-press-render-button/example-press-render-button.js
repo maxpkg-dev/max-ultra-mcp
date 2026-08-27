@@ -18,6 +18,7 @@ async function pressRenderButtonExample(options = {}) {
     await client.connect();
     const toolResponse = await client.callTool("max_execute", {
       script: QUICK_RENDER_MAXSCRIPT,
+      activity: "Start production render",
       timeout_ms: 600000,
     });
     (options.output || process.stdout).write("Production render completed through the MaxScript F9 equivalent.\n");

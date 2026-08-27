@@ -90,6 +90,8 @@ Positive/negative values turn in opposite directions. Keep each change small, ca
 
 Avoid `execute` and `fileIn` inside arbitrary scripts when the MCP tool can execute the intended text or file directly. `safeExecute` is not a substitute for the product's approval and validation boundary, and unrestricted `max_execute` intentionally remains powerful.
 
+Always include the `activity` argument with `max_run_script`, `max_run_script_file`, and `max_execute`. Use a short imperative English description of the actual operation, such as `Create box`, `Delete objects`, or `Create layers`. Never put MaxScript source, object data, filenames, or local paths in the activity description.
+
 ## Rendering and UI
 
 Do not call a blocking raw `render()` when the user needs status, cancellation, or image retrieval; use the asynchronous render tools. Do not use MaxScript mouse coordinates to operate plugin dialogs. Use process-scoped UI Automation with a freshly inspected selector.

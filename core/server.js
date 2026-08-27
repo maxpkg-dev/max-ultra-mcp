@@ -14,7 +14,7 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { randomUUID } = require("node:crypto");
 const { allToolNames } = require("./tool-catalog");
-const { invokeV1Tool, NOT_HANDLED } = require("./tool-runtime");
+const { activityLabelForTool, invokeV1Tool, NOT_HANDLED } = require("./tool-runtime");
 const { version: SERVER_VERSION } = require("./package.json");
 
 const { ensureControlToken, readControlToken, tokenMatches } = require("./local-auth");
@@ -520,7 +520,7 @@ class MaxBridge {
       const requestedTimeout = Number(toolArguments.timeout_ms ?? 60000);
       if (!Number.isFinite(requestedTimeout)) throw new Error("timeout_ms must be a finite number");
       const timeoutMs = Math.min(MAX_EXECUTION_TIMEOUT_MS, Math.max(1000, requestedTimeout));
-      return { instance: publicInstanceInfo, execution: await this.request(instanceInfo.instanceId, "execute", toolArguments.script, timeoutMs) };
+      return { instance: publicInstanceInfo, execution: await this.request(instanceInfo.instanceId, "execute", toolArguments.script, timeoutMs, activityLabelForTool(toolName, toolArguments)) };
     }
     if (toolName === "max_panel") {
       const allowedActions = new Set(["show", "hide", "minimize", "restore"]);
@@ -592,7 +592,7 @@ const mcpTools = [
   { name: "max_get_info", description: "Return detailed read-only Max, scene, object-category, topology, selection, material, layer, animation, and render information.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
   { name: "max_logs", description: "Return detailed server and panel diagnostics.", inputSchema: { type: "object", properties: { ...targetProperties, tail: { type: "integer", minimum: 1, maximum: MAX_LOG_ENTRIES, default: 20 } }, additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "max_smoke", description: "Run a fixed non-mutating main-thread check.", inputSchema: targetSchema, annotations: readOnlyAnnotations },
-  { name: "max_execute", description: "Advanced escape hatch: execute arbitrary MaxScript. Prefer semantic tools.", inputSchema: { type: "object", properties: { ...targetProperties, script: { type: "string" }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, required: ["script"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true } },
+  { name: "max_execute", description: "Advanced escape hatch: execute arbitrary MaxScript. Prefer semantic tools and provide a concise activity description for the 3ds Max log.", inputSchema: { type: "object", properties: { ...targetProperties, script: { type: "string" }, activity: { type: "string", minLength: 3, maxLength: 80, description: "Concise imperative English action shown in the 3ds Max activity log. Do not include code or paths." }, timeout_ms: { type: "integer", minimum: 1000, maximum: MAX_EXECUTION_TIMEOUT_MS, default: 60000 } }, required: ["script"], additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true } },
   { name: "max_panel", description: "Show, hide, minimize, or restore the Max Ultra MCP panel.", inputSchema: { type: "object", properties: { ...targetProperties, action: { type: "string", enum: ["show", "hide", "minimize", "restore"] } }, required: ["action"], additionalProperties: false }, annotations: controlAnnotations },
   {
     name: "max_ui_list",

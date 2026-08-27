@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.2.5 - 2026-08-27
+
+- Improved: MaxScript activity entries now show an explicit or safely inferred scene operation instead of the generic Run MaxScript label.
+
 ## 1.2.4 - 2026-08-27
 
 - Improved: GitHub release publication now uses a concise Y/N confirmation prompt.

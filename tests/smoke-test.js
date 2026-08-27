@@ -18,6 +18,7 @@ const { version: PACKAGE_VERSION } = require("../core/package.json");
 const { MockMaxClient } = require("./helpers/mock-max-client");
 const { BridgeControlClient } = require("../core/bridge-control-client");
 const { getMcpTools } = require("../core/tool-catalog");
+const { activityLabelForTool } = require("../core/tool-runtime");
 const { MCP_TITLE_OBJECT_NAME, MCP_TITLE_TEXT, createSplineTextExample } = require("../examples/example-create-spline-text/example-create-spline-text");
 const { TEST_BOX_NAME, createTestBox } = require("../examples/example-create-test-box/example-create-test-box");
 const { healthCheckExample } = require("../examples/example-health-check/example-health-check");
@@ -219,6 +220,12 @@ function assertBalancedMaxScript(source) {
 }
 
 async function runSmokeTest() {
+  assert.equal(activityLabelForTool("max_run_script", { script: 'box name:"ActivityBox"' }), "Create box via MaxScript");
+  assert.equal(activityLabelForTool("max_run_script", { script: "delete selection" }), "Delete objects via MaxScript");
+  assert.equal(activityLabelForTool("max_run_script", { script: 'LayerManager.newLayerFromName "Architecture"' }), "Create layers via MaxScript");
+  assert.equal(activityLabelForTool("max_execute", { script: "1 + 1", activity: "Inspect scene state" }), "Inspect scene state via MaxScript");
+  assert.equal(activityLabelForTool("max_execute", { script: 'box name:"PrivateBox"', activity: "Create box <PROJECT_ROOT>\\private.ms" }), "Create box via MaxScript");
+  assert.equal(activityLabelForTool("max_run_script_file", { filePath: "<PROJECT_ROOT>\\tool.ms", activity: "Open tool rollout" }), "Open tool rollout via MaxScript");
   let shutdownRequests = 0;
   const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 1000, shutdownHandler: () => { shutdownRequests += 1; } });
   await bridge.start();
@@ -280,10 +287,11 @@ async function runSmokeTest() {
     await waitFor(() => max2027.cancelledRequests.size === 1);
 
     const executionResponse = await bridge.callTool("max_execute", {
-      instance_id: "test-max-2022", script: "format \"mock-only\\n\"", timeout_ms: 1000,
+      instance_id: "test-max-2022", script: "format \"mock-only\\n\"", activity: "Write mock output", timeout_ms: 1000,
     });
     assert.equal(executionResponse.execution.mainThread, true);
     assert.match(executionResponse.execution.result, /mock-only/);
+    assert.equal(max2022.activityLabels.at(-1), "Write mock output via MaxScript");
     const panelResponse = await bridge.callTool("max_panel", { instance_id: "test-max-2027", action: "minimize" });
     assert.equal(panelResponse.panel.state, "minimize");
 
@@ -386,6 +394,7 @@ async function runSmokeTest() {
     assert.equal(renderButtonResponse.instance.instanceId, "test-max-2027");
     assert.equal(max2027.executeRequests.at(-1), QUICK_RENDER_MAXSCRIPT);
     assert.equal(QUICK_RENDER_MAXSCRIPT, "max quick render");
+    assert.equal(max2027.activityLabels.at(-1), "Start production render via MaxScript");
 
     const boxResponse = await createTestBox({ client: controlClient, output: quietOutput });
     assert.equal(boxResponse.instanceId, "test-max-2027");
@@ -396,6 +405,7 @@ async function runSmokeTest() {
 
     const titleResponse = await createSplineTextExample({ client: controlClient, output: quietOutput });
     assert.equal(titleResponse.instance.instanceId, "test-max-2027");
+    assert.equal(max2027.activityLabels.at(-1), "Create spline title via MaxScript");
     const titleScript = max2027.executeRequests.at(-1);
     assert.ok(titleScript.includes(MCP_TITLE_OBJECT_NAME));
     assert.ok(titleScript.includes(MCP_TITLE_TEXT));

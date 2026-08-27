@@ -15,11 +15,66 @@ const { runUiAutomation } = require("./windows-ui");
 
 const NOT_HANDLED = Symbol("NOT_HANDLED");
 
+function sanitizeActivityDescription(value) {
+  const normalized = String(value || "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\S*[\\/]\S*/g, " ")
+    .replace(/[<>{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized.slice(0, 80).trim();
+}
+
+function inferMaxScriptActivity(script) {
+  const rawScript = String(script || "");
+  if (!rawScript.trim()) return "";
+  const source = rawScript
+    .replace(/--.*$/gm, " ")
+    .replace(/"(?:\\.|[^"\\])*"/g, " ");
+  const rules = [
+    ["Reset scene", /\bresetMaxFile\b/i],
+    ["Open scene", /\bloadMaxFile\b/i],
+    ["Merge scene", /\bmergeMaxFile\b/i],
+    ["Save scene", /\b(?:saveMaxFile|saveNodes)\b/i],
+    ["Import scene", /\bimportFile\b/i],
+    ["Export scene", /\bexportFile\b/i],
+    ["Create layers", /\blayerManager\s*\.\s*(?:newLayer|newLayerFromName)\b/i],
+    ["Delete objects", /\bdelete\b/i],
+    ["Create box", /\bbox\b/i],
+    ["Create sphere", /\bsphere\b/i],
+    ["Create cylinder", /\bcylinder\b/i],
+    ["Create plane", /\bplane\b/i],
+    ["Create splines", /\b(?:splineShape|addNewSpline|addKnot)\b/i],
+    ["Create text shape", /\btext\s+(?:name\s*:|text\s*:|size\s*:)/i],
+    ["Edit polygon mesh", /\b(?:polyOp|meshOp)\s*\./i],
+    ["Add modifiers", /\baddModifier\b/i],
+    ["Edit materials", /\b(?:meditMaterials|sceneMaterials)\b|\.material\s*=/i],
+    ["Create or edit camera", /\b(?:freeCamera|targetCamera|physicalCamera|camera)\b/i],
+    ["Create or edit lights", /\b(?:omniLight|freeSpot|targetSpot|photometricLight)\b/i],
+    ["Transform objects", /\b(?:move|rotate|scale)\s+|\.(?:pos|position|rotation|scale)\s*=/i],
+    ["Select objects", /\bselect(?:More)?\b/i],
+    ["Edit animation", /\b(?:animate\s+on|setKey|addNewKey)\b/i],
+    ["Start render", /(?:\brender\s*\(|\bmax\s+quick\s+render\b)/i],
+  ];
+  const matches = rules.filter(([, pattern]) => pattern.test(source)).map(([label]) => label);
+  if (matches.length === 0) return "Custom scene operation via MaxScript";
+  return matches.slice(0, 3).join(" + ") + " via MaxScript";
+}
+
+function maxScriptActivityLabel(args = {}, fallback = "Custom scene operation via MaxScript") {
+  const explicit = sanitizeActivityDescription(args.activity);
+  if (explicit && !/^run maxscript$/i.test(explicit)) {
+    return /maxscript/i.test(explicit) ? explicit : explicit + " via MaxScript";
+  }
+  const inferred = inferMaxScriptActivity(args.script);
+  return inferred || fallback;
+}
 function activityLabelForTool(toolName, args = {}) {
   const labels = {
-    max_execute: "Run MaxScript",
-    max_run_script: "Run MaxScript",
-    max_run_script_file: "Run MaxScript file",
+    max_execute: maxScriptActivityLabel(args),
+    max_run_script: maxScriptActivityLabel(args),
+    max_run_script_file: maxScriptActivityLabel(args, "Custom script file operation via MaxScript"),
     max_create_polygon_mesh: "Create polygon mesh",
     max_build_floor_plan: "Build floor plan",
     max_material_find_unassigned: "Find material issues",
@@ -714,5 +769,5 @@ inspectionText
   return NOT_HANDLED;
 }
 
-module.exports = { NOT_HANDLED, invokeV1Tool, revisionFor };
+module.exports = { NOT_HANDLED, activityLabelForTool, invokeV1Tool, revisionFor };
 const { resizePng } = require("./image-utils");
