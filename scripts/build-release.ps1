@@ -4,10 +4,7 @@
 # Developed by Lukianenko Vasyl
 
 [CmdletBinding()]
-param(
-    [ValidateSet('','Free','Shareware','Commercial','Open source','Trial')]
-    [string]$License = ''
-)
+param()
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -18,5 +15,5 @@ if (-not (Test-Path -LiteralPath $portableNode -PathType Leaf)) {
 
 $reportedNodeVersion = & $portableNode -p 'process.versions.node'
 if ([Version]$reportedNodeVersion -lt [Version]'24.0.0') { throw "Release runtime must be Node.js 24+, found $reportedNodeVersion" }
-& (Join-Path $PSScriptRoot 'prepare-maxpkg.ps1') -License $License
+& (Join-Path $PSScriptRoot 'prepare-maxpkg.ps1')
 Write-Host '[3DGROUND | Max Ultra MCP] MaxPkg release project prepared. Run maxpkg-packager.ms in 3ds Max and choose Build MZP.'

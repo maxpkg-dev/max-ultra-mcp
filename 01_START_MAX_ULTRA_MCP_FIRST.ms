@@ -84,7 +84,7 @@ global MaxUltraMcpActiveClient
         failureMessage = ""
     )
 
-    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP 1.2.2" width: 680 height: 540 (
+    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP" width: 680 height: 540 (
         dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 428 height: 20
         dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
         button btnAgents "AI setup" pos: [448,8] width: 72 height: 22
@@ -104,6 +104,7 @@ global MaxUltraMcpActiveClient
         on MaxUltraMcpStatusDialog open do (
             if (bridgeClient != undefined) do (
                 bridgeClient.configureActivityLog()
+                bridgeClient.applyProductVersionToUi()
                 bridgeClient.attachPanelFormClosing()
                 bridgeClient.resizePanelControls [MaxUltraMcpStatusDialog.width, MaxUltraMcpStatusDialog.height]
                 bridgeClient.refreshUserInterface()
@@ -148,7 +149,7 @@ global MaxUltraMcpActiveClient
         button btnAgentSetup "Open AI client setup..." pos: [24,272] width: 210 height: 26
         groupBox grpAbout "About" pos: [12,320] width: 356 height: 96
         label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 190 height: 18
-        label lblAboutVersion "Version: 1.2.2" pos: [250,342] width: 100 height: 18
+        label lblAboutVersion "Version" pos: [250,342] width: 100 height: 18
         label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,366] width: 180 height: 18
         hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,364] width: 138 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://3dground.net"
         label lblAboutPackageManager "Package Manager:" pos: [24,390] width: 104 height: 18
@@ -210,6 +211,7 @@ global MaxUltraMcpActiveClient
         processId = 0,
         processStartedAt = "",
         bootstrapFilePath = "",
+        productVersion = "Unknown",
         serverLauncherPath = "",
         serverWorkingDirectory = "",
         serverShutdownHelperPath = "",
@@ -318,6 +320,60 @@ global MaxUltraMcpActiveClient
             local normalizedPath = substituteString (folderPath as string) "/" @"\"
             if ((substring normalizedPath normalizedPath.count 1) == @"\") do return normalizedPath
             return normalizedPath + @"\"
+        ),
+
+        fn readIniValueWithoutMutation filePath sectionName keyName = (
+            if (filePath == undefined or filePath == "" or not (doesFileExist filePath)) do return ""
+            try (
+                local fileText = (dotNetClass "System.IO.File").ReadAllText filePath
+                local regexClass = dotNetClass "System.Text.RegularExpressions.Regex"
+                local escapedSection = regexClass.Escape (sectionName as string)
+                local escapedKey = regexClass.Escape (keyName as string)
+                local sectionPattern = "(?ims)(?:\\A|\\r?\\n)[ \\t]*\\[" + escapedSection + "\\][ \\t]*\\r?\\n(?<body>.*?)(?=\\r?\\n[ \\t]*\\[|\\z)"
+                local sectionMatch = regexClass.Match fileText sectionPattern
+                if (not sectionMatch.Success) do return ""
+                local keyPattern = "(?im)^[ \\t]*" + escapedKey + "[ \\t]*=[ \\t]*(?<value>[^\\r\\n]*)"
+                local keyMatch = regexClass.Match (sectionMatch.Groups.Item["body"].Value as string) keyPattern
+                if (not keyMatch.Success) do return ""
+                return trimLeft (trimRight (keyMatch.Groups.Item["value"].Value as string))
+            ) catch (
+                return ""
+            )
+        ),
+
+        fn loadProductVersion = (
+            local resolvedVersion = ""
+            if (bootstrapFilePath != undefined and bootstrapFilePath != "") do (
+                local packageRoot = ensureSlash (getFilenamePath bootstrapFilePath)
+                local manifestFilePath = packageRoot + "manifest.ini"
+                local versionFilePath = packageRoot + "version.ini"
+                resolvedVersion = readIniValueWithoutMutation manifestFilePath "package" "version"
+                if (resolvedVersion == "") do resolvedVersion = readIniValueWithoutMutation versionFilePath "MaxUltraMCP" "Version"
+            )
+            if (resolvedVersion == undefined or resolvedVersion == "") do resolvedVersion = "Unknown"
+            productVersion = resolvedVersion as string
+            return productVersion
+        ),
+
+        fn productWindowTitle = (
+            if (productVersion == "" or productVersion == "Unknown") do return "3DGROUND - Max Ultra MCP"
+            return "3DGROUND - Max Ultra MCP " + productVersion
+        ),
+
+        fn applyProductVersionToUi = (
+            local expectedTitle = productWindowTitle()
+            local panelOpen = false
+            local settingsOpen = false
+            try (panelOpen = statusDialog != undefined and statusDialog.open) catch ()
+            try (settingsOpen = settingsDialog != undefined and settingsDialog.open) catch ()
+            try (
+                if (panelOpen) do (
+                    local currentTitle = UIAccessor.GetWindowText statusDialog.hwnd
+                    if (currentTitle != expectedTitle) do UIAccessor.SetWindowText statusDialog.hwnd expectedTitle
+                )
+            ) catch ()
+            try (if (settingsOpen) do settingsDialog.lblAboutVersion.text = "Version: " + productVersion) catch ()
+            return true
         ),
 
         fn configureEndpointAndLauncher = (
@@ -1230,6 +1286,7 @@ global MaxUltraMcpActiveClient
         fn refreshSettingsDialog = (
             if (not (settingsDialogIsOpen())) do return false
             settingsRefreshInProgress = true
+            applyProductVersionToUi()
             try (settingsDialog.chkAutostart.checked = loadAutostartSetting()) catch ()
             try (settingsDialog.chkShowServerConsole.checked = loadServerConsoleVisibleSetting()) catch ()
             try (settingsDialog.chkAutomaticUpdates.checked = loadAutomaticUpdateSetting()) catch ()
@@ -2002,6 +2059,7 @@ global MaxUltraMcpActiveClient
                 dotNet.addEventHandler panelForm "FormClosing" handlePanelFormClosing
                 dotNet.addEventHandler panelForm "LocationChanged" handlePanelGeometryChanged
                 dotNet.addEventHandler panelForm "ResizeEnd" handlePanelGeometryChanged
+                applyProductVersionToUi()
                 rememberNormalPanelGeometry panelForm
                 return true
             ) catch (
@@ -2012,6 +2070,7 @@ global MaxUltraMcpActiveClient
 
         fn refreshUserInterface = (
             if (isDisposed) do return false
+            applyProductVersionToUi()
             local miniPanelRefreshed = refreshRestoreBubbleStatus()
             if (not panelIsOpen()) do return miniPanelRefreshed
             local statusText = "Status: " + connectionStateText()
@@ -3028,6 +3087,7 @@ global MaxUltraMcpActiveClient
             instanceId = "max-" + (currentMaxYear() as string) + "-pid-" + (processId as string) + "-" + (processStartTime.Ticks as string)
             processInfo.Dispose()
             bootstrapFilePath = getThisScriptFileName()
+            loadProductVersion()
             local guidClass = dotNetClass "System.Guid"
             local ownerGuid = guidClass.NewGuid()
             serverOwnerToken = ownerGuid.ToString()

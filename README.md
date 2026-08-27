@@ -55,7 +55,7 @@ Closing onboarding dismisses its automatic display without stopping the bridge. 
 
 > The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1`, then prepare the pinned MaxPkg Packager project with `scripts\prepare-maxpkg.ps1`.
 
-Maintainers say or run a local release preparation through `PREPARE_RELEASE.bat -Version <VERSION>`. `version.ini` is the single version source; preparation synchronizes Node metadata and the MaxScript title/About text, promotes reviewed `CHANGELOG.md` entries, regenerates MaxPkg settings, and runs verification. Publishing remains a separate confirmed step through `RELEASE_MZP_TO_GITHUB.bat`. See [MaxPkg packaging](docs/MAXPKG.md#prepare-a-versioned-release).
+Maintainers run `PREPARE_RELEASE.bat -Version <VERSION>` to synchronize `version.ini` and Node metadata, promote reviewed `CHANGELOG.md` entries, regenerate MaxPkg settings with the permanent `Free` license, and run verification. The installed UI reads the packaged `manifest.ini` version, with `version.ini` as the source-checkout fallback. MZP build, commits, push, and publishing remain explicit maintainer steps. See [MaxPkg packaging](docs/MAXPKG.md#prepare-a-versioned-release).
 
 ## Development checkout
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Improved: The panel title and About page now load the installed package version from manifest.ini, with version.ini as the source-development fallback.
+- Changed: Release preparation now uses the permanent Free license without requiring a repeated command-line argument.
+- Changed: The default release handoff stops before MaxPkg build, commits, push, or publication unless the maintainer requests those actions explicitly.
+
 ## 1.2.2 - 2026-08-27
 
 - Improved: Long activity-log entries wrap onto additional lines instead of being clipped at the right edge.

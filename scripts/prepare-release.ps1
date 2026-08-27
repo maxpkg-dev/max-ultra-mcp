@@ -11,8 +11,6 @@ param(
     [ValidateSet('stable')]
     [string]$Channel = 'stable',
 
-    [ValidateSet('','Free','Shareware','Commercial','Open source','Trial')]
-    [string]$License = '',
 
     [switch]$SkipTests,
     [switch]$SkipMaxPkgPreparation
@@ -22,7 +20,6 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
-$bootstrapPath = Join-Path $projectRoot '01_START_MAX_ULTRA_MCP_FIRST.ms'
 $changelogPath = Join-Path $projectRoot 'CHANGELOG.md'
 
 . (Join-Path $PSScriptRoot 'release-mzp-utils.ps1')
@@ -31,7 +28,7 @@ $releaseVersion = (ConvertTo-MaxUltraReleaseVersion -Text $Version).Text
 $releaseDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
 $utf8WithoutBom = New-Object Text.UTF8Encoding($false)
 
-foreach ($requiredPath in @($versionIniPath, $packageJsonPath, $bootstrapPath, $changelogPath)) {
+foreach ($requiredPath in @($versionIniPath, $packageJsonPath, $changelogPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required release source is missing: $requiredPath"
     }
@@ -85,27 +82,6 @@ $packageVersionLine = $packageVersionMatch.Groups['prefix'].Value + $releaseVers
 $packageJsonContent = $packageJsonContent.Remove($packageVersionMatch.Index, $packageVersionMatch.Length).Insert($packageVersionMatch.Index, $packageVersionLine)
 [IO.File]::WriteAllText($packageJsonPath, $packageJsonContent, $utf8WithoutBom)
 
-$bootstrapContent = [IO.File]::ReadAllText($bootstrapPath)
-$bootstrapContent = [regex]::Replace(
-    $bootstrapContent,
-    'rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP [0-9]+\.[0-9]+\.[0-9]+"',
-    "rollout MaxUltraMcpStatusDialog `"3DGROUND - Max Ultra MCP $releaseVersion`"",
-    1
-)
-$bootstrapContent = [regex]::Replace(
-    $bootstrapContent,
-    'label lblAboutVersion "Version: [0-9]+\.[0-9]+\.[0-9]+"',
-    "label lblAboutVersion `"Version: $releaseVersion`"",
-    1
-)
-if ($bootstrapContent -notmatch "MaxUltraMcpStatusDialog `"3DGROUND - Max Ultra MCP $([regex]::Escape($releaseVersion))`"") {
-    throw 'Could not synchronize the MaxScript panel title.'
-}
-if ($bootstrapContent -notmatch "lblAboutVersion `"Version: $([regex]::Escape($releaseVersion))`"") {
-    throw 'Could not synchronize the MaxScript About version.'
-}
-[IO.File]::WriteAllText($bootstrapPath, $bootstrapContent, $utf8WithoutBom)
-
 if (-not $isPreparedRetry) {
     $releasedSection = "## $releaseVersion - $releaseDate`r`n`r`n$unreleasedBody`r`n`r`n"
     $newUnreleasedSection = "## Unreleased`r`n`r`n"
@@ -117,11 +93,11 @@ if (-not $isPreparedRetry) {
 }
 
 if (-not $SkipMaxPkgPreparation) {
-    & (Join-Path $PSScriptRoot 'prepare-maxpkg.ps1') -License $License
+    & (Join-Path $PSScriptRoot 'prepare-maxpkg.ps1')
 }
 if (-not $SkipTests) {
     & (Join-Path $PSScriptRoot 'run-smoke.ps1')
     if ($LASTEXITCODE -ne 0) { throw "Verification failed with exit code $LASTEXITCODE." }
 }
 
-Write-Host "Max Ultra MCP $releaseVersion sources are prepared locally. Review and commit them; no push or GitHub release was created."
+Write-Host "Max Ultra MCP $releaseVersion sources and MaxPkg inputs are prepared locally. Review them, build and test the MZP, then commit the release. No push or GitHub release was created."

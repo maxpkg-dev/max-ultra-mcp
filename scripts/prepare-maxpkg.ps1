@@ -5,8 +5,6 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('','Free','Shareware','Commercial','Open source','Trial')]
-    [string]$License = '',
     [switch]$SkipToolSync
 )
 
@@ -95,7 +93,7 @@ $settingsLines.Add('buttonName=Max Ultra MCP')
 $settingsLines.Add("packageGuid=$packageGuid")
 $settingsLines.Add('description=Control already-open Autodesk 3ds Max instances from MCP-compatible AI clients.')
 $settingsLines.Add('developerName=3DGROUND')
-$settingsLines.Add("license=$License")
+$settingsLines.Add('license=Free')
 $settingsLines.Add('licenseUrl=')
 $settingsLines.Add('documentation=https://github.com/maxpkg-dev/max-ultra-mcp#readme')
 $settingsLines.Add('homepage=https://github.com/maxpkg-dev/max-ultra-mcp')
@@ -146,7 +144,4 @@ $utf8Bom = New-Object Text.UTF8Encoding($true)
 [IO.File]::WriteAllLines($settingsPath, $settingsLines.ToArray(), $utf8Bom)
 [IO.File]::WriteAllLines($changelogPath, $changelogLines.ToArray(), $utf8Bom)
 
-if ([string]::IsNullOrWhiteSpace($License)) {
-    Write-Warning 'MaxPkg settings are prepared, but License is intentionally blank. Choose the correct legal value in 1. Info before building.'
-}
 Write-Host 'MaxPkg project files are ready. Run maxpkg-packager.ms in 3ds Max, review the metadata, and build the MZP.'

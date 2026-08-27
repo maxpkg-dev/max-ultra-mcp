@@ -4,7 +4,7 @@ Read this file completely whenever the user asks to prepare, build, publish, or 
 
 ## Authorization boundary
 
-A request to "release" authorizes local release preparation, verification, and release commits. It does not authorize a push, tag, GitHub Release, asset upload, or modification of an existing remote release. Ask for explicit confirmation immediately before the first remote mutation unless the user already requested that exact mutation.
+A request to prepare or release authorizes local release-metadata preparation and verification only. By default, stop after generating and reviewing the MaxPkg inputs. The maintainer runs MaxPkg Packager, builds and tests the MZP, creates commits, pushes, and starts GitHub publication unless the user explicitly requests one of those exact actions.
 
 Never publish from a dirty tree, an unreviewed archive, a branch other than `main`, or a commit that does not match `origin/main`. Never overwrite an existing tag or GitHub Release.
 
@@ -12,8 +12,8 @@ Never publish from a dirty tree, an unreviewed archive, a branch other than `mai
 
 - `version.ini` is the canonical product version and channel.
 - `maxpkg-packager.ini` is generated, ignored, and machine-local. It receives the canonical version during package preparation and must never become a release source of truth.
-- `scripts/prepare-release.ps1` updates `version.ini`, `core/package.json`, the MaxScript main-window title, the About version, and `CHANGELOG.md` as one checked operation.
-- The main title must be `3DGROUND - Max Ultra MCP <VERSION>` and must not contain `First Step`.
+- `scripts/prepare-release.ps1` updates `version.ini`, `core/package.json`, and `CHANGELOG.md`; regenerates MaxPkg inputs with the permanent `Free` license; and runs verification.
+- The installed UI reads its displayed version from package `manifest.ini` and falls back to `version.ini` only in a source checkout. The main title must not contain First Step.
 - `CHANGELOG.md` is the human-readable release history. Keep `## Unreleased` at the top and use factual entries formatted as `- Added:`, `- Changed:`, `- Improved:`, `- Fixed:`, or `- Removed:`.
 - `scripts/prepare-maxpkg.ps1` converts the current tracked changelog section to machine-local `maxpkg-changelog.ini` for MaxPkg Packager.
 
@@ -22,18 +22,14 @@ Do not manually bump only one version-bearing file. Do not invent compatibility,
 ## Local preparation workflow
 
 1. Read `AGENTS.md`, `.agents/coding-rules.md`, this file, `docs/PRIVACY.md`, and `docs/MAXPKG.md` completely.
-2. Inspect `git status`, all changes since the latest stable version commit or tag, and the current `CHANGELOG.md` Unreleased section. Separate unrelated user work; never include it silently.
-3. Determine the next stable semantic version from the actual compatibility impact. Ask the user only when the intended version cannot be inferred safely.
-4. Rewrite the Unreleased entries so they are concise, factual, English-only, privacy-safe, and user-facing. Do not include raw logs, local paths, credentials, machine data, or internal speculation.
-5. Run `scripts/prepare-release.ps1 -Version <VERSION>`. Supply the confirmed MaxPkg license when preparation needs to regenerate packager settings. Do not use `-SkipTests` for a real release.
-6. Prepare the portable Node.js runtime if it is absent or not the pinned release version. Network download is a separate external action and may require user approval.
-7. Run the complete verification suite, syntax checks, `git diff --check`, Cyrillic/privacy scans, and inspect the staged diff.
-8. Create a concise local release-preparation commit such as `Prepare Max Ultra MCP 1.2.0 release`. Do not push.
-9. Build the MZP with the original `maxpkg-packager.ms` in a supported real 3ds Max. Inspect its manifest, bundled runtime, filename, size, and SHA-256. A mock or static test is not proof that MaxPkg installation works.
-10. Install or update the MZP in a clean 3ds Max profile. Verify startup, agent onboarding, automatic update settings, scene-safe connection checks, and focused uninstall behavior.
-11. If build or acceptance work changes tracked release files, create a second focused local commit and repeat applicable verification.
-
-Stop before claiming the release is ready when the real-Max MZP build/install/update fixture has not passed. Report the exact missing fixture.
+2. Inspect `git status`, changes since the latest stable tag, and the `CHANGELOG.md` Unreleased section. Separate unrelated user work.
+3. Determine the next stable semantic version from actual compatibility impact.
+4. Rewrite Unreleased entries as concise, factual, English-only, privacy-safe release notes.
+5. Run `PREPARE_RELEASE.bat -Version <VERSION>` or `scripts/prepare-release.ps1 -Version <VERSION>`. The project license defaults permanently to `Free`. Do not use `-SkipTests` for a real release.
+6. Confirm the pinned portable Node.js runtime is present, then run syntax checks, the full verification suite, `git diff --check`, Cyrillic/privacy scans, and inspect the exact diff.
+7. Stop and hand the prepared project to the maintainer. Do not run MaxPkg Packager, build an MZP, create a commit, push, tag, or publish unless the user explicitly requests that exact action.
+8. The maintainer runs `maxpkg-packager.ms`, reviews all tabs, validates and builds the MZP, and performs the appropriate real-3ds-Max acceptance checks.
+9. The maintainer commits and pushes the reviewed source, then runs `RELEASE_MZP_TO_GITHUB.bat -CheckOnly` before the publishing BAT.
 
 ## Publishing workflow
 

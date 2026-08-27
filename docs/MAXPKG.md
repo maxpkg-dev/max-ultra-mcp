@@ -13,10 +13,10 @@ Max Ultra MCP is adapted for the standard [MaxPkg Packager](https://github.com/m
 2. Generate the project-local MaxPkg files:
 
    ```powershell
-   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-maxpkg.ps1 -License "<CONFIRMED LICENSE>"
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-maxpkg.ps1
    ```
 
-   Replace the license placeholder with one supported by MaxPkg: `Free`, `Shareware`, `Commercial`, `Open source`, or `Trial`. The script intentionally leaves this legal field blank when it is omitted.
+   The project license is permanently set to `Free` and is written to generated MaxPkg settings automatically.
 
 3. Run `maxpkg-packager.ms` in 3ds Max.
 4. Review all four packager tabs and resolve every validation issue.
@@ -26,13 +26,13 @@ MaxPkg Packager 1.2.0 exposes `MaxPkgPackerApi` specifically for AI-agent automa
 
 ## Prepare a versioned release
 
-`version.ini` is the canonical version/channel source. Keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, using the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat -Version <VERSION>` (or `scripts\prepare-release.ps1`) to synchronize `core\package.json`, the MaxScript panel title, About text, and the dated changelog section; regenerate MaxPkg inputs; and run the full suite. The command prepares local sources only and never commits, pushes, tags, or publishes by itself. AI agents follow `.agents\release-rules.md`, review the exact diff, and create a focused local release commit when the user asks to release.
+`version.ini` is the canonical version/channel source. Keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, using the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat -Version <VERSION>` (or `scripts\prepare-release.ps1`) to synchronize `core\package.json`, promote the dated changelog section, regenerate MaxPkg inputs with the permanent `Free` license, and run the full suite. The installed MaxScript UI reads its version from `manifest.ini`; a source checkout falls back to `version.ini`. The command never builds an MZP, commits, pushes, tags, or publishes.
 
 The generated `maxpkg-changelog.ini` is derived from the tracked current-version section in `CHANGELOG.md`; release notes are no longer a hard-coded placeholder.
 
 ## Publish the MZP to GitHub Releases
 
-`dist/` is ignored by Git and remains the local MaxPkg output area. The project version in `version.ini` is the release source of truth; `core\package.json` and the MaxScript UI must match it. MaxPkg embeds that version in both `manifest.json` and the filename `max-ultra-mcp@<VERSION>@c6977570-25a6-41b0-b9bb-b3be8101123c.mzp`.
+`dist/` is ignored by Git and remains the local MaxPkg output area. The project version in `version.ini` is the release source of truth and `core\package.json` must match it. MaxPkg embeds that version in `manifest.ini`, `manifest.json`, and the filename `max-ultra-mcp@<VERSION>@c6977570-25a6-41b0-b9bb-b3be8101123c.mzp`. The installed UI displays the embedded manifest version.
 
 After testing the generated package:
 
