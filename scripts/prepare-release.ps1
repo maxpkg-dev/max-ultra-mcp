@@ -5,7 +5,6 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
     [string]$Version,
 
     [ValidateSet('stable')]
@@ -24,7 +23,6 @@ $changelogPath = Join-Path $projectRoot 'CHANGELOG.md'
 
 . (Join-Path $PSScriptRoot 'release-mzp-utils.ps1')
 
-$releaseVersion = (ConvertTo-MaxUltraReleaseVersion -Text $Version).Text
 $releaseDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
 $utf8WithoutBom = New-Object Text.UTF8Encoding($false)
 
@@ -35,6 +33,12 @@ foreach ($requiredPath in @($versionIniPath, $packageJsonPath, $changelogPath)) 
 }
 
 $currentInfo = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath
+$releaseVersion = if ([string]::IsNullOrWhiteSpace($Version)) {
+    $currentInfo.Version
+}
+else {
+    (ConvertTo-MaxUltraReleaseVersion -Text $Version).Text
+}
 if ($currentInfo.VersionValue.CompareTo([Version]$releaseVersion) -gt 0) {
     throw "The requested version $releaseVersion is older than $($currentInfo.Version)."
 }

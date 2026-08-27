@@ -26,7 +26,7 @@ MaxPkg Packager 1.2.0 exposes `MaxPkgPackerApi` specifically for AI-agent automa
 
 ## Prepare a versioned release
 
-`version.ini` is the canonical version/channel source. Keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, using the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat -Version <VERSION>` (or `scripts\prepare-release.ps1`) to synchronize `core\package.json`, promote the dated changelog section, regenerate MaxPkg inputs with the permanent `Free` license, and run the full suite. The installed MaxScript UI reads its version from `manifest.ini`; a source checkout falls back to `version.ini`. The command never builds an MZP, commits, pushes, tags, or publishes.
+`version.ini` is the canonical version/channel source. Set its `Version` to the intended release, keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, and use the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat` (or `scripts\prepare-release.ps1`) to read that version, synchronize `core\package.json`, promote the dated changelog section, regenerate MaxPkg inputs with the permanent `Free` license, and run the full suite. `-Version <VERSION>` remains an optional override. The installed MaxScript UI reads its version from `manifest.ini`; a source checkout falls back to `version.ini`. The command never builds an MZP, commits, pushes, tags, or publishes.
 
 The generated `maxpkg-changelog.ini` is derived from the tracked current-version section in `CHANGELOG.md`; release notes are no longer a hard-coded placeholder.
 

@@ -6,6 +6,7 @@
 
 - Improved: MaxScript tools now require an exact privacy-safe operation name and reject missing or generic activity labels instead of logging an ambiguous action.
 - Improved: Activity messages now use concise professional wording, with successful outcomes in green and ordinary system lifecycle events in a distinct system color.
+- Improved: PREPARE_RELEASE.bat now reads the intended version from version.ini by default while retaining an optional explicit override.
 
 ## 1.2.4 - 2026-08-27
 

@@ -25,9 +25,9 @@ Do not manually bump only one version-bearing file. Do not invent compatibility,
 
 1. Read `AGENTS.md`, `.agents/coding-rules.md`, this file, `docs/PRIVACY.md`, and `docs/MAXPKG.md` completely.
 2. Inspect `git status`, changes since the latest stable tag, and the `CHANGELOG.md` Unreleased section. Separate unrelated user work.
-3. Determine the next stable semantic version from actual compatibility impact.
+3. Determine the next stable semantic version from actual compatibility impact and set it in `version.ini`.
 4. Rewrite Unreleased entries as concise, factual, English-only, privacy-safe release notes.
-5. Run `PREPARE_RELEASE.bat -Version <VERSION>` or `scripts/prepare-release.ps1 -Version <VERSION>`. The project license defaults permanently to `Free`. Do not use `-SkipTests` for a real release.
+5. Run `PREPARE_RELEASE.bat` or `scripts/prepare-release.ps1`; both read the canonical version from `version.ini`. `-Version <VERSION>` remains an optional override. The project license defaults permanently to `Free`. Do not use `-SkipTests` for a real release.
 6. Confirm the pinned portable Node.js runtime is present, then run syntax checks, the full verification suite, `git diff --check`, Cyrillic/privacy scans, and inspect the exact diff.
 7. Stop and hand the prepared project to the maintainer. Do not run MaxPkg Packager, build an MZP, create a commit, push, tag, or publish unless the user explicitly requests that exact action.
 8. The maintainer runs `maxpkg-packager.ms`, reviews all tabs, validates and builds the MZP, and performs the appropriate real-3ds-Max acceptance checks.

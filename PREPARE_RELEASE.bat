@@ -1,4 +1,5 @@
-@rem Prepares local Max Ultra MCP release sources; it never pushes or publishes.
+@rem Prepares the version from version.ini by default; -Version remains an optional override.
+@rem It never pushes or publishes.
 @rem Copyright (c) 2026 Lukianenko Vasyl
 @rem Project website: https://3dground.net
 @rem Developed by Lukianenko Vasyl

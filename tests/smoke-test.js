@@ -514,6 +514,7 @@ async function runSmokeTest() {
     const releaseVersionSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "release-mzp-utils.ps1"), "utf8");
     const githubReleaseBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "RELEASE_MZP_TO_GITHUB.bat"), "utf8");
     const prepareReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-release.ps1"), "utf8");
+    const prepareReleaseBatSource = fs.readFileSync(path.join(PROJECT_ROOT, "PREPARE_RELEASE.bat"), "utf8");
     const portableNodePrepareSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "prepare-portable-node.ps1"), "utf8");
     const updateManagerSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "update-manager.ps1"), "utf8");
     const uiAutomationSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "max-ui-automation.ps1"), "utf8");
@@ -774,6 +775,10 @@ async function runSmokeTest() {
     assert.match(changelogSource, /^## Unreleased/m);
     assert.match(releaseRulesSource, /authorizes local release-metadata preparation and verification only/i);
     assert.match(prepareReleaseSource, /Get-MaxUltraProjectVersionInfo/);
+    assert.match(prepareReleaseSource, /\$releaseVersion = if \(\[string\]::IsNullOrWhiteSpace\(\$Version\)\)/);
+    assert.match(prepareReleaseSource, /\$currentInfo\.Version/);
+    assert.doesNotMatch(prepareReleaseSource, /Parameter\(Mandatory = \$true\)/);
+    assert.match(prepareReleaseBatSource, /version\.ini by default/);
     assert.match(prepareReleaseSource, /CHANGELOG\.md Unreleased is empty/);
     assert.match(prepareReleaseSource, /\$isPreparedRetry/);
     assert.match(prepareReleaseSource, /\$packageVersionMatches/);
