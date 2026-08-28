@@ -3,6 +3,4 @@ runtime/state/
 runtime/win-x64/
 
 # MaxPkg Packager tooling, machine-local settings, and generated release output.
-maxpkg-packager.ini
-maxpkg-changelog.ini
 dist/
