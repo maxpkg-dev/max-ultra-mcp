@@ -521,6 +521,11 @@ async function runSmokeTest() {
     const versionIniSource = fs.readFileSync(path.join(PROJECT_ROOT, "version.ini"), "utf8");
     const changelogSource = fs.readFileSync(path.join(PROJECT_ROOT, "CHANGELOG.md"), "utf8");
     const releaseRulesSource = fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "release-rules.md"), "utf8");
+    const agentsSource = fs.readFileSync(path.join(PROJECT_ROOT, "AGENTS.md"), "utf8");
+    const claudeSource = fs.readFileSync(path.join(PROJECT_ROOT, "CLAUDE.md"), "utf8");
+    const agentInteropSource = fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "agent-interop.md"), "utf8");
+    const codexSkillAdapterSource = fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "skills", "max-ultra-mcp", "SKILL.md"), "utf8");
+    const claudeSkillAdapterSource = fs.readFileSync(path.join(PROJECT_ROOT, ".claude", "skills", "max-ultra-mcp", "SKILL.md"), "utf8");
     const skillsRoot = path.join(PROJECT_ROOT, "skills");
     const skillNames = fs.readdirSync(skillsRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
@@ -597,6 +602,22 @@ async function runSmokeTest() {
     assert.match(generalSkillDocumentation, /enableAccelerators/);
     assert.match(generalSkillDocumentation, /never bind the same event repeatedly/i);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-mcp\/references\/code-rules\.md/);
+    assert.match(agentsSource, /agent-interop\.md/);
+    assert.match(claudeSource, /^@AGENTS\.md/m);
+    assert.match(agentInteropSource, /exactly one short question/);
+    assert.match(agentInteropSource, /Do not use hooks to select a 3ds Max instance/);
+    assert.match(codexSkillAdapterSource, /^---\r?\nname: max-ultra-mcp\r?\ndescription: .+\r?\n---\r?\n/);
+    assert.match(claudeSkillAdapterSource, /^---\r?\nname: max-ultra-mcp\r?\ndescription: .+\r?\n---\r?\n/);
+    assert.match(codexSkillAdapterSource, /skills\/max-ultra-mcp\/SKILL\.md/);
+    assert.match(claudeSkillAdapterSource, /skills\/max-ultra-mcp\/SKILL\.md/);
+    assert.match(maxPkgFilesSource, /^CLAUDE\.md$/m);
+    assert.match(maxPkgFilesSource, /^\.agents\/agent-interop\.md$/m);
+    assert.match(maxPkgFilesSource, /^\.agents\/skills\/max-ultra-mcp\/SKILL\.md$/m);
+    assert.match(maxPkgFilesSource, /^\.claude\/skills\/max-ultra-mcp\/SKILL\.md$/m);
+    assert.match(stdioHostSource, /ask exactly one short question/);
+    assert.match(stdioHostSource, /UI_CAPTURE_FAILED/);
+    assert.match(stdioHostSource, /max_ui_diagnostics/);
+    assert.doesNotMatch(stdioHostSource, /max_ui_diagnose_window/);
     const implementedToolNames = new Set(getMcpTools("full").map((tool) => tool.name));
     const documentedToolNames = new Set([...skillDocumentation.matchAll(/\bmax_[a-z0-9_]+\b/g)].map((entry) => entry[0]));
     for (const documentedToolName of documentedToolNames) {
@@ -620,6 +641,8 @@ async function runSmokeTest() {
     assert.match(uiAutomationSource, /source = 'hwnd'/);
     assert.match(uiAutomationSource, /PrintWindow\(\$Handle, \$deviceContext, 2\)/);
     assert.match(uiAutomationSource, /captureMethod = 'screenCopyFallback'/);
+    assert.match(uiAutomationSource, /UI_ELEMENT_NOT_FOUND: the HWND/);
+    assert.match(uiAutomationSource, /UI_CAPTURE_FAILED:/);
     assert.match(uiAutomationSource, /function Get-NativeTree/);
     assert.match(uiAutomationSource, /isWinForms = \$className\.StartsWith/);
     assert.match(uiAutomationSource, /AccessibleObjectFromWindow/);

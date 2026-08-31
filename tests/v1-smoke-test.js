@@ -283,6 +283,8 @@ async function run() {
     const initialize = await rpc(hostA, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
     assert.equal(initialize.result.serverInfo.version, PACKAGE_VERSION);
     assert.match(initialize.result.instructions, /floor-plan images/);
+    assert.match(initialize.result.instructions, /3D program/);
+    assert.match(initialize.result.instructions, /max_ui_diagnostics/);
 
     const list = await rpc(hostA, { jsonrpc: "2.0", id: 2, method: "tools/list" });
     assert.equal(list.result.tools.length, archvizTools.length);
@@ -290,6 +292,7 @@ async function run() {
     const ambiguous = await rpc(hostA, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "max_health", arguments: {} } });
     assert.equal(ambiguous.result.isError, true);
     assert.equal(ambiguous.result.structuredContent.error.code, "INSTANCE_REQUIRED");
+    assert.match(ambiguous.result.structuredContent.hints[0], /max_list_instances/);
 
     const selectA = await rpc(hostA, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "max_select_instance", arguments: { instance_id: "v1-max-2022" } } });
     const selectB = await rpc(hostB, { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "max_select_instance", arguments: { instance_id: "v1-max-2027" } } });

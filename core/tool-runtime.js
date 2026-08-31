@@ -288,7 +288,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
       activeRenderer: renderer,
       units: info?.units || null,
       rendererAdapter: /corona/i.test(renderer) ? "corona" : /v-?ray/i.test(renderer) ? "vray" : "generic",
-      uiAutomation: { processScoped: true, backend: "Windows UI Automation" },
+      uiAutomation: { processScoped: true, backend: "Windows UI Automation plus native HWND diagnostics", directHwndCapture: true, boundedDiagnostics: true },
       maxScript: { unrestricted: true },
       tools: [...allToolNames],
     };

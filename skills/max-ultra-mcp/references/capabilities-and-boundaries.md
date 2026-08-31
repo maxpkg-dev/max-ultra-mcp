@@ -32,6 +32,10 @@ UI tools may operate only on windows owned by the selected `3dsmax.exe` PID. The
 - treat a recreated control as a new target;
 - visually or semantically verify the result.
 
+
+`max_ui_capture_window` accepts the current Max-owned HWND directly. The native capture path revalidates the selected PID immediately and does not require UI Automation to rediscover that HWND. This is the preferred visual path for child and MAXScriptDialog windows.
+
+`max_ui_diagnostics` is read-only and keeps UI Automation and native HWND traversal process-scoped to the selected Max PID. Keep `maxDepth` and `limit` small. It returns bounded accessibility/native WinForms trees and compact WebBrowser DPI, zoom, DOM-count, layout, and scroll metrics; it never returns raw DOM or page source.
 Do not use UI Automation to control ChatGPT, Codex, Explorer, a browser, or any other process.
 
 ## Semantic workflow availability

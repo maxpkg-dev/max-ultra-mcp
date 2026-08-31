@@ -1,4 +1,9 @@
-/* Windows UI Automation adapter scoped to one 3dsmax.exe process. */
+/*
+ * Windows UI Automation and native HWND adapter scoped to one 3dsmax.exe process.
+ * Copyright (c) 2026 Lukianenko Vasyl
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
+ */
 
 "use strict";
 

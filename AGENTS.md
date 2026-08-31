@@ -14,6 +14,8 @@ This file is the repository entry point for AI coding agents. It describes what 
 
 Do not infer that a documented backlog tool is implemented. Confirm it in `core/tool-catalog.js`, `core/tool-runtime.js`, and tests.
 
+
+For the shared Codex CLI and Claude Code policy on persistent instructions, on-demand skills, natural 3D-request routing, and suitable hooks, read [.agents/agent-interop.md](.agents/agent-interop.md). Keep client-specific adapters thin and update the canonical documents first.
 ## Product boundaries
 
 - Product identity is `3DGROUND - Max Ultra MCP`.

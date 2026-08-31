@@ -58,7 +58,7 @@ const polygonMesh = {
 const selector = {
   type: "object",
   properties: {
-    hwnd: { type: "integer", minimum: 1 },
+    hwnd: { type: "integer", minimum: 1, description: "Native handle reported by a Max Ultra MCP UI tool. Direct HWND operations revalidate selected-process ownership immediately before use." },
     automationId: { type: "string" },
     name: { type: "string" },
     nameContains: { type: "string" },
@@ -156,7 +156,7 @@ const tools = [
 
   tool("max_ui_list_windows", "List top-level windows owned by the selected 3dsmax.exe process.", schema({ titleContains: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 200, default: 50 } }), readOnly),
   tool("max_ui_inspect", "Inspect the bounded UI Automation tree of a Max-owned window.", schema({ window: selector, maxDepth: { type: "integer", minimum: 0, maximum: 10, default: 5 }, limit: { type: "integer", minimum: 1, maximum: 1000, default: 200 } }, ["window"]), readOnly),
-  tool("max_ui_diagnostics", "Return bounded UI Automation and native WinForms trees plus embedded WebBrowser layout, scroll, zoom, and DPI metrics when available.", schema({ window: selector, maxDepth: { type: "integer", minimum: 0, maximum: 10, default: 5 }, limit: { type: "integer", minimum: 1, maximum: 1000, default: 200 } }, ["window"]), readOnly),
+  tool("max_ui_diagnostics", "Return bounded UI Automation and native WinForms trees plus compact WebBrowser layout, scroll, zoom, and DPI metrics when available; raw DOM and page source are excluded.", schema({ window: selector, maxDepth: { type: "integer", minimum: 0, maximum: 10, default: 5 }, limit: { type: "integer", minimum: 1, maximum: 1000, default: 200 } }, ["window"]), readOnly),
   tool("max_ui_find", "Find a control inside the selected 3ds Max process using stable selector fields.", schema({ window: selector, control: selector }, ["control"]), readOnly),
   tool("max_ui_invoke", "Invoke a button, menu, checkbox, or other invokable Max-owned control.", schema({ window: selector, control: selector }, ["control"]), openWrite),
   tool("max_ui_set_value", "Set text or numeric value on a Max-owned control.", schema({ window: selector, control: selector, value: { type: ["string", "number"] } }, ["control", "value"]), openWrite),
@@ -164,7 +164,7 @@ const tools = [
   tool("max_ui_send_keys", "Focus a Max-owned control and send Windows Forms key syntax.", schema({ window: selector, control: selector, keys: { type: "string", minLength: 1 } }, ["keys"]), openWrite),
   tool("max_ui_wait", "Wait until a Max-owned window or control exists, disappears, enables, or becomes visible.", schema({ window: selector, control: selector, state: { type: "string", enum: ["exists", "missing", "enabled", "visible", "closed"], default: "exists" }, timeout_ms: { type: "integer", minimum: 0, maximum: 120000, default: 10000 } }), readOnly),
   tool("max_ui_close_window", "Close one verified Max-owned top-level window.", schema({ window: selector }, ["window"]), openWrite),
-  tool("max_ui_capture_window", "Capture one verified Max-owned window as an MCP image.", schema({ window: selector }), readOnly),
+  tool("max_ui_capture_window", "Capture a verified Max-owned top-level, child, or MAXScriptDialog window as an MCP image; a supplied HWND uses direct native capture.", schema({ window: selector }), readOnly),
 
   tool("max_validate_floor_plan", "Normalize and validate a structured wall/opening plan without changing the scene.", schema({ plan: { type: "object", additionalProperties: true } }, ["plan"]), readOnly, "archviz"),
   tool("max_build_floor_plan", "Build a validated floor plan from a preserved source spline, an extruded working copy, and meshOp opening topology in one undo transaction.", schema({ plan: { type: "object", additionalProperties: true }, validationToken: { type: "string", minLength: 64, maxLength: 64 }, layer: { type: "string", default: "MCP_ARCHVIZ" }, prefix: { type: "string", default: "MCP" }, dryRun: { type: "boolean", default: false } }, ["plan", "validationToken"]), write, "archviz"),

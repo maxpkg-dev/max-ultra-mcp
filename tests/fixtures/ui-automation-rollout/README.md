@@ -22,7 +22,10 @@ Expected sequence:
 6. `max_ui_inspect` or `max_ui_find` to verify the result label.
 7. `max_ui_capture_window` with the exact returned `window.hwnd` to capture only this dialog.
 8. `max_ui_diagnostics` with the same HWND when native WinForms geometry or embedded WebBrowser metrics are needed.
+9. Confirm that direct capture reports `selectorSource: "hwnd"` and `captureMethod: "printWindow"` or `"screenCopyFallback"`; re-capture after the UI change for visual post-state evidence.
+10. Repeat direct capture with an inspected child HWND or disposable `MAXScriptDialog` handle to prove that top-level rediscovery is not required.
+11. For embedded WebBrowser acceptance, use a disposable MaxPkg Manager window and verify only bounded layout/scroll/zoom/DPI values; never collect raw DOM, page source, credentials, or customer content.
 
-The external UI Automation helper revalidates that every selected element belongs to the chosen `3dsmax.exe` PID. This example intentionally does not rely on localized Max menus, global screen coordinates, or toolbar layout.
+The external UI helper revalidates that every selected element belongs to the chosen `3dsmax.exe` PID immediately before use. This example intentionally does not rely on localized Max menus, global screen coordinates, or toolbar layout.
 
 The automated `tests/ui-automation-helper-test.ps1` fixture launches a temporary synthetic process named `3dsmax.exe`, verifies the direct HWND PNG path and bounded native WinForms tree, then closes the fixture and removes its temporary files. It never launches 3ds Max or touches a scene.

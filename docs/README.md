@@ -54,7 +54,7 @@ The compact panel shows two status/context rows above a tall log.
 ## Concise MCP tools
 
 The mandatory production workflow backlog and acceptance contracts are defined in [USE_CASES.md](USE_CASES.md).
-The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 60–74 tools; see [V1.md](V1.md).
+The table below documents the original direct-control surface retained for examples and regression compatibility. Agent-facing v1 profiles expose 61–75 tools; see [V1.md](V1.md).
 
 
 | Tool | Purpose |
@@ -67,13 +67,17 @@ The table below documents the original direct-control surface retained for examp
 | `max_ui_list` | Discover bounded Max-owned UI controls |
 | `max_ui_invoke` | Guarded invoke with stale-handle checks |
 | `max_health` | Transport/main-thread health |
+| `max_ui_capture_window` | Capture an exact Max-owned top-level or child HWND without top-level rediscovery |
+| `max_ui_diagnostics` | Return bounded UI Automation/native WinForms trees and compact WebBrowser layout evidence |
 | `max_get_info` | Detailed Max, scene, object, polygon/vertex, selection, material, layer, animation, and render information |
 | `max_panel` | Show, hide, minimize, or restore the panel |
 | `max_logs` | Read bounded panel activity |
 | `max_smoke` | Non-destructive protocol smoke request |
 | `max_execute` | Advanced MaxScript escape hatch |
 
-When exactly one Max is connected, short calls route automatically. With several instances, the server returns the live inventory and requires `instance_id` or an explicit `max_select_instance` call.
+Natural requests such as “make this in 3ds Max”, “build this in my 3D program”, or “change this in my 3D editor” are Max Ultra MCP requests. The agent first lists instances and explicitly selects the only or uniquely identified match. With zero connections or several ambiguous instances it asks exactly one short question and does not operate on an uncertain window.
+
+For Max-owned UI, inspect first, capture the returned HWND directly, and add `max_ui_diagnostics` only when UI Automation/native WinForms or embedded WebBrowser layout evidence is needed. After any action, re-inspect, re-capture, or query Max state to verify the result.
 
 ## Runnable examples
 
@@ -163,7 +167,7 @@ skills/                           optional agent skills and focused references
 scripts/                          launchers, shared Node.js runner, and detached owned-server shutdown helper
 examples/                         BAT-only launcher root plus same-named implementation folders
 docs/README.md                    detailed documentation
-.agents/                          adapted project coding instructions
+.agents/ and .claude/             canonical project policy plus thin Codex/Claude skill adapters
 maxpkg-files.txt                  reviewed production allowlist for MaxPkg
 ```
 
@@ -181,4 +185,4 @@ Or with Node 22+:
 node .\tests\smoke-test.js
 ```
 
-The three suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools and lifecycle behavior; the v1 suite verifies 60-74 profile tools, envelopes, revisions, floor plans, renderer introspection, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. They do not open 3ds Max, manipulate a real scene, or save a scene.
+The JavaScript suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools, lifecycle behavior, UI-helper source guards, and agent-adapter packaging; the v1 suite verifies 61–75 profile tools, envelopes, revisions, floor plans, renderer introspection, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. A separate PowerShell helper fixture creates a disposable owned WinForms window and verifies direct HWND capture, bounded native diagnostics, evidence fields, and cleanup. None of these checks opens 3ds Max or modifies a real scene. Child/MAXScriptDialog and plugin/WebBrowser evidence still require the real-Max fixture.

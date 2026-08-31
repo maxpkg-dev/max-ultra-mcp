@@ -6,6 +6,10 @@ version.ini
 01_START_MAX_ULTRA_MCP_FIRST.ms
 README.md
 AGENTS.md
+CLAUDE.md
+.agents/agent-interop.md
+.agents/skills/max-ultra-mcp/SKILL.md
+.claude/skills/max-ultra-mcp/SKILL.md
 .agents/coding-rules.md
 .agents/release-rules.md
 docs/README.md

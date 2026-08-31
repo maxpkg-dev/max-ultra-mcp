@@ -15,7 +15,9 @@ const { BridgeControlClient } = require("./bridge-control-client");
 const { getMcpTools, normalizeProfile } = require("./tool-catalog");
 const { version: SERVER_VERSION } = require("./package.json");
 
-const INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. Use max_job_* for the common lifecycle of long operations; render-specific job tools remain compatible. Inspect max_renderer_properties_get before renderer-specific configuration and use only exact runtime properties with read-back verification. Use max_material_find_unassigned before changing material assignments. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, and build it with the unchanged token. The floor-plan builder preserves a source wall spline, extrudes a separate working copy, and creates door/window topology through meshOp before viewport verification. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits. max_run_script, max_run_script_file, and max_execute require activity to name the exact operation, such as Create wall openings, Assign tree materials, or Delete opening helpers. Generic labels, code, filenames, and paths are rejected.";
+const NATURAL_WORKFLOW_INSTRUCTIONS = "Treat a natural request to make, edit, inspect, or render something in 3ds Max, the user's 3D program, or their 3D editor as intent to use Max Ultra MCP. Start with max_list_instances. Select the only instance explicitly, or select a uniquely identified matching instance. With zero instances or several ambiguous instances, ask exactly one short question and do not operate in an uncertain window. Perform the requested action through the narrowest tool, then verify the resulting state or image. For Max-owned windows, inspect first, capture a returned HWND directly with max_ui_capture_window, and use max_ui_diagnostics when bounded UI Automation, native WinForms, or WebBrowser layout evidence is needed.";
+const BASE_INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. Use max_job_* for the common lifecycle of long operations; render-specific job tools remain compatible. Inspect max_renderer_properties_get before renderer-specific configuration and use only exact runtime properties with read-back verification. Use max_material_find_unassigned before changing material assignments. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, and build it with the unchanged token. The floor-plan builder preserves a source wall spline, extrudes a separate working copy, and creates door/window topology through meshOp before viewport verification. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits. max_run_script, max_run_script_file, and max_execute require activity to name the exact operation, such as Create wall openings, Assign tree materials, or Delete opening helpers. Generic labels, code, filenames, and paths are rejected.";
+const INSTRUCTIONS = NATURAL_WORKFLOW_INSTRUCTIONS + " " + BASE_INSTRUCTIONS;
 
 function writeRpc(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -33,12 +35,26 @@ function errorCode(error) {
   if (/JOB_LIMIT_REACHED/i.test(message)) return "JOB_LIMIT_REACHED";
   if (/JOB_TYPE_MISMATCH/i.test(message)) return "JOB_TYPE_MISMATCH";
   if (/MATERIAL_DIAGNOSTICS_INVALID/i.test(message)) return "MATERIAL_DIAGNOSTICS_INVALID";
+  if (/UI_CAPTURE_FAILED/i.test(message)) return "UI_CAPTURE_FAILED";
   if (/VALIDATION_FAILED|must |requires |unknown wall|overlap|extends past/i.test(message)) return "VALIDATION_FAILED";
   if (/RENDERER_UNSUPPORTED/i.test(message)) return "RENDERER_UNSUPPORTED";
-  if (/UI element was not found/i.test(message)) return "UI_ELEMENT_NOT_FOUND";
+  if (/UI_ELEMENT_NOT_FOUND|UI element was not found/i.test(message)) return "UI_ELEMENT_NOT_FOUND";
   if (/timed out|TIMEOUT/i.test(message)) return "TIMEOUT";
   if (/cancel/i.test(message)) return "JOB_CANCELLED";
   return "INTERNAL_ERROR";
+}
+
+function errorHints(error) {
+  const hints = {
+    BRIDGE_DOWN: ["Run 01_START_MAX_ULTRA_MCP_FIRST.ms in 3ds Max, then retry max_health."],
+    MAX_NOT_CONNECTED: ["Open 3ds Max, run 01_START_MAX_ULTRA_MCP_FIRST.ms, then call max_list_instances."],
+    INSTANCE_REQUIRED: ["Call max_list_instances, ask one short question if the intended instance is ambiguous, then call max_select_instance."],
+    UI_ELEMENT_NOT_FOUND: ["Call max_ui_list_windows or max_ui_inspect again and retry with a fresh Max-owned HWND."],
+    UI_CAPTURE_FAILED: ["Restore the verified Max-owned window, obtain a fresh HWND with max_ui_inspect, and retry direct capture."],
+    STALE_NODE_REF: ["Query the scene again and use the new NodeRef; do not fall back to the old name."],
+    RENDERER_UNSUPPORTED: ["Call max_renderer_properties_get and use only capabilities exposed by the active renderer."],
+  };
+  return hints[errorCode(error)] || [];
 }
 
 function validateSchema(value, schema, field = "arguments") {
@@ -93,12 +109,13 @@ function successEnvelope(data, startedAt) {
 }
 
 function errorEnvelope(error, startedAt) {
+  const code = errorCode(error);
   return {
     ok: false,
     data: null,
     warnings: [],
-    error: { code: errorCode(error), message: String(error?.message || error) },
-    hints: [],
+    error: { code, message: String(error?.message || error) },
+    hints: errorHints(error),
     sceneRevision: null,
     durationMs: Date.now() - startedAt,
   };

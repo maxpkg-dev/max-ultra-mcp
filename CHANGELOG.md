@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-- Added: Read-only UI diagnostics return bounded UI Automation and native WinForms trees plus embedded MSHTML WebBrowser sizing, layout, scroll, zoom, and DPI metrics when available.
-- Fixed: Max-owned MAXScriptDialog and other native windows can be captured directly by their verified HWND without requiring a second successful UI Automation lookup.
+- Fixed: Window capture now targets a supplied Max-owned HWND directly after native process-ownership validation, including child and MAXScriptDialog windows, without depending on top-level UI Automation rediscovery.
+- Added: Read-only diagnostics return bounded UI Automation and native WinForms trees plus compact MSHTML WebBrowser sizing, layout, scroll, zoom, and DPI metrics without raw DOM or page source.
+- Improved: MCP errors now include predictable UI recovery hints, and the natural 3D workflow lists and safely selects a Max instance before taking action.
+- Added: Canonical cross-agent project policy with thin Codex and Claude skill adapters; deterministic hooks remain limited to repository hygiene rather than scene or UI decisions.
 
 ## 1.2.5 - 2026-08-27
 

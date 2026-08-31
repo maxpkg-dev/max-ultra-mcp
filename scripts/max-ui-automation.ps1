@@ -83,10 +83,10 @@ function Get-ComProp($Object, [string]$Name, $Default = $null) {
 }
 
 function Assert-OwnedHandle([IntPtr]$Handle) {
-    if ($Handle -eq [IntPtr]::Zero -or -not [MaxUltraMcpUser32]::IsWindow($Handle)) { throw 'UI element was not found or its native handle is no longer valid' }
+    if ($Handle -eq [IntPtr]::Zero -or -not [MaxUltraMcpUser32]::IsWindow($Handle)) { throw 'UI_ELEMENT_NOT_FOUND: the HWND is no longer valid. Re-inspect the Max-owned window and retry with a fresh HWND.' }
     [uint32]$ownerPid = 0
     [void][MaxUltraMcpUser32]::GetWindowThreadProcessId($Handle, [ref]$ownerPid)
-    if ([int]$ownerPid -ne $TargetProcessId) { throw 'Native UI handle is not owned by the selected 3ds Max process' }
+    if ([int]$ownerPid -ne $TargetProcessId) { throw 'UI_ELEMENT_NOT_FOUND: the HWND is not owned by the selected 3ds Max process. List or inspect that instance again.' }
     return $Handle
 }
 
@@ -477,9 +477,9 @@ function Get-WebBrowserMetrics($NativeControl) {
 function Save-WindowCapture([IntPtr]$Handle, [string]$OutputPath) {
     [void](Assert-OwnedHandle $Handle)
     $rectangle = Get-WindowRectangle $Handle
-    if ($rectangle.width -le 0 -or $rectangle.height -le 0) { throw 'The selected window has an empty bounding rectangle' }
+    if ($rectangle.width -le 0 -or $rectangle.height -le 0) { throw 'UI_CAPTURE_FAILED: the selected HWND has empty bounds. Restore the window, re-inspect it, and retry.' }
     if ($rectangle.width -gt 32768 -or $rectangle.height -gt 32768 -or ([int64]$rectangle.width * [int64]$rectangle.height) -gt 100000000) {
-        throw 'The selected window is too large to capture safely'
+        throw 'UI_CAPTURE_FAILED: the selected HWND is too large to capture safely.'
     }
 
     $bitmap = New-Object System.Drawing.Bitmap($rectangle.width, $rectangle.height)
@@ -499,6 +499,12 @@ function Save-WindowCapture([IntPtr]$Handle, [string]$OutputPath) {
             $captureMethod = 'screenCopyFallback'
         }
         $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    } catch {
+        $captureError = [string]$_.Exception.Message
+        if ($captureError.StartsWith('UI_ELEMENT_NOT_FOUND:') -or $captureError.StartsWith('UI_CAPTURE_FAILED:')) {
+            throw $captureError
+        }
+        throw 'UI_CAPTURE_FAILED: native and screen capture failed. Restore the Max-owned window, obtain a fresh HWND, and retry.'
     } finally {
         $graphics.Dispose()
         $bitmap.Dispose()

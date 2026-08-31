@@ -1,6 +1,6 @@
 ---
 name: max-ultra-mcp
-description: Control and inspect already-open Autodesk 3ds Max scenes through Max Ultra MCP. Use for scene and file lifecycle, XRefs, File Properties, script artifacts, polygon modeling, viewport, rendering, MaxScript, or Max-owned UI automation when Max Ultra MCP tools are available. Use max-ultra-spline-modeling for spline paths/profiles and max-ultra-floor-plan for dimensional architectural plans. Do not use for editing the Max Ultra MCP repository itself.
+description: Use Max Ultra MCP when the user asks to create, edit, inspect, render, or otherwise work in Autodesk 3ds Max, their 3D program, or their 3D editor. Covers scene, file, modeling, viewport, rendering, MaxScript, and Max-owned UI workflows; use focused Max Ultra skills for specialized work. Do not use for editing the Max Ultra MCP repository itself.
 ---
 
 # Max Ultra MCP
@@ -13,12 +13,14 @@ For reference-driven character, creature, product, or prop subdivision modeling,
 
 ## Operating workflow
 
-1. Call `max_list_instances`. When several instances are connected, ask the user which one to use unless the request already identifies it, then call `max_select_instance`.
-2. Call `max_capabilities` before renderer-, plugin-, import/export-, or profile-dependent work.
-3. Read the smallest useful state with `max_scene_summary`, `max_query_scene`, or a domain-specific read tool.
-4. Prefer a semantic tool with structured arguments and post-state evidence. Respect write approval, `dryRun`, validation tokens, scene revisions, and NodeRefs when the selected tool exposes them.
-5. Run mutations serially. Do not assume a write succeeded from transport success alone.
-6. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image. Before presenting a finished result in chat, follow the final showcase sequence in the workflows reference listed below.
+1. Treat a natural request such as"��y��y�make X in 3ds Maz��y��y�,"��y��y�do X in my 3D prograk�u���], or+�u���\change X in the 3D editor��y��y� as intent to use Max Ultra MCP. Call `max_list_instances` immediately.
+2. With no connected instance, ask exactly one short question telling the user to open 3ds Max and run `01_START_MAX_ULTRA_MCP_FIRST.ms`; do not attempt a mutation. With exactly one instance, call `max_select_instance` for it.
+3. With several instances, select one without asking only when the request uniquely matches returned evidence such as version or scene. Otherwise ask exactly one short question naming the concise choices, and do not work in an uncertain window.
+4. Call `max_capabilities` before renderer-, plugin-, import/export-, or profile-dependent work.
+5. Read the smallest useful state with `max_scene_summary`, `max_query_scene`, or a domain-specific read tool.
+6. Prefer a semantic tool with structured arguments and post-state evidence. Respect write approval, `dryRun`, validation tokens, scene revisions, and NodeRefs when the selected tool exposes them.
+7. Run mutations serially. Do not assume a write succeeded from transport success alone.
+8. Verify the post-state. For every visual check, frame the relevant objects or camera and call `max_capture_viewport`; never use an unmaximized raw viewport bitmap as final evidence. Use the default `clean-realistic` review preset unless topology, normals, or an intentionally selected diagnostic style requires another preset, then inspect the returned image. Before presenting a finished result in chat, follow the final showcase sequence in the workflows reference listed below.
 
 ## Tool priority
 
@@ -57,5 +59,5 @@ Never generate MaxScript merely to recreate an available semantic tool. Never us
 - `STALE_NODE_REF`: query the scene again and reacquire the target; do not silently fall back to a same-named node.
 - `VALIDATION_FAILED`: correct blockers and validate again before applying.
 - `RENDERER_UNSUPPORTED`: report the missing capability or offer a reviewed generic alternative; never imitate success.
-- `UI_ELEMENT_NOT_FOUND`: inspect the confirmed Max-owned window again and rebuild the selector from stable fields.
+- `UI_ELEMENT_NOT_FOUND`: re-run `max_ui_list_windows` or `max_ui_inspect`, then retry with a fresh Max-owned HWND. Pass that HWND directly to `max_ui_capture_window`; use `max_ui_diagnostics` when bounded UI Automation/native WinForms or WebBrowser metrics are needed.
 - `BRIDGE_DOWN`, `MAX_NOT_CONNECTED`, or control authentication failure: report the connection problem without attempting scene mutations.

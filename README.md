@@ -27,8 +27,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Monitor, wait for, cancel, and retrieve any session-owned long operation through the common job API.
 - Find geometry with missing, invalid, unsupported, incomplete Multi/Sub, or missing-bitmap material assignments without changing selection.
 - Run MaxScript text, files, macros, and Action Table commands.
-- Inspect and operate UI controls only inside the selected `3dsmax.exe` process.
-- Capture a verified Max-owned dialog directly by HWND and request bounded WinForms/WebBrowser layout diagnostics.
+- Inspect, diagnose, and capture top-level or child UI only inside the selected `3dsmax.exe` process.
 - Validate and build a dimensioned house plan interpreted from an attached image.
 - Use unrestricted `max_execute` when a semantic tool does not exist yet.
 
@@ -79,6 +78,28 @@ codex mcp add max-ultra-mcp --env MAX_ULTRA_MCP_TOOL_PROFILE=archviz -- node "<P
 ```
 
 Then run `01_START_MAX_ULTRA_MCP_FIRST.ms` inside 3ds Max.
+
+## Natural-language quick start
+
+A request such as "create a one-meter cube in 3ds Max", "fix the layout in my 3D program", or "render this in the 3D editor" is enough. An agent using the packaged skill should route that request to Max Ultra MCP and begin with instance discovery.
+
+1. Call `max_list_instances({})`.
+2. When exactly one instance is returned, call `max_select_instance({"instance_id":"<INSTANCE_ID>"})`. When several are returned, select a uniquely identified version or scene; otherwise ask one short question. When none are returned, ask one short connection question and do not mutate a scene or UI.
+3. Perform the narrowest semantic operation.
+4. Query the post-state and capture the relevant viewport, render, or window.
+
+For a Max-owned tool window, use this compact inspection loop:
+
+```text
+max_list_instances -> max_select_instance
+max_ui_list_windows -> max_ui_inspect
+max_ui_capture_window({ window: { hwnd: <HWND> } })
+max_ui_diagnostics({ window: { hwnd: <HWND> }, maxDepth: 5, limit: 200 })
+narrow semantic tool or reviewed max_run_script
+max_ui_inspect -> max_ui_capture_window / max_ui_diagnostics
+```
+
+A supplied HWND is captured through the native Windows path after selected-process ownership is revalidated, so child and MAXScriptDialog windows do not need to be rediscovered through UI Automation. Diagnostics return bounded UI Automation and native HWND trees plus compact MSHTML WebBrowser DPI, zoom, DOM-count, layout, and scroll metrics when available; they do not return raw DOM or page source.
 
 ## How the connection works
 
