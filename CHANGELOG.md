@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added: Read-only UI diagnostics return bounded UI Automation and native WinForms trees plus embedded MSHTML WebBrowser sizing, layout, scroll, zoom, and DPI metrics when available.
+- Fixed: Max-owned MAXScriptDialog and other native windows can be captured directly by their verified HWND without requiring a second successful UI Automation lookup.
+
 ## 1.2.5 - 2026-08-27
 
 - Improved: MaxScript tools now require an exact privacy-safe operation name and reject missing or generic activity labels instead of logging an ambiguous action.

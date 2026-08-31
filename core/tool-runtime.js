@@ -1,4 +1,9 @@
-/* Max Ultra MCP v1 tool execution runtime. */
+/*
+ * Max Ultra MCP v1 tool execution runtime.
+ * Copyright (c) 2026 Lukianenko Vasyl
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
+ */
 
 "use strict";
 
@@ -667,14 +672,15 @@ inspectionText
 
   if (toolName === "max_ui_invoke" && args.target_hwnd) return NOT_HANDLED;
   const uiOperation = {
-    max_ui_list_windows: "listWindows", max_ui_inspect: "inspect", max_ui_find: "find", max_ui_invoke: "invoke",
+    max_ui_list_windows: "listWindows", max_ui_inspect: "inspect", max_ui_diagnostics: "diagnose", max_ui_find: "find", max_ui_invoke: "invoke",
     max_ui_set_value: "setValue", max_ui_select: "select", max_ui_send_keys: "sendKeys", max_ui_close_window: "close", max_ui_capture_window: "capture",
   }[toolName];
   if (uiOperation) {
     const payload = { ...args };
     delete payload.instance_id;
     if (toolName === "max_ui_capture_window") payload.outputPath = path.join(os.tmpdir(), `max-ultra-mcp-window-${randomUUID()}.png`);
-    const data = await runUiAutomation(instance.pid, uiOperation, payload, toolName === "max_ui_capture_window" ? 30000 : 15000);
+    const diagnosticOperation = toolName === "max_ui_capture_window" || toolName === "max_ui_diagnostics";
+    const data = await runUiAutomation(instance.pid, uiOperation, payload, diagnosticOperation ? 30000 : 15000);
     return { instanceId: instance.instanceId, ui: data };
   }
   if (toolName === "max_ui_wait") {

@@ -135,6 +135,12 @@ async function run() {
   assert.equal(runScriptTool.inputSchema.properties.activity.maxLength, 80);
   assert.equal(runScriptTool.inputSchema.required.includes("activity"), true);
   assert.match(runScriptTool.description, /specific activity name is required/);
+  const uiDiagnosticsTool = coreTools.find((entry) => entry.name === "max_ui_diagnostics");
+  assert.ok(uiDiagnosticsTool);
+  assert.equal(uiDiagnosticsTool.annotations.readOnlyHint, true);
+  assert.equal(uiDiagnosticsTool.inputSchema.required.includes("window"), true);
+  assert.equal(uiDiagnosticsTool.inputSchema.properties.limit.maximum, 1000);
+  assert.match(uiDiagnosticsTool.description, /WebBrowser layout, scroll, zoom, and DPI metrics/);
 
   const validation = validateFloorPlan(PLAN);
   assert.equal(validation.validationToken.length, 64);

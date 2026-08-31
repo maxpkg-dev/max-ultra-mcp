@@ -20,5 +20,9 @@ Expected sequence:
 4. `max_ui_set_value` for the edit control.
 5. `max_ui_invoke` for the button.
 6. `max_ui_inspect` or `max_ui_find` to verify the result label.
+7. `max_ui_capture_window` with the exact returned `window.hwnd` to capture only this dialog.
+8. `max_ui_diagnostics` with the same HWND when native WinForms geometry or embedded WebBrowser metrics are needed.
 
 The external UI Automation helper revalidates that every selected element belongs to the chosen `3dsmax.exe` PID. This example intentionally does not rely on localized Max menus, global screen coordinates, or toolbar layout.
+
+The automated `tests/ui-automation-helper-test.ps1` fixture launches a temporary synthetic process named `3dsmax.exe`, verifies the direct HWND PNG path and bounded native WinForms tree, then closes the fixture and removes its temporary files. It never launches 3ds Max or touches a scene.

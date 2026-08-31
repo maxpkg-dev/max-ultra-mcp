@@ -9,6 +9,7 @@ All automated verification code and test-only fixtures live in this directory.
 - `cli-integration-test.js` launches real daemon and STDIO child processes and verifies authenticated JSON-only MCP transport.
 - `helpers/mock-max-client.js` simulates supported 3ds Max protocol endpoints without opening 3ds Max.
 - `fixtures/ui-automation-rollout/` contains the MaxScript rollout used for real-Max UI Automation verification.
+- `ui-automation-helper-test.ps1` verifies direct HWND capture and bounded native WinForms diagnostics against a temporary synthetic process named `3dsmax.exe`.
 
 Run every automated suite from the repository root:
 
@@ -24,4 +25,4 @@ node .\tests\v1-smoke-test.js
 node .\tests\cli-integration-test.js
 ```
 
-The JavaScript suites use mock Max clients only. They must never open, modify, render, or save a real user scene. The v1 suite covers common session-owned jobs, render compatibility wrappers, plan-token binding, bounded material-diagnostic generation/parsing, and privacy-safe activity labels. Material-class and renderer-specific coverage still requires the real-Max acceptance matrix. The UI Automation fixture requires an explicitly selected disposable 3ds Max test scene and is not executed by the automated runner.
+The JavaScript suites use mock Max clients only. They must never open, modify, render, or save a real user scene. The v1 suite covers common session-owned jobs, render compatibility wrappers, plan-token binding, bounded material-diagnostic generation/parsing, and privacy-safe activity labels. The synthetic UI helper test is part of `run-smoke.ps1`; it launches no Autodesk software and touches no scene. The MaxScript UI Automation rollout still requires an explicitly selected disposable 3ds Max test scene and is not executed automatically. Material-class, renderer-specific, and real-Max UI coverage still require the acceptance matrix.

@@ -56,11 +56,12 @@ Never invent progress when the renderer reports none. Renderer-specific interact
 1. Run the reviewed script with `max_run_script_file`.
 2. Wait for its top-level Max-owned window using `max_ui_wait`.
 3. Inspect the window with `max_ui_inspect`; use `max_ui_find` when a stable selector can be formed.
-4. Prefer AutomationId, parent chain, class/control type, and accessible name. Localized text is weaker; coordinates are the final reviewed fallback.
-5. Set fields with `max_ui_set_value` or `max_ui_select` and invoke with `max_ui_invoke`.
-6. Wait for the expected state change, inspect again, then verify the scene and capture the viewport or window.
+4. Retain the verified decimal HWND when the agent must capture or diagnose that exact standalone dialog.
+5. Prefer AutomationId, parent chain, class/control type, and accessible name. Localized text is weaker; coordinates are the final reviewed fallback.
+6. Set fields with `max_ui_set_value` or `max_ui_select` and invoke with `max_ui_invoke`.
+7. Wait for the expected state change, inspect again, then verify the scene and capture the viewport or exact window.
 
-Reinspect after a window is recreated. Never reuse an HWND or selector without process ownership validation.
+Call `max_ui_capture_window` with only `window.hwnd` when other Max windows could overlap the intended evidence. Call `max_ui_diagnostics` with the same HWND for bounded UIA/native WinForms trees and available WebBrowser layout, scroll, zoom, and DPI metrics. Reinspect after a window is recreated. Never reuse an HWND or selector without process ownership validation.
 
 ## Read-only connection check
 

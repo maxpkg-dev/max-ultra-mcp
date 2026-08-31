@@ -28,6 +28,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Find geometry with missing, invalid, unsupported, incomplete Multi/Sub, or missing-bitmap material assignments without changing selection.
 - Run MaxScript text, files, macros, and Action Table commands.
 - Inspect and operate UI controls only inside the selected `3dsmax.exe` process.
+- Capture a verified Max-owned dialog directly by HWND and request bounded WinForms/WebBrowser layout diagnostics.
 - Validate and build a dimensioned house plan interpreted from an attached image.
 - Use unrestricted `max_execute` when a semantic tool does not exist yet.
 
