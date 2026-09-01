@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added: A local ChatGPT and Codex plugin packages all Max Ultra workflow skills so natural 3ds Max requests route to the registered MCP tools.
+- Fixed: The natural workflow skill now uses readable examples and explicitly applies to requests in any user language.
+- Added: A client-neutral read-only diagnostics CLI discovers packaged skills, checks live health and capabilities, audits Codex and Claude Code registration, and prints setup commands without changing client configuration or 3ds Max scenes.
 - Fixed: Window capture now targets a supplied Max-owned HWND directly after native process-ownership validation, including child and MAXScriptDialog windows, without depending on top-level UI Automation rediscovery.
 - Added: Read-only diagnostics return bounded UI Automation and native WinForms trees plus compact MSHTML WebBrowser sizing, layout, scroll, zoom, and DPI metrics without raw DOM or page source.
 - Improved: MCP errors now include predictable UI recovery hints, and the natural 3D workflow lists and safely selects a Max instance before taking action.

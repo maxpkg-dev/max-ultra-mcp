@@ -68,6 +68,7 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 ## Maintainer files
 
 - `maxpkg-files.txt` is the reviewed production file allowlist.
+- `.agents\plugins\marketplace.json` and `plugins\max-ultra-mcp` provide the installable ChatGPT/Codex workflow plugin; its copied skill tree must remain byte-for-byte synchronized with canonical `skills\` sources.
 - `skills\max-ultra-mcp`, `skills\max-ultra-camera-composition`, `skills\max-ultra-character-object-modeling`, `skills\max-ultra-renderer-settings`, `skills\max-ultra-spline-modeling`, `skills\max-ultra-floor-plan`, and `skills\max-ultra-maxpkg-packaging` are the optional file-based agent skills shipped with the package; MCP operation does not depend on installing them.
 - The MaxPkg adaptation skill fetches the current official README, coding rules, both official prompts, API documentation, `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` from one resolved `maxpkg-dev/max-dev-tool` commit. Prompt content is not embedded in Max Ultra MCP. Its stricter workflow requires both standard hooks in every adapted project.
 - `maxpkg-icon.svg` is the reviewed square package icon used by MaxPkg Packager.

@@ -48,6 +48,14 @@ MaxPkg release packages bundle a portable Node.js runtime. Users do not install 
 
 3. When no supported AI client is configured, the first-start script opens **AI Client Setup** automatically. On **1. Setup**, select **ChatGPT Desktop / Codex** and/or **Claude Code**, then choose **Install selected**. After reconnecting the client, use **2. Test prompt** to copy a safe, read-only connection test.
 4. Restart or reconnect each newly configured AI client.
+5. For natural-language routing in ChatGPT Desktop and Codex, install the packaged plugin once from the installation root:
+
+   ```powershell
+   codex plugin marketplace add "<INSTALL_ROOT>"
+   codex plugin add max-ultra-mcp@3dground-max-ultra-mcp
+   ```
+
+   Start a new task after installation. Requests in any language such as "create a teapot in 3ds Max" then activate the Max Ultra MCP workflow automatically.
 
 The onboarding uses official `codex mcp` and `claude mcp` commands when their CLIs are available. ChatGPT Desktop and Codex share the OpenAI MCP configuration. Claude Code registration is user-scoped. If a CLI is unavailable, the same window shows and copies exact STDIO values for manual or other-client setup. It never writes client configuration files directly.
 
@@ -78,6 +86,25 @@ codex mcp add max-ultra-mcp --env MAX_ULTRA_MCP_TOOL_PROFILE=archviz -- node "<P
 ```
 
 Then run `01_START_MAX_ULTRA_MCP_FIRST.ms` inside 3ds Max.
+
+## Read-only diagnostics CLI
+
+The source checkout includes a developer/agent diagnostics launcher:
+
+```powershell
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" --help
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" status
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" skills
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" skills --check
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" health
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" capabilities
+```
+
+The launcher starts `core\cli.js` with the bundled Node.js runtime when present, falls back to development Node.js, and forwards the requested command. It does not start a second MCP server, register a client, install a skill, execute MaxScript, change a scene, capture a viewport, or save a file.
+
+`status` probes the official Codex and Claude Code CLIs with their read-only `mcp get`/`mcp list` commands and checks the existing authenticated daemon connection. `setup` prints exact `codex mcp add` and `claude mcp add --scope user` commands for review but never runs them. `skills` discovers every `skills\*\SKILL.md` folder without a fixed catalog, returns its name, description, and path, and extracts the MCP tool names referenced by its Markdown files. `skills --check` compares those references with live `max_capabilities`; the CLI helps an agent discover and verify a workflow, while the agent and MCP tools still execute it.
+
+The batch launcher is intentionally source-only and excluded from the MaxPkg production allowlist. The underlying read-only `core\cli.js` remains package-local for agent diagnostics.
 
 ## Natural-language quick start
 
@@ -154,6 +181,8 @@ The general skill loads its packaged MaxScript code rules before creating or edi
 
 The MCP server remains fully usable without these skills. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
 
+For ChatGPT Desktop and Codex, the repo-local `plugins/max-ultra-mcp` plugin packages the same seven skills and exposes them through the `3dground-max-ultra-mcp` marketplace. The plugin supplies workflow routing; the separately registered local MCP server remains the authoritative tool transport.
+
 ## Security model
 
 - Network listeners bind to `127.0.0.1` only.
@@ -202,7 +231,8 @@ Before a production release, also test real 3ds Max versions and installed Coron
 01_START_MAX_ULTRA_MCP_FIRST.ms   user-facing 3ds Max bootstrap
 core/                             MCP host, daemon, and production tool runtime
 tests/                            automated suites, helpers, and real-Max fixtures
-skills/                           optional agent skills and focused references
+skills/                           canonical agent skills and focused references
+plugins/max-ultra-mcp/             ChatGPT and Codex natural-language routing plugin
 scripts/                          launch, installation, packaging, UI helpers
 examples/                         runnable and acceptance examples
 docs/                             architecture and product specifications

@@ -43,3 +43,4 @@ Do not use hooks to select a 3ds Max instance, approve writes, execute MaxScript
 - Codex CLI reads root `AGENTS.md` and discovers the adapter skill under `.agents/skills/max-ultra-mcp/`.
 - Claude Code reads root `CLAUDE.md`, which imports `AGENTS.md`, and discovers the adapter skill under `.claude/skills/max-ultra-mcp/`.
 - Both adapters point to `skills/max-ultra-mcp/SKILL.md`; update the canonical skill first.
+- `plugins/max-ultra-mcp` packages synchronized copies of all canonical skills for ChatGPT Desktop and Codex natural-language routing. Validate the plugin and keep every copied skill byte-identical before release.

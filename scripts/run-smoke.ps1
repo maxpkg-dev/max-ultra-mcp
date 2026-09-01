@@ -9,6 +9,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\cli-integration-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\diagnostics-cli-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\ui-automation-helper-test.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\release-workflow-test.ps1')

@@ -135,6 +135,26 @@ claude mcp add max-ultra-mcp --scope user --env MAX_ULTRA_MCP_TOOL_PROFILE=archv
 
 See [V1.md](V1.md) for the portable-runtime TOML configuration and client lifecycle details.
 
+### Developer and agent diagnostics
+
+From a source checkout, run:
+
+```powershell
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" --help
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" status
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" setup --profile archviz
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" skills
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" skills --check
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" health
+& ".\diagnostics\Max Ultra MCP Diagnostics.bat" capabilities
+```
+
+The launcher resolves the repository root from its `diagnostics` directory, starts `core\cli.js` with package-local Node.js when available, and otherwise uses development Node.js. It forwards only the CLI command and options. It does not start a daemon or STDIO host, change the selected Max scene, inspect or capture the viewport, or install an MCP registration.
+
+`status` checks Codex and Claude Code registrations without writing either configuration. `setup` prints their official installation and verification commands without executing them. `skills` scans every package-local `SKILL.md` instead of using a hard-coded list, so the general, floor-plan, camera, character/object, renderer, spline, MaxScript/viewport/render references, and MaxPkg workflows remain discoverable as the catalog evolves. `skills --check` compares referenced tool names with the selected Max capabilities; the CLI does not interpret or run the skill workflow.
+
+The diagnostics batch file is developer-only and must remain outside `maxpkg-files.txt`. The normal release flow continues to begin with `01_START_MAX_ULTRA_MCP_FIRST.ms`.
+
 
 ## PowerShell versions
 
@@ -162,6 +182,7 @@ Automatic launch/recovery is loopback-only.
 01_START_MAX_ULTRA_MCP_FIRST.ms   one user-facing MaxScript entry point
 README.md                         concise start page and documentation links
 core/                             production server, protocol, tools, and package metadata
+diagnostics/                      source-only developer and agent launchers; excluded from MaxPkg
 tests/                            automated suites, test helpers, and real-Max fixtures
 skills/                           optional agent skills and focused references
 scripts/                          launchers, shared Node.js runner, and detached owned-server shutdown helper

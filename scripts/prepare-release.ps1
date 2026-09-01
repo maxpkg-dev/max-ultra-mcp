@@ -19,6 +19,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
+$pluginManifestPath = Join-Path $projectRoot 'plugins\max-ultra-mcp\.codex-plugin\plugin.json'
 $changelogPath = Join-Path $projectRoot 'CHANGELOG.md'
 
 . (Join-Path $PSScriptRoot 'release-mzp-utils.ps1')
@@ -26,7 +27,7 @@ $changelogPath = Join-Path $projectRoot 'CHANGELOG.md'
 $releaseDate = [DateTime]::UtcNow.ToString('yyyy-MM-dd')
 $utf8WithoutBom = New-Object Text.UTF8Encoding($false)
 
-foreach ($requiredPath in @($versionIniPath, $packageJsonPath, $changelogPath)) {
+foreach ($requiredPath in @($versionIniPath, $packageJsonPath, $pluginManifestPath, $changelogPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required release source is missing: $requiredPath"
     }
@@ -85,6 +86,11 @@ $packageVersionMatch = $packageVersionMatches[0]
 $packageVersionLine = $packageVersionMatch.Groups['prefix'].Value + $releaseVersion + $packageVersionMatch.Groups['suffix'].Value
 $packageJsonContent = $packageJsonContent.Remove($packageVersionMatch.Index, $packageVersionMatch.Length).Insert($packageVersionMatch.Index, $packageVersionLine)
 [IO.File]::WriteAllText($packageJsonPath, $packageJsonContent, $utf8WithoutBom)
+
+$pluginManifest = Get-Content -Raw -LiteralPath $pluginManifestPath | ConvertFrom-Json
+if ([string]$pluginManifest.name -ne 'max-ultra-mcp') { throw 'The Codex plugin manifest has an unexpected name.' }
+$pluginManifest.version = $releaseVersion
+[IO.File]::WriteAllText($pluginManifestPath, (($pluginManifest | ConvertTo-Json -Depth 10) + "`n"), $utf8WithoutBom)
 
 if (-not $isPreparedRetry) {
     $releasedSection = "## $releaseVersion - $releaseDate`r`n`r`n$unreleasedBody`r`n`r`n"

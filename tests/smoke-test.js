@@ -527,11 +527,47 @@ async function runSmokeTest() {
     const codexSkillAdapterSource = fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "skills", "max-ultra-mcp", "SKILL.md"), "utf8");
     const claudeSkillAdapterSource = fs.readFileSync(path.join(PROJECT_ROOT, ".claude", "skills", "max-ultra-mcp", "SKILL.md"), "utf8");
     const skillsRoot = path.join(PROJECT_ROOT, "skills");
+    const pluginRoot = path.join(PROJECT_ROOT, "plugins", "max-ultra-mcp");
+    const pluginSkillsRoot = path.join(pluginRoot, "skills");
+    const pluginManifest = JSON.parse(fs.readFileSync(path.join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"));
+    const pluginMarketplace = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, ".agents", "plugins", "marketplace.json"), "utf8"));
     const skillNames = fs.readdirSync(skillsRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
       .map((entry) => entry.name)
       .sort();
     assert.deepEqual(skillNames, ["max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-maxpkg-packaging", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-spline-modeling"]);
+    assert.equal(pluginManifest.name, "max-ultra-mcp");
+    assert.equal(pluginManifest.version, versionIniSource.match(/^Version=(.+)$/m)[1].trim());
+    assert.equal(pluginManifest.skills, "./skills/");
+    assert.ok(Array.isArray(pluginManifest.interface.defaultPrompt));
+    assert.ok(pluginManifest.interface.defaultPrompt.some((prompt) => /teapot.+3ds Max/i.test(prompt)));
+    assert.equal(pluginMarketplace.name, "3dground-max-ultra-mcp");
+    assert.equal(pluginMarketplace.plugins[0].name, "max-ultra-mcp");
+    assert.equal(pluginMarketplace.plugins[0].source.path, "./plugins/max-ultra-mcp");
+    const relativeFilesBelow = (root) => {
+      const files = [];
+      const visit = (directory, prefix = "") => {
+        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+          const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) visit(path.join(directory, entry.name), relative);
+          else files.push(relative);
+        }
+      };
+      visit(root);
+      return files.sort();
+    };
+    const canonicalSkillFiles = relativeFilesBelow(skillsRoot);
+    assert.deepEqual(relativeFilesBelow(pluginSkillsRoot), canonicalSkillFiles);
+    for (const relativeSkillFile of canonicalSkillFiles) {
+      assert.deepEqual(
+        fs.readFileSync(path.join(pluginSkillsRoot, ...relativeSkillFile.split("/"))),
+        fs.readFileSync(path.join(skillsRoot, ...relativeSkillFile.split("/"))),
+        `Plugin skill copy is stale: ${relativeSkillFile}`,
+      );
+      assert.match(maxPkgFilesSource, new RegExp(`^plugins/max-ultra-mcp/skills/${relativeSkillFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    }
+    assert.match(maxPkgFilesSource, /^\.agents\/plugins\/marketplace\.json$/m);
+    assert.match(maxPkgFilesSource, /^plugins\/max-ultra-mcp\/\.codex-plugin\/plugin\.json$/m);
     const skillReferenceNamesBySkill = new Map();
     const skillDocumentationParts = [];
     for (const skillName of skillNames) {

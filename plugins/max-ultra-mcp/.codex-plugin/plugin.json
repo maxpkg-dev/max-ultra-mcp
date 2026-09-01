@@ -1,0 +1,37 @@
+{
+  "name": "max-ultra-mcp",
+  "version": "1.2.5",
+  "description": "Route natural Autodesk 3ds Max requests to the locally installed Max Ultra MCP tools.",
+  "author": {
+    "name": "Lukianenko Vasyl",
+    "url": "https://3dground.net"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "3DGROUND - Max Ultra MCP",
+    "shortDescription": "Control an open Autodesk 3ds Max scene from ChatGPT and Codex.",
+    "longDescription": "Recognizes natural 3ds Max requests, selects the correct connected instance, uses the narrowest Max Ultra MCP tool, and verifies the result.",
+    "developerName": "3DGROUND",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Create a teapot in my open 3ds Max scene.",
+      "Inspect the current 3ds Max scene and viewport.",
+      "Render the selected camera in 3ds Max."
+    ],
+    "websiteURL": "https://3dground.net",
+    "privacyPolicyURL": "https://github.com/maxpkg-dev/max-ultra-mcp/blob/main/docs/PRIVACY.md"
+  },
+  "homepage": "https://github.com/maxpkg-dev/max-ultra-mcp",
+  "repository": "https://github.com/maxpkg-dev/max-ultra-mcp",
+  "keywords": [
+    "3ds-max",
+    "3d",
+    "modeling",
+    "rendering",
+    "mcp"
+  ]
+}
