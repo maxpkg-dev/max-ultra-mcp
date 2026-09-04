@@ -529,8 +529,9 @@ global MaxUltraMcpActiveClient
         hasConnectedThisSession = false,
         supportReminderCount = 0,
         supportReminderDueAt,
-        firstSupportReminderMinutes = 10,
-        recurringSupportReminderMinutes = 60,
+        firstSupportReminderMinutes = 1,
+        secondSupportReminderMinutes = 10,
+        finalSupportReminderMinutes = 60,
         maximumSupportReminders = 3,
         supportReminderMessage = "Max Ultra MCP is maintained independently in personal time. Without community support, continued development may not be sustainable. If it helps your work, please use Donate to support it.",
         pendingRequestLines = #(),
@@ -1170,7 +1171,8 @@ global MaxUltraMcpActiveClient
             addActivity "support" supportReminderMessage
             supportReminderCount += 1
             if (supportReminderCount < maximumSupportReminders) then (
-                supportReminderDueAt = (dotNetClass "System.DateTime").UtcNow.AddMinutes (recurringSupportReminderMinutes as double)
+                local nextReminderMinutes = if (supportReminderCount == 1) then secondSupportReminderMinutes else finalSupportReminderMinutes
+                supportReminderDueAt = (dotNetClass "System.DateTime").UtcNow.AddMinutes (nextReminderMinutes as double)
             ) else (
                 supportReminderDueAt = undefined
             )

@@ -1175,8 +1175,9 @@ async function runSmokeTest() {
     assert.match(refreshUiBody, /serverStatusDialog\.lblEndpoint\.AccessibleDescription = endpointDetails/);
     assert.match(refreshUiBody, /serverStatusDialog\.lblContext\.AccessibleDescription = contextText/);
     assert.match(refreshUiBody, /panelToolTip\.SetToolTip serverStatusDialog\.lblEndpoint endpointDetails[\s\S]*panelToolTip\.SetToolTip serverStatusDialog\.lblContext contextText/);
-    assert.match(bootstrapSource, /firstSupportReminderMinutes = 10/);
-    assert.match(bootstrapSource, /recurringSupportReminderMinutes = 60/);
+    assert.match(bootstrapSource, /firstSupportReminderMinutes = 1/);
+    assert.match(bootstrapSource, /secondSupportReminderMinutes = 10/);
+    assert.match(bootstrapSource, /finalSupportReminderMinutes = 60/);
     assert.match(bootstrapSource, /maximumSupportReminders = 3/);
     const supportArmBody = sourceSection(bootstrapSource, "fn armSupportReminders", "fn pollSupportReminder", "support reminder arming");
     assert.match(supportArmBody, /if \(supportReminderCount > 0 or supportReminderDueAt != undefined\) do return true/);
@@ -1185,7 +1186,7 @@ async function runSmokeTest() {
     assert.match(supportPollBody, /supportReminderCount >= maximumSupportReminders/);
     assert.match(supportPollBody, /if \(not deadlineReached\) do return true/);
     assert.equal((supportPollBody.match(/addActivity "support" supportReminderMessage/g) || []).length, 1);
-    assert.match(supportPollBody, /supportReminderCount \+= 1[\s\S]*UtcNow\.AddMinutes \(recurringSupportReminderMinutes as double\)/);
+    assert.match(supportPollBody, /supportReminderCount \+= 1[\s\S]*nextReminderMinutes = if \(supportReminderCount == 1\) then secondSupportReminderMinutes else finalSupportReminderMinutes[\s\S]*UtcNow\.AddMinutes \(nextReminderMinutes as double\)/);
     assert.match(supportPollBody, /else \([\s\S]*supportReminderDueAt = undefined/);
     assert.doesNotMatch(supportPollBody, /\b(?:while|for)\b/);
     assert.match(bootstrapSource, /"connected": \([\s\S]*armSupportReminders\(\)/);

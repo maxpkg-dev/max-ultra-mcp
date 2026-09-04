@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Changed: Support reminders now appear one minute after the first successful connection, ten minutes after the first reminder, and 60 minutes after the second reminder.
 - Changed: Settings About now uses a centered vertical layout with native MAXScript labels and hyperlinks for the product, version, author, project site, and package manager, followed by the themed Donate action.
 - Fixed: The restore mini-panel can again be dragged down near the Windows taskbar; only its 24 px title strip is kept reachable instead of clamping the entire 64 px panel above the taskbar.
 - Changed: Activity log category badges now have a two-space unfilled gap after timestamps, include filled outer spaces, and render padded seven-character statuses in a monospaced font, giving every colored block the same pixel width. An unfilled ` > ` separator aligns message starts without changing MCP activity responses. Badge text uses a darker, more saturated shade derived from its category-colored background; light themes use a lighter badge surface for contrast. Timestamps and messages keep their previous foreground colors, while separators and trailing visual padding remain unfilled.
