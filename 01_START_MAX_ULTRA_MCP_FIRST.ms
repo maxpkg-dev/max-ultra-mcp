@@ -84,38 +84,296 @@ global MaxUltraMcpActiveClient
         failureMessage = ""
     )
 
-    rollout MaxUltraMcpStatusDialog "3DGROUND - Max Ultra MCP" width: 680 height: 540 (
-        dotNetControl lblStatus "System.Windows.Forms.Label" pos: [12,10] width: 428 height: 20
-        dotNetControl lblContext "System.Windows.Forms.Label" pos: [12,34] width: 656 height: 20
-        button btnAgents "AI setup" pos: [448,8] width: 72 height: 22
-        button btnDonate "Donate" pos: [528,8] width: 60 height: 22
-        button btnHide "Hide panel" pos: [596,8] width: 72 height: 22
+    struct MaxUltraMcpThemeStruct (
+        backgroundPoint = [68, 68, 68],
+        rolloutPoint = [81, 81, 81],
+        textPoint = [225, 225, 225],
+        neutralPoint = [96, 96, 96],
+        passPoint = [66, 125, 75],
+        issuePoint = [145, 58, 58],
+        warningPoint = [160, 119, 68],
+        footerPoint = [84, 84, 84],
+        buttonPoint = [96, 96, 96],
+        disabledPoint = [76, 76, 76],
+        disabledTextPoint = [140, 140, 140],
+        supportPoint = [170, 82, 52],
+        outlinePoint = [40, 40, 40],
+        backgroundColor = undefined,
+        rolloutColor = undefined,
+        textColor = undefined,
+        neutralColor = undefined,
+        passColor = undefined,
+        issueColor = undefined,
+        warningColor = undefined,
+        footerColor = undefined,
+        buttonColor = undefined,
+        disabledColor = undefined,
+        disabledTextColor = undefined,
+        supportColor = undefined,
+        outlineColor = undefined,
 
-        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [4,62] width: 672 height: 398
+        fn normalizeThemePoint themeValue fallbackPoint = (
+            if (themeValue == undefined) do return fallbackPoint
+            local convertedPoint = fallbackPoint
+            try (convertedPoint = [themeValue.x as float, themeValue.y as float, themeValue.z as float]) catch (
+                try (convertedPoint = [themeValue[1] as float, themeValue[2] as float, themeValue[3] as float]) catch ()
+            )
+            if (convertedPoint.x <= 1.001 and convertedPoint.y <= 1.001 and convertedPoint.z <= 1.001) do convertedPoint *= 255.0
+            return [amin #(255.0, amax #(0.0, convertedPoint.x)), amin #(255.0, amax #(0.0, convertedPoint.y)), amin #(255.0, amax #(0.0, convertedPoint.z))]
+        ),
 
-        button btnReconnect "Reconnect" pos: [12,468] width: 120 height: 30
-        button btnStop "Stop / Exit" pos: [140,468] width: 120 height: 30
-        button btnStart "Connect only" pos: [268,468] width: 120 height: 30
-        button btnSettings "Settings" pos: [548,468] width: 120 height: 30
+        fn getThemePoint colorId fallbackPoint = (
+            local rawThemeValue = try (colorMan.getColor colorId) catch (undefined)
+            return this.normalizeThemePoint rawThemeValue fallbackPoint
+        ),
 
-        hyperLink lnkMaxPkg "maxpkg.dev" pos: [12,509] width: 82 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://maxpkg.dev/catalog/max-ultra-mcp"
-        hyperLink lnk3DGround "3dground.net" pos: [102,509] width: 100 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://3dground.net"
+        fn toDotNetColor pointValue = (
+            local drawingColorClass = dotNetClass "System.Drawing.Color"
+            return drawingColorClass.FromArgb (pointValue.x as integer) (pointValue.y as integer) (pointValue.z as integer)
+        ),
 
-        on MaxUltraMcpStatusDialog open do (
-            if (bridgeClient != undefined) do (
-                bridgeClient.configureActivityLog()
-                bridgeClient.applyProductVersionToUi()
-                bridgeClient.attachPanelFormClosing()
-                bridgeClient.resizePanelControls [MaxUltraMcpStatusDialog.width, MaxUltraMcpStatusDialog.height]
-                bridgeClient.refreshUserInterface()
+        fn initialize = (
+            backgroundPoint = this.getThemePoint #window [68, 68, 68]
+            rolloutPoint = this.getThemePoint #rollupTitleFace [81, 81, 81]
+            textPoint = this.getThemePoint #text [225, 225, 225]
+            neutralPoint = (backgroundPoint * 0.78) + (textPoint * 0.22)
+            passPoint = (backgroundPoint * 0.20) + ([54, 132, 66] * 0.80)
+            issuePoint = (backgroundPoint * 0.20) + ([164, 52, 52] * 0.80)
+            warningPoint = (backgroundPoint * 0.32) + ([184, 132, 62] * 0.68)
+            footerPoint = backgroundPoint
+            buttonPoint = (backgroundPoint * 0.74) + (textPoint * 0.26)
+            disabledPoint = (backgroundPoint * 0.90) + (textPoint * 0.10)
+            disabledTextPoint = (backgroundPoint * 0.48) + (textPoint * 0.52)
+            supportPoint = (backgroundPoint * 0.18) + ([184, 88, 52] * 0.82)
+            outlinePoint = (backgroundPoint * 0.62) + ([20, 20, 20] * 0.38)
+            backgroundColor = this.toDotNetColor backgroundPoint
+            rolloutColor = this.toDotNetColor rolloutPoint
+            textColor = this.toDotNetColor textPoint
+            neutralColor = this.toDotNetColor neutralPoint
+            passColor = this.toDotNetColor passPoint
+            issueColor = this.toDotNetColor issuePoint
+            warningColor = this.toDotNetColor warningPoint
+            footerColor = this.toDotNetColor footerPoint
+            buttonColor = this.toDotNetColor buttonPoint
+            disabledColor = this.toDotNetColor disabledPoint
+            disabledTextColor = this.toDotNetColor disabledTextPoint
+            supportColor = this.toDotNetColor supportPoint
+            outlineColor = this.toDotNetColor outlinePoint
+            return true
+        ),
+
+        fn statusColor statusState = (
+            case statusState of (
+                #pass: passColor
+                #issue: issueColor
+                #warning: warningColor
+                #support: supportColor
+                default: neutralColor
             )
         )
+    )
 
-        on MaxUltraMcpStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.resizePanelControls panelSize
-        on MaxUltraMcpStatusDialog close do (
+    local MaxUltraMcpTheme = MaxUltraMcpThemeStruct()
+    MaxUltraMcpTheme.initialize()
+
+    struct MaxUltraMcpUiKitStruct (
+        theme = undefined,
+
+        fn point xValue yValue = dotNetObject "System.Drawing.Point" (xValue as integer) (yValue as integer),
+        fn size widthValue heightValue = dotNetObject "System.Drawing.Size" (widthValue as integer) (heightValue as integer),
+        fn padding leftValue: 0 topValue: 0 rightValue: 0 bottomValue: 0 = dotNetObject "System.Windows.Forms.Padding" leftValue topValue rightValue bottomValue,
+        fn messageFont = (dotNetClass "System.Drawing.SystemFonts").MessageBoxFont,
+        fn applyIndependentBoldFont targetControl = (
+            if (targetControl == undefined) do return false
+            local baseFont = messageFont()
+            local controlFont = dotNetObject "System.Drawing.Font" baseFont.FontFamily baseFont.SizeInPoints (dotNetClass "System.Drawing.FontStyle").Bold
+            targetControl.Font = controlFont
+            -- Keep the control-specific Font rooted for exactly as long as its control.
+            targetControl.Tag = controlFont
+            return true
+        ),
+
+        fn createRefreshIcon iconColor = (
+            local iconBitmap = undefined
+            local iconGraphics = undefined
+            local iconPen = undefined
+            try (
+                -- Lucide refresh-cw (ISC): https://lucide.dev/icons/refresh-cw
+                iconBitmap = dotNetObject "System.Drawing.Bitmap" 18 18
+                iconGraphics = (dotNetClass "System.Drawing.Graphics").FromImage iconBitmap
+                iconGraphics.SmoothingMode = (dotNetClass "System.Drawing.Drawing2D.SmoothingMode").AntiAlias
+                iconGraphics.Clear (dotNetClass "System.Drawing.Color").Transparent
+                iconPen = dotNetObject "System.Drawing.Pen" iconColor 1.5
+                iconPen.StartCap = (dotNetClass "System.Drawing.Drawing2D.LineCap").Round
+                iconPen.EndCap = (dotNetClass "System.Drawing.Drawing2D.LineCap").Round
+                iconPen.LineJoin = (dotNetClass "System.Drawing.Drawing2D.LineJoin").Round
+                iconGraphics.DrawArc iconPen 3.0 3.0 12.0 12.0 0.0 -135.0
+                iconGraphics.DrawLine iconPen 3.0 3.0 3.0 6.33
+                iconGraphics.DrawLine iconPen 3.0 6.33 6.33 6.33
+                iconGraphics.DrawArc iconPen 3.0 3.0 12.0 12.0 180.0 -135.0
+                iconGraphics.DrawLine iconPen 15.0 15.0 15.0 11.67
+                iconGraphics.DrawLine iconPen 15.0 11.67 11.67 11.67
+                iconPen.Dispose()
+                iconGraphics.Dispose()
+                return iconBitmap
+            ) catch (
+                try (if (iconPen != undefined) do iconPen.Dispose()) catch ()
+                try (if (iconGraphics != undefined) do iconGraphics.Dispose()) catch ()
+                try (if (iconBitmap != undefined) do iconBitmap.Dispose()) catch ()
+                return undefined
+            )
+        ),
+
+        fn createDonateIcon iconColor = (
+            local iconBitmap = undefined
+            local iconGraphics = undefined
+            local iconBrush = undefined
+            local iconPath = undefined
+            try (
+                iconBitmap = dotNetObject "System.Drawing.Bitmap" 16 16
+                iconGraphics = (dotNetClass "System.Drawing.Graphics").FromImage iconBitmap
+                iconGraphics.SmoothingMode = (dotNetClass "System.Drawing.Drawing2D.SmoothingMode").AntiAlias
+                iconGraphics.Clear (dotNetClass "System.Drawing.Color").Transparent
+                iconBrush = dotNetObject "System.Drawing.SolidBrush" iconColor
+                iconPath = dotNetObject "System.Drawing.Drawing2D.GraphicsPath"
+                iconPath.StartFigure()
+                iconPath.AddBezier 8 14 6 12 1 8 2 4
+                iconPath.AddBezier 2 4 3 1 7 2 8 5
+                iconPath.AddBezier 8 5 9 2 13 1 14 4
+                iconPath.AddBezier 14 4 15 8 10 12 8 14
+                iconPath.CloseFigure()
+                iconGraphics.FillPath iconBrush iconPath
+                iconPath.Dispose()
+                iconBrush.Dispose()
+                iconGraphics.Dispose()
+                return iconBitmap
+            ) catch (
+                try (if (iconPath != undefined) do iconPath.Dispose()) catch ()
+                try (if (iconBrush != undefined) do iconBrush.Dispose()) catch ()
+                try (if (iconGraphics != undefined) do iconGraphics.Dispose()) catch ()
+                try (if (iconBitmap != undefined) do iconBitmap.Dispose()) catch ()
+                return undefined
+            )
+        ),
+
+        fn styleButton buttonControl baseColorValue: undefined enabledState: true tabStop: true = (
+            local resolvedBaseColor = if (baseColorValue == undefined) then theme.buttonColor else baseColorValue
+            local controlPaintClass = dotNetClass "System.Windows.Forms.ControlPaint"
+            buttonControl.FlatStyle = (dotNetClass "System.Windows.Forms.FlatStyle").Flat
+            buttonControl.FlatAppearance.BorderSize = 0
+            buttonControl.UseVisualStyleBackColor = false
+            buttonControl.Font = messageFont()
+            buttonControl.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+            buttonControl.UseCompatibleTextRendering = true
+            buttonControl.AutoEllipsis = true
+            buttonControl.Padding = padding()
+            buttonControl.TabStop = tabStop
+            buttonControl.Enabled = enabledState
+            buttonControl.BackColor = if (enabledState) then resolvedBaseColor else theme.disabledColor
+            buttonControl.ForeColor = if (enabledState) then theme.textColor else theme.disabledTextColor
+            buttonControl.FlatAppearance.MouseOverBackColor = controlPaintClass.Light resolvedBaseColor
+            buttonControl.FlatAppearance.MouseDownBackColor = controlPaintClass.Dark resolvedBaseColor
+            buttonControl.Cursor = if (enabledState) then (dotNetClass "System.Windows.Forms.Cursors").Hand else (dotNetClass "System.Windows.Forms.Cursors").Default
+            return true
+        ),
+
+        fn updateButtonState buttonControl isEnabled baseColorValue: undefined = (
+            if (buttonControl == undefined) do return false
+            local resolvedBaseColor = if (baseColorValue == undefined) then theme.buttonColor else baseColorValue
+            buttonControl.Enabled = isEnabled
+            buttonControl.BackColor = if (isEnabled) then resolvedBaseColor else theme.disabledColor
+            buttonControl.ForeColor = if (isEnabled) then theme.textColor else theme.disabledTextColor
+            buttonControl.Cursor = if (isEnabled) then (dotNetClass "System.Windows.Forms.Cursors").Hand else (dotNetClass "System.Windows.Forms.Cursors").Default
+            return true
+        ),
+
+        fn styleLabel labelControl backgroundValue: undefined = (
+            labelControl.BackColor = if (backgroundValue == undefined) then theme.backgroundColor else backgroundValue
+            labelControl.ForeColor = theme.textColor
+            labelControl.Font = messageFont()
+            labelControl.AutoSize = false
+            -- Max enables compatible GDI+ text rendering globally. On Max 2022 that
+            -- path can call Graphics.MeasureString with an invalidated Font during GC.
+            labelControl.UseCompatibleTextRendering = false
+            labelControl.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleLeft
+            labelControl.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
+            return true
+        ),
+
+        fn inheritParentBackColor targetControl fallbackColor: undefined = (
+            if (targetControl == undefined) do return false
+            local parentControl = undefined
+            local inheritedColor = undefined
+            local parentDepth = 0
+            local maximumThemeChannelDelta = 32
+            try (parentControl = targetControl.Parent) catch ()
+            while (parentControl != undefined and inheritedColor == undefined and parentDepth < 8) do (
+                try (
+                    local candidateColor = parentControl.BackColor
+                    if (candidateColor != undefined and not candidateColor.IsEmpty and candidateColor.A > 0) do (
+                        local rolloutDelta = amax #((abs ((candidateColor.R as integer) - (theme.rolloutColor.R as integer))), (abs ((candidateColor.G as integer) - (theme.rolloutColor.G as integer))), (abs ((candidateColor.B as integer) - (theme.rolloutColor.B as integer))))
+                        local backgroundDelta = amax #((abs ((candidateColor.R as integer) - (theme.backgroundColor.R as integer))), (abs ((candidateColor.G as integer) - (theme.backgroundColor.G as integer))), (abs ((candidateColor.B as integer) - (theme.backgroundColor.B as integer))))
+                        if (amin rolloutDelta backgroundDelta) <= maximumThemeChannelDelta do inheritedColor = candidateColor
+                    )
+                    parentControl = parentControl.Parent
+                ) catch (
+                    parentControl = undefined
+                )
+                parentDepth += 1
+            )
+            if (inheritedColor == undefined) do inheritedColor = if (fallbackColor == undefined) then theme.rolloutColor else fallbackColor
+            try (
+                targetControl.BackColor = inheritedColor
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn styleLink linkControl = (
+            styleLabel linkControl backgroundValue: theme.rolloutColor
+            inheritParentBackColor linkControl fallbackColor: theme.rolloutColor
+            linkControl.LinkColor = theme.warningColor
+            linkControl.ActiveLinkColor = (dotNetClass "System.Windows.Forms.ControlPaint").Light theme.warningColor
+            linkControl.VisitedLinkColor = theme.warningColor
+            linkControl.LinkBehavior = (dotNetClass "System.Windows.Forms.LinkBehavior").HoverUnderline
+            linkControl.Cursor = (dotNetClass "System.Windows.Forms.Cursors").Hand
+            linkControl.TabStop = true
+            return true
+        )
+    )
+
+    local MaxUltraMcpUiKit = MaxUltraMcpUiKitStruct theme: MaxUltraMcpTheme
+
+    rollout MaxUltraMcpAiStatusDialog "" width: 720 height: 44 (
+        dotNetControl btnAiStatus "System.Windows.Forms.Button" pos: [8,7] width: 444 height: 30
+        dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [462,7] width: 38 height: 30
+        dotNetControl btnHide "System.Windows.Forms.Button" pos: [558,7] width: 114 height: 30
+
+        on MaxUltraMcpAiStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.handlePanelResized panelSize
+        on MaxUltraMcpAiStatusDialog moved panelPosition do if (bridgeClient != undefined) do bridgeClient.handlePanelMoved panelPosition
+        on MaxUltraMcpAiStatusDialog close do (
             enableAccelerators = true
             if (bridgeClient != undefined) do bridgeClient.handlePanelRolloutClosed()
         )
+        on btnAiStatus Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog refreshStatus: false
+        on btnRefreshAgents Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.refreshAgentIntegrationStatus()
+        on btnHide Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.hidePanel()
+    )
+
+    rollout MaxUltraMcpServerStatusDialog "" width: 720 height: 36 (
+        dotNetControl lblConnectionIndicator "System.Windows.Forms.Label" pos: [8,6] width: 18 height: 24
+        dotNetControl lblEndpoint "System.Windows.Forms.Label" pos: [26,6] width: 244 height: 24
+        dotNetControl lblContext "System.Windows.Forms.Label" pos: [278,6] width: 394 height: 24
+    )
+
+    rollout MaxUltraMcpActivityDialog "" width: 720 height: 484 (
+        dotNetControl pnlActivityOutline "System.Windows.Forms.Panel" pos: [0,5] width: 720 height: 433
+        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [1,1] width: 718 height: 431
+        dotNetControl btnReconnect "System.Windows.Forms.Button" pos: [8,446] width: 120 height: 30
+        dotNetControl btnStop "System.Windows.Forms.Button" pos: [134,446] width: 120 height: 30
+        dotNetControl btnSettings "System.Windows.Forms.Button" pos: [592,446] width: 120 height: 30
+
         on rtbActivity MouseEnter eventSender eventArgs do (
             enableAccelerators = false
             if (bridgeClient != undefined) do bridgeClient.handleActivityLogMouseEnter()
@@ -127,13 +385,19 @@ global MaxUltraMcpActiveClient
         on rtbActivity GotFocus eventSender eventArgs do enableAccelerators = false
         on rtbActivity LostFocus eventSender eventArgs do enableAccelerators = true
         on rtbActivity VScroll eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleActivityLogScrolled()
-        on btnReconnect pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
-        on btnStop pressed do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
-        on btnStart pressed do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
-        on btnAgents pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
-        on btnHide pressed do if (bridgeClient != undefined) do bridgeClient.hidePanel()
-        on btnSettings pressed do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
-        on btnDonate pressed do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
+        on btnReconnect Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
+        on btnStop Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
+        on btnSettings Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
+    )
+
+    rollout MaxUltraMcpSupportDialog "" width: 720 height: 44 (
+        dotNetControl lnkMaxPkg "System.Windows.Forms.LinkLabel" pos: [8,7] width: 90 height: 30
+        dotNetControl lnk3DGround "System.Windows.Forms.LinkLabel" pos: [104,7] width: 104 height: 30
+        dotNetControl btnDonate "System.Windows.Forms.Button" pos: [592,7] width: 120 height: 30
+
+        on lnkMaxPkg LinkClicked eventSender eventArgs do try (shellLaunch "https://maxpkg.dev/catalog/max-ultra-mcp" "") catch ()
+        on lnk3DGround LinkClicked eventSender eventArgs do try (shellLaunch "https://3dground.net" "") catch ()
+        on btnDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
 
     rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 426 (
@@ -143,24 +407,26 @@ global MaxUltraMcpActiveClient
         checkbox chkShowServerConsole "Show server console when starting" pos: [24,102] width: 300 height: 20
         groupBox grpUpdates "Updates" pos: [12,146] width: 356 height: 94
         checkbox chkAutomaticUpdates "Check and install updates automatically" pos: [24,168] width: 250 height: 20
-        button btnCheckUpdates "Check now" pos: [276,166] width: 80 height: 24
+        dotNetControl btnCheckUpdates "System.Windows.Forms.Button" pos: [276,166] width: 80 height: 24
         dotNetControl lblUpdateStatus "System.Windows.Forms.Label" pos: [24,198] width: 332 height: 24
         groupBox grpAgents "AI client integration" pos: [12,250] width: 356 height: 60
-        button btnAgentSetup "Open AI client setup..." pos: [24,272] width: 210 height: 26
+        dotNetControl btnAgentSetup "System.Windows.Forms.Button" pos: [24,272] width: 210 height: 26
         groupBox grpAbout "About" pos: [12,320] width: 356 height: 96
         label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 190 height: 18
         label lblAboutVersion "Version" pos: [250,342] width: 100 height: 18
         label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,366] width: 180 height: 18
-        hyperLink lnkAboutWebsite "https://3dground.net" pos: [214,364] width: 138 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://3dground.net"
+        dotNetControl lnkAboutWebsite "System.Windows.Forms.LinkLabel" pos: [214,364] width: 138 height: 20
         label lblAboutPackageManager "Package Manager:" pos: [24,390] width: 104 height: 18
-        hyperLink lnkAboutPackageManager "maxpkg.dev" pos: [132,388] width: 90 height: 20 color: orange hoverColor: orange visitedColor: orange address: "https://maxpkg.dev"
+        dotNetControl lnkAboutPackageManager "System.Windows.Forms.LinkLabel" pos: [132,388] width: 90 height: 20
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
         on chkShowServerConsole changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleServerConsoleVisibilityChanged isChecked
         on chkAutomaticUpdates changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutomaticUpdateSettingChanged isChecked
-        on btnCheckUpdates pressed do if (bridgeClient != undefined) do bridgeClient.startUpdateCheck automaticCheck: false
-        on btnAgentSetup pressed do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
+        on btnCheckUpdates Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.startUpdateCheck automaticCheck: false
+        on btnAgentSetup Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
+        on lnkAboutWebsite LinkClicked eventSender eventArgs do try (shellLaunch "https://3dground.net" "") catch ()
+        on lnkAboutPackageManager LinkClicked eventSender eventArgs do try (shellLaunch "https://maxpkg.dev" "") catch ()
     )
     rollout MaxUltraMcpOnboardingTabsDialog "" width: 540 height: 36 (
         dotNetControl dncPages "System.Windows.Forms.TabControl" pos: [8,2] width: 524 height: 30
@@ -184,14 +450,14 @@ global MaxUltraMcpActiveClient
         dotNetControl txtManual "System.Windows.Forms.TextBox" pos: [24,206] width: 492 height: 58
 
         dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [16,282] width: 508 height: 20
-        button btnInstallAgents "Install selected" pos: [12,308] width: 152 height: 28
-        button btnRefreshAgents "Refresh status" pos: [172,308] width: 112 height: 28
-        button btnCopyManual "Copy manual setup" pos: [292,308] width: 128 height: 28
+        dotNetControl btnInstallAgents "System.Windows.Forms.Button" pos: [12,308] width: 152 height: 28
+        dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [172,308] width: 112 height: 28
+        dotNetControl btnCopyManual "System.Windows.Forms.Button" pos: [292,308] width: 128 height: 28
 
         on MaxUltraMcpOnboardingSetupDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingSetupDialog()
-        on btnInstallAgents pressed do if (bridgeClient != undefined) do bridgeClient.installSelectedAgentIntegrations()
-        on btnRefreshAgents pressed do if (bridgeClient != undefined) do bridgeClient.refreshAgentIntegrationStatus()
-        on btnCopyManual pressed do if (bridgeClient != undefined) do bridgeClient.copyManualAgentConfiguration()
+        on btnInstallAgents Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.installSelectedAgentIntegrations()
+        on btnRefreshAgents Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.refreshAgentIntegrationStatus()
+        on btnCopyManual Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copyManualAgentConfiguration()
     )
 
     rollout MaxUltraMcpOnboardingTestDialog "" width: 540 height: 350 (
@@ -199,10 +465,10 @@ global MaxUltraMcpActiveClient
         label lblTestHint "Copy it into the configured AI client. It does not modify the current scene." pos: [16,30] width: 508 height: 18
         groupBox grpTestPrompt "Connection test prompt" pos: [12,54] width: 516 height: 246
         dotNetControl txtTestPrompt "System.Windows.Forms.TextBox" pos: [24,78] width: 492 height: 210
-        button btnCopyTestPrompt "Copy test prompt" pos: [12,308] width: 128 height: 28
+        dotNetControl btnCopyTestPrompt "System.Windows.Forms.Button" pos: [12,308] width: 128 height: 28
 
         on MaxUltraMcpOnboardingTestDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingTestDialog()
-        on btnCopyTestPrompt pressed do if (bridgeClient != undefined) do bridgeClient.copyOnboardingTestPrompt()
+        on btnCopyTestPrompt Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copyOnboardingTestPrompt()
     )
     struct MaxUltraMcpBridgeClient (
         hostAddress = "127.0.0.1",
@@ -224,6 +490,11 @@ global MaxUltraMcpActiveClient
         uiStateFilePath = "",
         lifecycleMutexName = @"Local\3DGround.MaxUltraMCP.ServerLifecycle",
         statusDialog,
+        serverStatusDialog,
+        activityDialog,
+        supportDialog,
+        panelFloater,
+        panelLayoutInProgress = false,
         settingsDialog,
         onboardingTabsDialog,
         onboardingSetupDialog,
@@ -235,6 +506,9 @@ global MaxUltraMcpActiveClient
         outboundQueue,
         pollTimer,
         panelForm,
+        panelToolTip,
+        refreshIconImage,
+        donateIconImage,
         hiddenPanelPosition,
         hiddenPanelSize,
         lastNormalPanelPosition,
@@ -254,6 +528,12 @@ global MaxUltraMcpActiveClient
         integrationResultFilePath = "",
         integrationAutomaticCheck = false,
         integrationBusy = false,
+        integrationAutomaticCheckPending = false,
+        integrationAutomaticCheckDueAt,
+        integrationOperationStartedAt,
+        integrationOperationTimeoutSeconds = 30,
+        integrationOperationName = #status,
+        integrationLastCheckFailed = false,
         updateProcess,
         updateResultFilePath = "",
         updateBusy = false,
@@ -267,6 +547,7 @@ global MaxUltraMcpActiveClient
         transportWorkerArguments,
         suppressPanelShutdown = false,
         panelCloseInProgress = false,
+        disposeInProgress = false,
         isDisposed = false,
         maxShutdownCallbackId = #MaxUltraMcpLifecycle,
         tickCount = 0,
@@ -275,10 +556,17 @@ global MaxUltraMcpActiveClient
         isStopped = true,
         pendingConnectOnly = false,
         hasConnectedThisSession = false,
+        supportReminderCount = 0,
+        supportReminderDueAt,
+        firstSupportReminderMinutes = 10,
+        recurringSupportReminderMinutes = 60,
+        maximumSupportReminders = 3,
+        supportReminderMessage = "Max Ultra MCP is maintained independently in personal time. Without community support, continued development may not be sustainable. If it helps your work, please use Donate to support it.",
         pendingRequestLines = #(),
         cancelledRequestIds = #(),
         activityEntries = #(),
         maximumActivityEntries = 30,
+        activityBottomPadding = "\r\n\r\n\r\n",
         activityLogDirty = true,
         activityAutoScroll = true,
         activityLogUpdating = false,
@@ -364,12 +652,12 @@ global MaxUltraMcpActiveClient
             local expectedTitle = productWindowTitle()
             local panelOpen = false
             local settingsOpen = false
-            try (panelOpen = statusDialog != undefined and statusDialog.open) catch ()
+            try (panelOpen = panelFloater != undefined and panelFloater.open) catch ()
             try (settingsOpen = settingsDialog != undefined and settingsDialog.open) catch ()
             try (
                 if (panelOpen) do (
-                    local currentTitle = UIAccessor.GetWindowText statusDialog.hwnd
-                    if (currentTitle != expectedTitle) do UIAccessor.SetWindowText statusDialog.hwnd expectedTitle
+                    local currentTitle = UIAccessor.GetWindowText panelFloater.hwnd
+                    if (currentTitle != expectedTitle) do UIAccessor.SetWindowText panelFloater.hwnd expectedTitle
                 )
             ) catch ()
             try (if (settingsOpen) do settingsDialog.lblAboutVersion.text = "Version: " + productVersion) catch ()
@@ -472,6 +760,19 @@ global MaxUltraMcpActiveClient
             return sceneFilePath
         ),
 
+        fn currentSceneUiName = (
+            if (maxFileName == undefined or maxFileName == "") do return "Untitled"
+            return maxFileName
+        ),
+
+        fn safeSingleLineUiText sourceContent fallbackContent = (
+            local safeContent = if (sourceContent == undefined or sourceContent == "") then fallbackContent else (sourceContent as string)
+            safeContent = substituteString safeContent "\r" " "
+            safeContent = substituteString safeContent "\n" " "
+            safeContent = substituteString safeContent "\t" " "
+            return safeContent
+        ),
+
         fn isSceneSaveRequired = (
             return getSaveRequired()
         ),
@@ -495,48 +796,47 @@ global MaxUltraMcpActiveClient
         ),
 
         fn themeDrawingColor themeColorKey fallbackRed fallbackGreen fallbackBlue = (
-            local colorClass = dotNetClass "System.Drawing.Color"
-            try (
-                local maxThemeColor = (colorMan.getColor themeColorKey) * 255
-                local themeRed = amax 0 (amin 255 (maxThemeColor[1] as integer))
-                local themeGreen = amax 0 (amin 255 (maxThemeColor[2] as integer))
-                local themeBlue = amax 0 (amin 255 (maxThemeColor[3] as integer))
-                return colorClass.FromArgb themeRed themeGreen themeBlue
-            ) catch (
-                return colorClass.FromArgb fallbackRed fallbackGreen fallbackBlue
-            )
+            local normalizedPoint = MaxUltraMcpTheme.getThemePoint themeColorKey [fallbackRed, fallbackGreen, fallbackBlue]
+            return MaxUltraMcpTheme.toDotNetColor normalizedPoint
         ),
 
         fn lighterThemeSurface = (
             local colorClass = dotNetClass "System.Drawing.Color"
-            local themeBackground = themeDrawingColor #background 68 68 68
+            local themeBackground = MaxUltraMcpTheme.backgroundColor
             local surfaceRed = themeBackground.R + (((255 - themeBackground.R) * 0.08) as integer)
             local surfaceGreen = themeBackground.G + (((255 - themeBackground.G) * 0.08) as integer)
             local surfaceBlue = themeBackground.B + (((255 - themeBackground.B) * 0.08) as integer)
             return colorClass.FromArgb surfaceRed surfaceGreen surfaceBlue
         ),
         fn themeIsDark = (
-            local themeBackground = themeDrawingColor #background 68 68 68
+            local themeBackground = MaxUltraMcpTheme.backgroundColor
             local averageChannel = (themeBackground.R + themeBackground.G + themeBackground.B) / 3
             return averageChannel < 128
         ),
 
+        fn connectionStatusState = (
+            if (connectionState == #connected) do return #pass
+            if (connectionState == #connecting or connectionState == #starting or connectionState == #restarting or connectionState == #reconnecting) do return #warning
+            if (connectionState == #error or connectionState == #disconnected or connectionState == #stopped) do return #issue
+            return #neutral
+        ),
+
         fn statusTextColor = (
-            local colorClass = dotNetClass "System.Drawing.Color"
-            local darkTheme = themeIsDark()
-            if (connectionState == #connected) do return if (darkTheme) then (colorClass.FromArgb 120 225 150) else (colorClass.FromArgb 0 110 65)
-            if (connectionState == #connecting or connectionState == #starting or connectionState == #restarting or connectionState == #reconnecting) do return if (darkTheme) then (colorClass.FromArgb 255 195 80) else (colorClass.FromArgb 165 105 0)
-            if (connectionState == #error or connectionState == #disconnected) do return if (darkTheme) then (colorClass.FromArgb 255 125 125) else (colorClass.FromArgb 180 0 0)
-            return themeDrawingColor #text 220 220 220
+            return MaxUltraMcpTheme.statusColor (connectionStatusState())
         ),
 
         fn panelIsOpen = (
-            if (statusDialog == undefined) do return false
+            if (panelFloater == undefined) do return false
             try (
-                return statusDialog.open
+                return panelFloater.open
             ) catch (
                 return false
             )
+        ),
+
+        fn panelIsVisible = (
+            if (not panelIsOpen()) do return false
+            try (return panelFloater.visible) catch (return false)
         ),
 
         fn activityText = (
@@ -548,29 +848,59 @@ global MaxUltraMcpActiveClient
             return outputText
         ),
 
+        fn activityDisplayText = (
+            local outputText = activityText()
+            if (outputText == "") do return ""
+            return outputText + activityBottomPadding
+        ),
+
+        fn activityTextWithoutBottomPadding sourceText = (
+            local normalizedText = sourceText as string
+            if (normalizedText.count < activityBottomPadding.count) do return normalizedText
+            local suffixStart = normalizedText.count - activityBottomPadding.count + 1
+            if ((substring normalizedText suffixStart activityBottomPadding.count) != activityBottomPadding) do return normalizedText
+            local contentLength = normalizedText.count - activityBottomPadding.count
+            if (contentLength <= 0) do return ""
+            return substring normalizedText 1 contentLength
+        ),
+
+        fn applyActivityLogPadding = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (
+                local richEditMessageSetMargins = 0x00D3
+                local bothHorizontalMargins = 0x0003
+                local horizontalPadding = 6
+                local packedMargins = horizontalPadding + (horizontalPadding * 65536)
+                local logWindowHandle = activityDialog.rtbActivity.Handle.ToInt64()
+                windows.sendMessage logWindowHandle richEditMessageSetMargins bothHorizontalMargins packedMargins
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
         fn configureActivityLog = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                statusDialog.rtbActivity.ReadOnly = true
-                statusDialog.rtbActivity.WordWrap = true
-                statusDialog.rtbActivity.DetectUrls = false
-                statusDialog.rtbActivity.HideSelection = false
-                statusDialog.rtbActivity.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").Vertical
-                local colorClass = dotNetClass "System.Drawing.Color"
-                statusDialog.rtbActivity.ForeColor = themeDrawingColor #text 220 220 220
-                statusDialog.rtbActivity.BackColor = lighterThemeSurface()
-                statusDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").FixedSingle
-                statusDialog.rtbActivity.AccessibleName = "Max Ultra MCP color-coded activity log"
-                statusDialog.rtbActivity.TabStop = true
+                activityDialog.pnlActivityOutline.BackColor = MaxUltraMcpTheme.outlineColor
+                activityDialog.pnlActivityOutline.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
+                if (activityDialog.rtbActivity.Parent != activityDialog.pnlActivityOutline) do activityDialog.pnlActivityOutline.Controls.Add activityDialog.rtbActivity
+                activityDialog.rtbActivity.Location = MaxUltraMcpUiKit.point 1 1
+                activityDialog.rtbActivity.ReadOnly = true
+                activityDialog.rtbActivity.WordWrap = true
+                activityDialog.rtbActivity.DetectUrls = false
+                activityDialog.rtbActivity.HideSelection = false
+                activityDialog.rtbActivity.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").Vertical
+                activityDialog.rtbActivity.ForeColor = MaxUltraMcpTheme.textColor
+                activityDialog.rtbActivity.BackColor = lighterThemeSurface()
+                activityDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
+                activityDialog.rtbActivity.AccessibleName = "Max Ultra MCP color-coded activity log"
+                activityDialog.rtbActivity.AccessibleDescription = "Recent bridge, setup, request, and support activity"
+                activityDialog.rtbActivity.TabStop = true
                 activityLogDirty = true
                 activityAutoScroll = true
-                statusDialog.rtbActivity.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0
-                local panelThemeBackground = themeDrawingColor #background 68 68 68
-                statusDialog.lblStatus.BackColor = panelThemeBackground
-                statusDialog.lblContext.BackColor = panelThemeBackground
-                local boldFontStyle = (dotNetClass "System.Drawing.FontStyle").Bold
-                statusDialog.lblStatus.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0 boldFontStyle
-                statusDialog.lblContext.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0
+                activityDialog.rtbActivity.Font = MaxUltraMcpUiKit.messageFont()
+                applyActivityLogPadding()
             ) catch (
             )
             return true
@@ -583,6 +913,7 @@ global MaxUltraMcpActiveClient
             if ((findString normalizedEntry " [error] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 125 125) else (colorClass.FromArgb 180 0 0)
             if ((findString normalizedEntry " [warning] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 195 80) else (colorClass.FromArgb 145 105 0)
             if ((findString normalizedEntry " [success] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 120 225 150) else (colorClass.FromArgb 0 100 0)
+            if ((findString normalizedEntry " [support] ") != undefined) do return if (darkTheme) then ((dotNetClass "System.Windows.Forms.ControlPaint").Light MaxUltraMcpTheme.supportColor) else ((dotNetClass "System.Windows.Forms.ControlPaint").Dark MaxUltraMcpTheme.supportColor)
             if ((findString normalizedEntry " [system] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 165 255) else (colorClass.FromArgb 80 55 140)
             if ((findString normalizedEntry " [debug] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 190 140) else (colorClass.FromArgb 90 90 0)
             return if (darkTheme) then (colorClass.FromArgb 110 205 235) else (colorClass.FromArgb 20 90 145)
@@ -591,13 +922,13 @@ global MaxUltraMcpActiveClient
         fn activityLogIsNearBottom = (
             if (isDisposed or not panelIsOpen()) do return true
             try (
-                if (statusDialog.rtbActivity.SelectionLength > 0) do return false
-                if (statusDialog.rtbActivity.TextLength <= 0) do return true
-                local lastCharacterIndex = amax 0 (statusDialog.rtbActivity.TextLength - 1)
-                local lastCharacterPosition = statusDialog.rtbActivity.GetPositionFromCharIndex lastCharacterIndex
-                local lastLineBottom = lastCharacterPosition.Y + statusDialog.rtbActivity.Font.Height
-                local bottomTolerance = amax 2 (statusDialog.rtbActivity.Font.Height / 2)
-                return lastCharacterPosition.Y >= 0 and lastLineBottom <= (statusDialog.rtbActivity.ClientSize.Height + bottomTolerance)
+                if (activityDialog.rtbActivity.SelectionLength > 0) do return false
+                if (activityDialog.rtbActivity.TextLength <= 0) do return true
+                local lastCharacterIndex = amax 0 (activityDialog.rtbActivity.TextLength - 1)
+                local lastCharacterPosition = activityDialog.rtbActivity.GetPositionFromCharIndex lastCharacterIndex
+                local lastLineBottom = lastCharacterPosition.Y + activityDialog.rtbActivity.Font.Height
+                local bottomTolerance = amax 2 (activityDialog.rtbActivity.Font.Height / 2)
+                return lastCharacterPosition.Y >= 0 and lastLineBottom <= (activityDialog.rtbActivity.ClientSize.Height + bottomTolerance)
             ) catch (
                 return true
             )
@@ -606,7 +937,7 @@ global MaxUltraMcpActiveClient
         fn activityLogFirstVisibleLine = (
             if (isDisposed or not panelIsOpen()) do return 0
             try (
-                local logWindowHandle = statusDialog.rtbActivity.Handle.ToInt64()
+                local logWindowHandle = activityDialog.rtbActivity.Handle.ToInt64()
                 local richEditMessageGetFirstVisibleLine = 0x00CE
                 return windows.sendMessage logWindowHandle richEditMessageGetFirstVisibleLine 0 0
             ) catch (
@@ -617,7 +948,7 @@ global MaxUltraMcpActiveClient
         fn restoreActivityLogFirstVisibleLine lineNumber = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                local logWindowHandle = statusDialog.rtbActivity.Handle.ToInt64()
+                local logWindowHandle = activityDialog.rtbActivity.Handle.ToInt64()
                 local richEditMessageGetFirstVisibleLine = 0x00CE
                 local richEditMessageLineScroll = 0x00B6
                 local currentFirstVisibleLine = windows.sendMessage logWindowHandle richEditMessageGetFirstVisibleLine 0 0
@@ -630,7 +961,7 @@ global MaxUltraMcpActiveClient
 
         fn handleActivityLogMouseEnter = (
             if (isDisposed or not panelIsOpen()) do return false
-            try (statusDialog.rtbActivity.Focus()) catch ()
+            try (activityDialog.rtbActivity.Focus()) catch ()
             activityAutoScroll = activityLogIsNearBottom()
             return true
         ),
@@ -654,11 +985,11 @@ global MaxUltraMcpActiveClient
 
         fn scrollActivityLogToBottom = (
             if (isDisposed or not panelIsOpen()) do return false
-            statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
-            statusDialog.rtbActivity.SelectionLength = 0
-            statusDialog.rtbActivity.ScrollToCaret()
+            activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
+            activityDialog.rtbActivity.SelectionLength = 0
+            activityDialog.rtbActivity.ScrollToCaret()
             try (
-                local logWindowHandle = statusDialog.rtbActivity.Handle.ToInt64()
+                local logWindowHandle = activityDialog.rtbActivity.Handle.ToInt64()
                 local windowsMessageVerticalScroll = 0x0115
                 local scrollBarBottom = 7
                 windows.sendMessage logWindowHandle windowsMessageVerticalScroll scrollBarBottom 0
@@ -668,20 +999,21 @@ global MaxUltraMcpActiveClient
         ),
 
         fn appendColoredActivityText activityEntry = (
-            if (statusDialog.rtbActivity.TextLength > 0) do statusDialog.rtbActivity.AppendText "\r\n"
-            statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
-            statusDialog.rtbActivity.SelectionLength = 0
-            statusDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
-            statusDialog.rtbActivity.AppendText activityEntry
-            statusDialog.rtbActivity.SelectionColor = statusDialog.rtbActivity.ForeColor
+            if (activityDialog.rtbActivity.TextLength > 0) do activityDialog.rtbActivity.AppendText "\r\n"
+            activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
+            activityDialog.rtbActivity.SelectionLength = 0
+            activityDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
+            activityDialog.rtbActivity.AppendText activityEntry
+            activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
             return true
         ),
 
         fn refreshActivityText = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                local expectedActivityText = activityText()
-                local currentActivityText = statusDialog.rtbActivity.Text as string
+                local expectedActivityCoreText = activityText()
+                local expectedActivityText = activityDisplayText()
+                local currentActivityText = activityDialog.rtbActivity.Text as string
                 if (not activityLogDirty and currentActivityText == expectedActivityText) do return true
                 if (currentActivityText == expectedActivityText) then (
                     activityLogDirty = false
@@ -689,66 +1021,74 @@ global MaxUltraMcpActiveClient
                 )
                 activityLogUpdating = true
                 local shouldAutoScroll = activityAutoScroll and activityLogIsNearBottom()
-                local savedSelectionStart = statusDialog.rtbActivity.SelectionStart
-                local savedSelectionLength = statusDialog.rtbActivity.SelectionLength
+                local savedSelectionStart = activityDialog.rtbActivity.SelectionStart
+                local savedSelectionLength = activityDialog.rtbActivity.SelectionLength
                 local savedFirstVisibleLine = activityLogFirstVisibleLine()
                 local removedCharacterCount = 0
                 local removedLineCount = 0
                 local appendedActivityText = ""
                 local changedIncrementally = false
-                local appendPrefix = currentActivityText + "\r\n"
-                if (currentActivityText != "" and activityTextStartsWith expectedActivityText appendPrefix) then (
-                    appendedActivityText = substring expectedActivityText (appendPrefix.count + 1) -1
+                local currentActivityCoreText = activityTextWithoutBottomPadding currentActivityText
+                local appendPrefix = currentActivityCoreText + "\r\n"
+                if (currentActivityCoreText != "" and activityTextStartsWith expectedActivityCoreText appendPrefix) then (
+                    appendedActivityText = substring expectedActivityCoreText (appendPrefix.count + 1) -1
                     changedIncrementally = appendedActivityText != ""
-                ) else if (currentActivityText != "") do (
-                    local firstLineBreak = findString currentActivityText "\r\n"
+                ) else if (currentActivityCoreText != "") do (
+                    local firstLineBreak = findString currentActivityCoreText "\r\n"
                     if (firstLineBreak != undefined) do (
-                        local remainingActivityText = substring currentActivityText (firstLineBreak + 2) -1
+                        local remainingActivityText = substring currentActivityCoreText (firstLineBreak + 2) -1
                         local rollingPrefix = remainingActivityText + "\r\n"
-                        if (activityTextStartsWith expectedActivityText rollingPrefix) do (
-                            appendedActivityText = substring expectedActivityText (rollingPrefix.count + 1) -1
+                        if (activityTextStartsWith expectedActivityCoreText rollingPrefix) do (
+                            appendedActivityText = substring expectedActivityCoreText (rollingPrefix.count + 1) -1
                             removedCharacterCount = firstLineBreak + 1
                             removedLineCount = 1
                             changedIncrementally = appendedActivityText != ""
                         )
                     )
                 )
-                statusDialog.rtbActivity.SuspendLayout()
+                activityDialog.rtbActivity.SuspendLayout()
                 if (changedIncrementally) then (
+                    local bottomPaddingLength = currentActivityText.count - currentActivityCoreText.count
+                    if (bottomPaddingLength > 0) do (
+                        activityDialog.rtbActivity.Select currentActivityCoreText.count bottomPaddingLength
+                        activityDialog.rtbActivity.SelectedText = ""
+                    )
                     if (removedCharacterCount > 0) do (
-                        statusDialog.rtbActivity.Select 0 removedCharacterCount
-                        statusDialog.rtbActivity.SelectedText = ""
+                        activityDialog.rtbActivity.Select 0 removedCharacterCount
+                        activityDialog.rtbActivity.SelectedText = ""
                     )
                     appendColoredActivityText appendedActivityText
+                    activityDialog.rtbActivity.AppendText activityBottomPadding
                 ) else (
-                    statusDialog.rtbActivity.Clear()
+                    activityDialog.rtbActivity.Clear()
                     for activityIndex in 1 to activityEntries.count do (
                         local activityEntry = activityEntries[activityIndex]
-                        statusDialog.rtbActivity.SelectionStart = statusDialog.rtbActivity.TextLength
-                        statusDialog.rtbActivity.SelectionLength = 0
-                        statusDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
-                        statusDialog.rtbActivity.AppendText activityEntry
-                        if (activityIndex < activityEntries.count) do statusDialog.rtbActivity.AppendText "\r\n"
+                        activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
+                        activityDialog.rtbActivity.SelectionLength = 0
+                        activityDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
+                        activityDialog.rtbActivity.AppendText activityEntry
+                        if (activityIndex < activityEntries.count) do activityDialog.rtbActivity.AppendText "\r\n"
                     )
-                    statusDialog.rtbActivity.SelectionColor = statusDialog.rtbActivity.ForeColor
+                    if (activityEntries.count > 0) do activityDialog.rtbActivity.AppendText activityBottomPadding
+                    activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
                 )
                 activityLogDirty = false
-                statusDialog.rtbActivity.ResumeLayout()
+                activityDialog.rtbActivity.ResumeLayout()
                 if (shouldAutoScroll) then (
                     scrollActivityLogToBottom()
                     activityAutoScroll = true
                 ) else (
                     local adjustedSelectionStart = amax 0 (savedSelectionStart - removedCharacterCount)
-                    adjustedSelectionStart = amin adjustedSelectionStart statusDialog.rtbActivity.TextLength
-                    local availableSelectionLength = statusDialog.rtbActivity.TextLength - adjustedSelectionStart
-                    statusDialog.rtbActivity.Select adjustedSelectionStart (amin savedSelectionLength availableSelectionLength)
+                    adjustedSelectionStart = amin adjustedSelectionStart activityDialog.rtbActivity.TextLength
+                    local availableSelectionLength = activityDialog.rtbActivity.TextLength - adjustedSelectionStart
+                    activityDialog.rtbActivity.Select adjustedSelectionStart (amin savedSelectionLength availableSelectionLength)
                     restoreActivityLogFirstVisibleLine (amax 0 (savedFirstVisibleLine - removedLineCount))
                 )
-                statusDialog.rtbActivity.Invalidate true
+                activityDialog.rtbActivity.Invalidate true
                 activityLogUpdating = false
             ) catch (
-                try (statusDialog.rtbActivity.ResumeLayout()) catch ()
-                try (statusDialog.rtbActivity.Invalidate true) catch ()
+                try (activityDialog.rtbActivity.ResumeLayout()) catch ()
+                try (activityDialog.rtbActivity.Invalidate true) catch ()
                 activityLogUpdating = false
             )
             return true
@@ -764,46 +1104,210 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn resizePanelControls panelSize = (
-            if (isDisposed or not panelIsOpen()) do return false
-            local panelWidth = amax 540 panelSize.x
-            local panelHeight = amax 540 panelSize.y
-            local contentWidth = panelWidth - 24
-            statusDialog.lblStatus.width = panelWidth - 252
-            statusDialog.lblContext.width = contentWidth
-            local footerY = panelHeight - 32
-            local buttonY = footerY - 40
-            local logHeight = amax 260 (buttonY - 70)
-            statusDialog.rtbActivity.width = panelWidth - 8
-            statusDialog.rtbActivity.height = logHeight
-            statusDialog.btnReconnect.pos.y = buttonY
-            statusDialog.btnStop.pos.y = buttonY
-            statusDialog.btnStart.pos.y = buttonY
-            statusDialog.btnSettings.pos = [panelWidth - 132, buttonY]
-            statusDialog.lnkMaxPkg.pos = [12, footerY + 1]
-            statusDialog.lnk3DGround.pos = [102, footerY + 1]
-            statusDialog.btnAgents.pos = [panelWidth - 232, 8]
-            statusDialog.btnDonate.pos = [panelWidth - 152, 8]
-            statusDialog.btnHide.pos = [panelWidth - 84, 8]
+        fn armSupportReminders = (
+            if (supportReminderCount > 0 or supportReminderDueAt != undefined) do return true
+            supportReminderDueAt = (dotNetClass "System.DateTime").UtcNow.AddMinutes (firstSupportReminderMinutes as double)
             return true
         ),
 
-        fn requestedPanelSize panelSize = (
-            local requestedWidth = 680
-            local requestedHeight = 540
-            if (panelSize != undefined) do (
-                try (requestedWidth = panelSize.x as integer) catch (requestedWidth = 680)
-                try (requestedHeight = panelSize.y as integer) catch (requestedHeight = 540)
+        fn pollSupportReminder = (
+            if (supportReminderDueAt == undefined or supportReminderCount >= maximumSupportReminders) do return true
+            local deadlineReached = false
+            try (deadlineReached = ((dotNetClass "System.DateTime").UtcNow.CompareTo supportReminderDueAt) >= 0) catch ()
+            if (not deadlineReached) do return true
+            addActivity "support" supportReminderMessage
+            supportReminderCount += 1
+            if (supportReminderCount < maximumSupportReminders) then (
+                supportReminderDueAt = (dotNetClass "System.DateTime").UtcNow.AddMinutes (recurringSupportReminderMinutes as double)
+            ) else (
+                supportReminderDueAt = undefined
             )
-            return [requestedWidth, requestedHeight]
+            return true
+        ),
+
+        fn releasePanelIconImages = (
+            try (statusDialog.btnRefreshAgents.Image = undefined) catch ()
+            try (supportDialog.btnDonate.Image = undefined) catch ()
+            refreshIconImage = undefined
+            donateIconImage = undefined
+            return true
+        ),
+
+        fn ensurePanelIconImages = (
+            if (refreshIconImage == undefined) do refreshIconImage = MaxUltraMcpUiKit.createRefreshIcon MaxUltraMcpTheme.textColor
+            if (donateIconImage == undefined) do donateIconImage = MaxUltraMcpUiKit.createDonateIcon MaxUltraMcpTheme.textColor
+            return true
+        ),
+
+        fn configureMainPanelControls = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (
+                MaxUltraMcpTheme.initialize()
+                MaxUltraMcpUiKit.styleButton statusDialog.btnAiStatus baseColorValue: MaxUltraMcpTheme.neutralColor
+                MaxUltraMcpUiKit.styleButton statusDialog.btnRefreshAgents baseColorValue: (lighterThemeSurface())
+                MaxUltraMcpUiKit.styleButton statusDialog.btnHide
+                ensurePanelIconImages()
+                statusDialog.btnAiStatus.Text = "AI client | Waiting..."
+                statusDialog.btnRefreshAgents.Text = if (refreshIconImage == undefined) then "R" else ""
+                statusDialog.btnRefreshAgents.Image = refreshIconImage
+                statusDialog.btnRefreshAgents.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                statusDialog.btnRefreshAgents.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                statusDialog.btnRefreshAgents.UseCompatibleTextRendering = false
+                statusDialog.btnRefreshAgents.AccessibleName = "Refresh AI client readiness"
+                statusDialog.btnRefreshAgents.AccessibleDescription = "Check ChatGPT, Codex, and Claude Code MCP registration now"
+                statusDialog.btnHide.Text = "Hide panel"
+                statusDialog.btnHide.AccessibleName = "Hide Max Ultra MCP panel"
+                statusDialog.btnAiStatus.AccessibleName = "AI client readiness and setup"
+
+                MaxUltraMcpUiKit.styleLabel serverStatusDialog.lblConnectionIndicator
+                MaxUltraMcpUiKit.styleLabel serverStatusDialog.lblEndpoint
+                MaxUltraMcpUiKit.styleLabel serverStatusDialog.lblContext
+                MaxUltraMcpUiKit.applyIndependentBoldFont serverStatusDialog.lblEndpoint
+                MaxUltraMcpUiKit.inheritParentBackColor serverStatusDialog.lblConnectionIndicator fallbackColor: MaxUltraMcpTheme.rolloutColor
+                MaxUltraMcpUiKit.inheritParentBackColor serverStatusDialog.lblEndpoint fallbackColor: MaxUltraMcpTheme.rolloutColor
+                MaxUltraMcpUiKit.inheritParentBackColor serverStatusDialog.lblContext fallbackColor: MaxUltraMcpTheme.rolloutColor
+                serverStatusDialog.lblConnectionIndicator.Text = (dotNetClass "System.Char").ConvertFromUtf32 0x25CF
+                serverStatusDialog.lblConnectionIndicator.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                serverStatusDialog.lblConnectionIndicator.AccessibleName = "Bridge connection indicator"
+                serverStatusDialog.lblEndpoint.AutoEllipsis = true
+                serverStatusDialog.lblEndpoint.AccessibleName = "Max Ultra MCP endpoint or connection problem"
+                serverStatusDialog.lblContext.AutoEllipsis = true
+                serverStatusDialog.lblContext.AccessibleName = "3ds Max scene context"
+
+                MaxUltraMcpUiKit.styleButton activityDialog.btnReconnect
+                MaxUltraMcpUiKit.styleButton activityDialog.btnStop
+                MaxUltraMcpUiKit.styleButton activityDialog.btnSettings
+                activityDialog.btnReconnect.Text = "Reconnect"
+                activityDialog.btnReconnect.AccessibleName = "Reconnect to running MCP server"
+                activityDialog.btnStop.Text = "Stop / Exit"
+                activityDialog.btnStop.AccessibleName = "Stop Max Ultra MCP and close this panel"
+                activityDialog.btnSettings.Text = "Settings"
+                activityDialog.btnSettings.AccessibleName = "Open Max Ultra MCP settings"
+
+                MaxUltraMcpUiKit.styleLink supportDialog.lnkMaxPkg
+                MaxUltraMcpUiKit.styleLink supportDialog.lnk3DGround
+                MaxUltraMcpUiKit.styleButton supportDialog.btnDonate baseColorValue: MaxUltraMcpTheme.supportColor
+                supportDialog.lnkMaxPkg.Text = "maxpkg.dev"
+                supportDialog.lnkMaxPkg.AccessibleName = "Open Max Ultra MCP on maxpkg.dev"
+                supportDialog.lnk3DGround.Text = "3dground.net"
+                supportDialog.lnk3DGround.AccessibleName = "Open 3DGROUND website"
+                supportDialog.btnDonate.Text = "Donate"
+                supportDialog.btnDonate.Image = donateIconImage
+                supportDialog.btnDonate.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleLeft
+                supportDialog.btnDonate.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
+                supportDialog.btnDonate.Padding = MaxUltraMcpUiKit.padding leftValue: 10
+                supportDialog.btnDonate.AccessibleName = "Donate to support Max Ultra MCP"
+                supportDialog.btnDonate.AccessibleDescription = "Open the secure donation checkout in the default browser"
+
+                if (panelToolTip == undefined) do (
+                    panelToolTip = dotNetObject "System.Windows.Forms.ToolTip"
+                    panelToolTip.AutoPopDelay = 12000
+                    panelToolTip.InitialDelay = 350
+                    panelToolTip.ReshowDelay = 100
+                )
+                panelToolTip.SetToolTip statusDialog.btnRefreshAgents "Refresh AI client readiness"
+                panelToolTip.SetToolTip statusDialog.btnHide "Hide the panel without stopping the bridge"
+                panelToolTip.SetToolTip statusDialog.btnAiStatus "Open AI Client Setup"
+                panelToolTip.SetToolTip supportDialog.btnDonate "Support continued independent development"
+                configureActivityLog()
+                return true
+            ) catch (
+                format "[3DGROUND | Max Ultra MCP] PANEL STYLE ERROR | %\n" (getCurrentException() as string)
+                return false
+            )
+        ),
+
+        fn resizePanelControls panelSize = (
+            if (isDisposed or not panelIsOpen() or panelLayoutInProgress) do return false
+            try (if (panelFloater.placementName == #minimized) do return true) catch ()
+            panelLayoutInProgress = true
+            try (
+                local resolvedPanelSize = panelSize
+                try (resolvedPanelSize = panelFloater.size) catch ()
+                if (resolvedPanelSize.x < 680 or resolvedPanelSize.y < 600) do (
+                    resolvedPanelSize = [amax 680 resolvedPanelSize.x, amax 600 resolvedPanelSize.y]
+                    try (panelFloater.size = resolvedPanelSize) catch ()
+                )
+                local panelWidth = amax 680 resolvedPanelSize.x
+                local panelHeight = amax 600 resolvedPanelSize.y
+                local floaterChromeHeight = 32
+                try (
+                    if (panelForm != undefined and panelForm.ClientSize.Width > 0 and panelForm.ClientSize.Height > 0) do (
+                        panelWidth = amax 680 (panelForm.ClientSize.Width as integer)
+                        local measuredChromeHeight = (panelForm.Height as integer) - (panelForm.ClientSize.Height as integer)
+                        if (measuredChromeHeight >= 0 and measuredChromeHeight < 200) do floaterChromeHeight = measuredChromeHeight
+                    )
+                ) catch ()
+                local aiZoneHeight = 44
+                local serverZoneHeight = 36
+                local supportZoneHeight = 44
+                local minimumActivityZoneHeight = 320
+                local rolloutContentHeight = amax (aiZoneHeight + serverZoneHeight + supportZoneHeight + minimumActivityZoneHeight) (panelHeight - floaterChromeHeight)
+                local activityZoneHeight = rolloutContentHeight - aiZoneHeight - serverZoneHeight - supportZoneHeight
+
+                statusDialog.width = panelWidth
+                serverStatusDialog.width = panelWidth
+                activityDialog.width = panelWidth
+                supportDialog.width = panelWidth
+                statusDialog.height = aiZoneHeight
+                serverStatusDialog.height = serverZoneHeight
+                activityDialog.height = activityZoneHeight
+                supportDialog.height = supportZoneHeight
+                updateRolloutLayout panelFloater forceUpdate: true
+
+                local hideButtonWidth = 104
+                local refreshButtonWidth = 38
+                local horizontalGap = 10
+                local statusButtonWidth = 444
+                local hideButtonX = panelWidth - 8 - hideButtonWidth
+                local refreshButtonX = 8 + statusButtonWidth + horizontalGap
+                statusDialog.btnAiStatus.pos = [8,7]
+                statusDialog.btnAiStatus.width = statusButtonWidth
+                statusDialog.btnRefreshAgents.pos = [refreshButtonX,7]
+                statusDialog.btnHide.pos = [hideButtonX,7]
+
+                local endpointWidth = amin 280 (amax 200 ((panelWidth * 0.38) as integer))
+                serverStatusDialog.lblConnectionIndicator.pos = [8,6]
+                serverStatusDialog.lblEndpoint.pos = [26,6]
+                serverStatusDialog.lblEndpoint.width = endpointWidth
+                serverStatusDialog.lblContext.pos = [34 + endpointWidth,6]
+                serverStatusDialog.lblContext.width = amax 180 (panelWidth - endpointWidth - 42)
+
+                local actionRowHeight = 46
+                local activityTopPadding = 5
+                local logHeight = amax 1 (activityZoneHeight - actionRowHeight - activityTopPadding)
+                activityDialog.pnlActivityOutline.pos = [0,activityTopPadding]
+                activityDialog.pnlActivityOutline.width = panelWidth
+                activityDialog.pnlActivityOutline.height = logHeight
+                activityDialog.rtbActivity.Location = MaxUltraMcpUiKit.point 1 1
+                activityDialog.rtbActivity.Size = MaxUltraMcpUiKit.size (amax 1 (panelWidth - 2)) (amax 1 (logHeight - 2))
+                local actionButtonY = activityTopPadding + logHeight + 8
+                activityDialog.btnReconnect.pos = [8,actionButtonY]
+                activityDialog.btnStop.pos = [134,actionButtonY]
+                activityDialog.btnSettings.pos = [panelWidth - 128,actionButtonY]
+
+                supportDialog.lnkMaxPkg.Location = MaxUltraMcpUiKit.point 8 7
+                supportDialog.lnk3DGround.Location = MaxUltraMcpUiKit.point 104 7
+                supportDialog.btnDonate.Location = MaxUltraMcpUiKit.point (panelWidth - 128) 7
+                panelLayoutInProgress = false
+                return true
+            ) catch (
+                panelLayoutInProgress = false
+                try (format "[3DGROUND | Max Ultra MCP] PANEL LAYOUT ERROR | %\n" (getCurrentException() as string)) catch ()
+                return false
+            )
+        ),
+
+        fn requestedPanelSize panelSize = (
+            return [720, 640]
         ),
 
         fn clampPanelSizeToWorkingArea panelSize workingArea = (
             local requestedSize = requestedPanelSize panelSize
-            local maximumWidth = amax 1 (workingArea.Width as integer)
-            local maximumHeight = amax 1 (workingArea.Height as integer)
-            local minimumWidth = amin 540 maximumWidth
-            local minimumHeight = amin 540 maximumHeight
+            local minimumWidth = 680
+            local minimumHeight = 600
+            local maximumWidth = amax minimumWidth (workingArea.Width as integer)
+            local maximumHeight = amax minimumHeight (workingArea.Height as integer)
             local clampedWidth = amax minimumWidth (amin maximumWidth requestedSize.x)
             local clampedHeight = amax minimumHeight (amin maximumHeight requestedSize.y)
             return [clampedWidth as integer, clampedHeight as integer]
@@ -900,9 +1404,11 @@ global MaxUltraMcpActiveClient
         fn rememberNormalPanelGeometry formSender = (
             if (not panelIsOpen()) do return false
             try (
+                local currentPlacement = panelFloater.placementName
+                if (currentPlacement != undefined and currentPlacement != #normal) do return false
                 local normalWindowState = (dotNetClass "System.Windows.Forms.FormWindowState").Normal
                 if (formSender != undefined and formSender.WindowState != normalWindowState) do return false
-                local currentGeometry = normalizePanelGeometry (getDialogPos statusDialog) [statusDialog.width, statusDialog.height]
+                local currentGeometry = normalizePanelGeometry panelFloater.pos panelFloater.size
                 lastNormalPanelPosition = currentGeometry[1]
                 lastNormalPanelSize = currentGeometry[2]
                 return true
@@ -917,10 +1423,31 @@ global MaxUltraMcpActiveClient
             try (
                 if (formSender != undefined) do (
                     local restoreBounds = formSender.RestoreBounds
-                    if (restoreBounds.Width > 0 and restoreBounds.Height > 0) do return normalizePanelGeometry [restoreBounds.X as integer, restoreBounds.Y as integer] undefined
+                    if (restoreBounds.Width > 0 and restoreBounds.Height > 0) do return normalizePanelGeometry [restoreBounds.X as integer, restoreBounds.Y as integer] [restoreBounds.Width as integer, restoreBounds.Height as integer]
                 )
             ) catch ()
             return loadPanelGeometry()
+        ),
+
+        fn handlePanelResized panelSize = (
+            if (isDisposed or not panelIsOpen()) do return false
+            local layoutResult = resizePanelControls panelSize
+            try (
+                local panelGeometry = capturePanelGeometry panelForm
+                persistPanelGeometry panelGeometry[1] panelGeometry[2]
+            ) catch ()
+            return layoutResult
+        ),
+
+        fn handlePanelMoved panelPosition = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (
+                local panelGeometry = capturePanelGeometry panelForm
+                persistPanelGeometry panelGeometry[1] panelGeometry[2]
+                return true
+            ) catch (
+                return false
+            )
         ),
 
         fn settingsDialogIsOpen = (
@@ -1148,15 +1675,15 @@ global MaxUltraMcpActiveClient
         fn refreshUpdateStatusControl = (
             if (not (settingsDialogIsOpen())) do return false
             try (
-                local rolloutBackground = themeDrawingColor #background 68 68 68
-                local statusColor = themeDrawingColor #text 225 225 225
-                if (updateState == #current or updateState == #ready) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 72 210 130
-                if (updateState == #checking) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 247 185 85
-                if (updateState == #error) do statusColor = (dotNetClass "System.Drawing.Color").FromArgb 255 96 96
+                local rolloutBackground = MaxUltraMcpTheme.backgroundColor
+                local statusColor = MaxUltraMcpTheme.textColor
+                if (updateState == #current or updateState == #ready) do statusColor = MaxUltraMcpTheme.passColor
+                if (updateState == #checking) do statusColor = MaxUltraMcpTheme.warningColor
+                if (updateState == #error) do statusColor = MaxUltraMcpTheme.issueColor
                 settingsDialog.lblUpdateStatus.BackColor = rolloutBackground
                 settingsDialog.lblUpdateStatus.ForeColor = statusColor
                 settingsDialog.lblUpdateStatus.Text = updateMessage
-                settingsDialog.btnCheckUpdates.enabled = not updateBusy
+                MaxUltraMcpUiKit.updateButtonState settingsDialog.btnCheckUpdates (not updateBusy)
                 return true
             ) catch (return false)
         ),
@@ -1288,6 +1815,18 @@ global MaxUltraMcpActiveClient
             if (not (settingsDialogIsOpen())) do return false
             settingsRefreshInProgress = true
             applyProductVersionToUi()
+            try (
+                MaxUltraMcpUiKit.styleButton settingsDialog.btnCheckUpdates
+                MaxUltraMcpUiKit.styleButton settingsDialog.btnAgentSetup
+                MaxUltraMcpUiKit.styleLink settingsDialog.lnkAboutWebsite
+                MaxUltraMcpUiKit.styleLink settingsDialog.lnkAboutPackageManager
+                settingsDialog.btnCheckUpdates.Text = "Check now"
+                settingsDialog.btnAgentSetup.Text = "Open AI client setup..."
+                settingsDialog.lnkAboutWebsite.Text = "https://3dground.net"
+                settingsDialog.lnkAboutPackageManager.Text = "maxpkg.dev"
+                settingsDialog.btnCheckUpdates.AccessibleName = "Check for Max Ultra MCP updates"
+                settingsDialog.btnAgentSetup.AccessibleName = "Open AI client setup"
+            ) catch ()
             try (settingsDialog.chkAutostart.checked = loadAutostartSetting()) catch ()
             try (settingsDialog.chkShowServerConsole.checked = loadServerConsoleVisibleSetting()) catch ()
             try (settingsDialog.chkAutomaticUpdates.checked = loadAutomaticUpdateSetting()) catch ()
@@ -1384,8 +1923,16 @@ global MaxUltraMcpActiveClient
             return (toLower (readIntegrationValue sectionName keyName fallbackValue: "false")) == "true"
         ),
 
-        fn integrationStateText sectionName = (
+        fn integrationEffectiveState sectionName = (
             local stateValue = toLower (readIntegrationValue sectionName "state" fallbackValue: "not_checked")
+            local operationState = toLower (readIntegrationValue "operation" "state" fallbackValue: "")
+            local runtimeSensitiveStates = #("configured", "not_configured", "restart_required")
+            if (operationState == "complete" and not (integrationValueIsTrue "runtime" "ready") and (findItem runtimeSensitiveStates stateValue) > 0) do return "runtime_missing"
+            return stateValue
+        ),
+
+        fn integrationStateText sectionName = (
+            local stateValue = integrationEffectiveState sectionName
             case stateValue of (
                 "configured": "Ready - MCP configured"
                 "not_configured": "Setup required - client found, MCP not configured"
@@ -1393,21 +1940,94 @@ global MaxUltraMcpActiveClient
                 "cli_missing": "Client not found - install it or use manual setup"
                 "runtime_missing": "Runtime missing - portable Node.js is unavailable"
                 "install_failed": "Setup failed - refresh status and retry"
+                "check_failed": "Check failed - refresh status to retry"
                 default: "Not checked"
             )
         ),
 
-        fn integrationStateColor sectionName = (
-            local colorClass = dotNetClass "System.Drawing.Color"
-            local stateValue = toLower (readIntegrationValue sectionName "state" fallbackValue: "not_checked")
+        fn integrationStateShortText sectionName = (
+            if (integrationBusy) do return "Checking..."
+            if (integrationLastCheckFailed) do return "Check failed"
+            local stateValue = integrationEffectiveState sectionName
             case stateValue of (
-                "configured": (colorClass.FromArgb 76 190 112)
-                "not_configured": (colorClass.FromArgb 230 169 25)
-                "restart_required": (colorClass.FromArgb 230 169 25)
-                "cli_missing": (colorClass.FromArgb 210 90 82)
-                "runtime_missing": (colorClass.FromArgb 210 90 82)
-                "install_failed": (colorClass.FromArgb 210 90 82)
-                default: (colorClass.FromArgb 150 150 150)
+                "configured": "MCP ready"
+                "not_configured": "Setup required"
+                "restart_required": "Restart required"
+                "cli_missing": "Client not found"
+                "runtime_missing": "Runtime missing"
+                "install_failed": "Setup failed"
+                "check_failed": "Check failed"
+                default: "Waiting..."
+            )
+        ),
+
+        fn integrationStateThemeState sectionName = (
+            if (integrationBusy) do return #warning
+            if (integrationLastCheckFailed) do return #issue
+            local stateValue = integrationEffectiveState sectionName
+            case stateValue of (
+                "configured": #pass
+                "not_configured": #warning
+                "restart_required": #warning
+                "cli_missing": #issue
+                "runtime_missing": #issue
+                "install_failed": #issue
+                "check_failed": #issue
+                default: #neutral
+            )
+        ),
+
+        fn integrationStateColor sectionName = (
+            return MaxUltraMcpTheme.statusColor (integrationStateThemeState sectionName)
+        ),
+
+        fn refreshAiStatusControls = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (
+                local openAIStateValue = integrationEffectiveState "openai"
+                local claudeStateValue = integrationEffectiveState "claudeCode"
+                local readyClientText = ""
+                local restartClientText = ""
+                if (openAIStateValue == "configured") do readyClientText = "ChatGPT / Codex"
+                if (claudeStateValue == "configured") do readyClientText = if (readyClientText == "") then "Claude Code" else readyClientText + " + Claude Code"
+                if (openAIStateValue == "restart_required") do restartClientText = "ChatGPT / Codex"
+                if (claudeStateValue == "restart_required") do restartClientText = if (restartClientText == "") then "Claude Code" else restartClientText + " + Claude Code"
+
+                local combinedStatusText = "Click to set up AI agent"
+                local combinedStatusState = #warning
+                if (integrationBusy) then (
+                    combinedStatusText = "AI clients | Checking..."
+                    combinedStatusState = #warning
+                ) else if (readyClientText != "") then (
+                    combinedStatusText = readyClientText + " | MCP ready"
+                    combinedStatusState = #pass
+                ) else if (restartClientText != "") then (
+                    combinedStatusText = restartClientText + " | Restart required"
+                    combinedStatusState = #warning
+                ) else if (integrationLastCheckFailed or openAIStateValue == "check_failed" or claudeStateValue == "check_failed") then (
+                    combinedStatusText = "AI status | Check failed"
+                    combinedStatusState = #issue
+                ) else if (openAIStateValue == "runtime_missing" or claudeStateValue == "runtime_missing") then (
+                    combinedStatusText = "AI runtime | Missing"
+                    combinedStatusState = #issue
+                ) else if (openAIStateValue == "install_failed" or claudeStateValue == "install_failed") then (
+                    combinedStatusText = "AI setup | Failed"
+                    combinedStatusState = #issue
+                ) else if (toLower (readIntegrationValue "operation" "state" fallbackValue: "") == "") then (
+                    combinedStatusText = "AI client | Waiting..."
+                    combinedStatusState = #neutral
+                )
+
+                local combinedStatusColor = MaxUltraMcpTheme.statusColor combinedStatusState
+                local combinedStatusDescription = "ChatGPT / Codex: " + (integrationStateText "openai") + " | Claude Code: " + (integrationStateText "claudeCode") + ". Click to open AI Client Setup."
+                MaxUltraMcpUiKit.styleButton statusDialog.btnAiStatus baseColorValue: combinedStatusColor
+                MaxUltraMcpUiKit.updateButtonState statusDialog.btnRefreshAgents (not integrationBusy)
+                statusDialog.btnAiStatus.Text = combinedStatusText
+                statusDialog.btnAiStatus.AccessibleDescription = combinedStatusDescription
+                if (panelToolTip != undefined) do panelToolTip.SetToolTip statusDialog.btnAiStatus combinedStatusDescription
+                return true
+            ) catch (
+                return false
             )
         ),
 
@@ -1421,14 +2041,15 @@ global MaxUltraMcpActiveClient
         ),
 
         fn refreshOnboardingDialog = (
-            if (not (onboardingDialogIsOpen()) or onboardingPage != #setup or not onboardingSetupDialog.open) do return false
+            local mainStatusRefreshed = refreshAiStatusControls()
+            if (not (onboardingDialogIsOpen()) or onboardingPage != #setup or not onboardingSetupDialog.open) do return mainStatusRefreshed
             integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
             integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
             local openAIAvailable = integrationValueIsTrue "openai" "cliAvailable"
             local claudeAvailable = integrationValueIsTrue "claudeCode" "cliAvailable"
             try (
                 if (integrationBusy) then (
-                    local warningColor = (dotNetClass "System.Drawing.Color").FromArgb 230 169 25
+                    local warningColor = MaxUltraMcpTheme.warningColor
                     onboardingSetupDialog.lblOpenAIStatus.Text = "Checking client and MCP registration..."
                     onboardingSetupDialog.lblClaudeCodeStatus.Text = "Checking client and MCP registration..."
                     onboardingSetupDialog.lblOpenAIStatus.ForeColor = warningColor
@@ -1443,9 +2064,9 @@ global MaxUltraMcpActiveClient
                 onboardingSetupDialog.chkClaudeCode.enabled = claudeAvailable and not integrationClaudeCodeConfigured and not integrationBusy
                 onboardingSetupDialog.chkOpenAI.checked = integrationOpenAIConfigured or (openAIAvailable and not integrationBusy)
                 onboardingSetupDialog.chkClaudeCode.checked = integrationClaudeCodeConfigured or (claudeAvailable and not integrationBusy)
-                onboardingSetupDialog.btnInstallAgents.enabled = not integrationBusy and ((openAIAvailable and not integrationOpenAIConfigured) or (claudeAvailable and not integrationClaudeCodeConfigured))
-                onboardingSetupDialog.btnRefreshAgents.enabled = not integrationBusy
-                onboardingSetupDialog.btnCopyManual.enabled = not integrationBusy
+                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnInstallAgents (not integrationBusy and ((openAIAvailable and not integrationOpenAIConfigured) or (claudeAvailable and not integrationClaudeCodeConfigured)))
+                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnRefreshAgents (not integrationBusy)
+                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnCopyManual (not integrationBusy)
                 onboardingSetupDialog.txtManual.Text = manualAgentConfigurationText()
                 onboardingSetupDialog.lblOnboardingOperation.Text = if (integrationBusy) then "Checking installed clients and MCP registrations..." else readIntegrationValue "operation" "message" fallbackValue: ""
             ) catch ()
@@ -1500,8 +2121,17 @@ global MaxUltraMcpActiveClient
         fn configureOnboardingSetupDialog = (
             if (not (onboardingDialogIsOpen()) or not onboardingSetupDialog.open) do return false
             try (
-                local rolloutBackground = themeDrawingColor #background 68 68 68
-                local onboardingTextColor = themeDrawingColor #text 225 225 225
+                local rolloutBackground = MaxUltraMcpTheme.backgroundColor
+                local onboardingTextColor = MaxUltraMcpTheme.textColor
+                MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnInstallAgents
+                MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnRefreshAgents
+                MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnCopyManual
+                onboardingSetupDialog.btnInstallAgents.Text = "Install selected"
+                onboardingSetupDialog.btnRefreshAgents.Text = "Refresh status"
+                onboardingSetupDialog.btnCopyManual.Text = "Copy manual setup"
+                onboardingSetupDialog.btnInstallAgents.AccessibleName = "Install selected AI client integrations"
+                onboardingSetupDialog.btnRefreshAgents.AccessibleName = "Refresh AI client readiness"
+                onboardingSetupDialog.btnCopyManual.AccessibleName = "Copy manual STDIO setup"
                 onboardingSetupDialog.txtManual.Multiline = true
                 onboardingSetupDialog.txtManual.ReadOnly = true
                 onboardingSetupDialog.txtManual.WordWrap = false
@@ -1520,12 +2150,15 @@ global MaxUltraMcpActiveClient
         fn configureOnboardingTestDialog = (
             if (not (onboardingDialogIsOpen()) or not onboardingTestDialog.open) do return false
             try (
+                MaxUltraMcpUiKit.styleButton onboardingTestDialog.btnCopyTestPrompt
+                onboardingTestDialog.btnCopyTestPrompt.Text = "Copy test prompt"
+                onboardingTestDialog.btnCopyTestPrompt.AccessibleName = "Copy safe AI connection test prompt"
                 onboardingTestDialog.txtTestPrompt.Multiline = true
                 onboardingTestDialog.txtTestPrompt.ReadOnly = true
                 onboardingTestDialog.txtTestPrompt.WordWrap = true
                 onboardingTestDialog.txtTestPrompt.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").FixedSingle
-                onboardingTestDialog.txtTestPrompt.BackColor = (dotNetClass "System.Drawing.Color").FromArgb 250 250 250
-                onboardingTestDialog.txtTestPrompt.ForeColor = (dotNetClass "System.Drawing.Color").FromArgb 24 24 24
+                onboardingTestDialog.txtTestPrompt.BackColor = lighterThemeSurface()
+                onboardingTestDialog.txtTestPrompt.ForeColor = MaxUltraMcpTheme.textColor
                 onboardingTestDialog.txtTestPrompt.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Vertical
                 onboardingTestDialog.txtTestPrompt.Text = onboardingTestPromptText()
                 return true
@@ -1534,11 +2167,15 @@ global MaxUltraMcpActiveClient
 
         fn startIntegrationOperation actionName installOpenAI: false installClaudeCode: false automaticCheck: false = (
             if (isDisposed or integrationBusy) do return false
+            integrationAutomaticCheckPending = false
+            integrationAutomaticCheckDueAt = undefined
             local helperPath = integrationHelperFilePath()
             local resultPath = ensureIntegrationResultFilePath()
             if (helperPath == "" or resultPath == "") do (
+                integrationLastCheckFailed = true
                 addActivity "error" "AI integration helper was not found below the first-step file"
                 if (onboardingDialogIsOpen() and onboardingPage == #setup and onboardingSetupDialog.open) do onboardingSetupDialog.lblOnboardingOperation.Text = "Setup helper is missing from this package."
+                refreshOnboardingDialog()
                 return false
             )
             try (if (doesFileExist resultPath) do deleteFile resultPath) catch ()
@@ -1559,6 +2196,10 @@ global MaxUltraMcpActiveClient
                 integrationProcess = (dotNetClass "System.Diagnostics.Process").Start startInfo
                 if (integrationProcess == undefined) do throw "Windows did not start the integration helper"
                 integrationAutomaticCheck = automaticCheck
+                integrationOperationName = actionName
+                integrationOperationTimeoutSeconds = if (actionName == #install) then 90 else 30
+                integrationOperationStartedAt = (dotNetClass "System.DateTime").UtcNow
+                integrationLastCheckFailed = false
                 integrationBusy = true
                 refreshOnboardingDialog()
                 return true
@@ -1566,34 +2207,17 @@ global MaxUltraMcpActiveClient
                 integrationProcess = undefined
                 integrationBusy = false
                 integrationAutomaticCheck = false
+                integrationOperationStartedAt = undefined
+                integrationLastCheckFailed = true
                 addActivity "error" ("Could not start AI integration setup: " + (getCurrentException() as string))
                 refreshOnboardingDialog()
                 return false
             )
         ),
 
-        fn pollIntegrationOperation = (
-            if (integrationProcess == undefined or not integrationBusy) do return true
-            local hasExited = false
-            try (hasExited = integrationProcess.HasExited) catch (hasExited = true)
-            if (not hasExited) do return true
-            local wasAutomaticCheck = integrationAutomaticCheck
-            local helperExitCode = -1
-            try (helperExitCode = integrationProcess.ExitCode) catch ()
-            try (integrationProcess.Dispose()) catch ()
-            integrationProcess = undefined
-            integrationBusy = false
-            integrationAutomaticCheck = false
-            integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
-            integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
-            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured) do persistOnboardingDismissed true
-            refreshOnboardingDialog()
-            if (helperExitCode != 0) do addActivity "error" ("AI integration helper failed: " + readIntegrationValue "operation" "message" fallbackValue: "unknown error")
-            if (wasAutomaticCheck and helperExitCode == 0 and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (loadOnboardingDismissed())) do showOnboardingDialog refreshStatus: false
-            return true
-        ),
-
         fn refreshAgentIntegrationStatus = (
+            integrationAutomaticCheckPending = false
+            integrationAutomaticCheckDueAt = undefined
             return startIntegrationOperation #status automaticCheck: false
         ),
 
@@ -1709,6 +2333,54 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
+        fn pollIntegrationOperation = (
+            if (integrationProcess == undefined or not integrationBusy) do return true
+            local hasExited = false
+            try (hasExited = integrationProcess.HasExited) catch (hasExited = true)
+            if (not hasExited) do (
+                local operationTimedOut = false
+                try (
+                    if (integrationOperationStartedAt != undefined) do (
+                        local elapsedTime = (dotNetClass "System.DateTime").UtcNow.Subtract integrationOperationStartedAt
+                        operationTimedOut = elapsedTime.TotalSeconds >= integrationOperationTimeoutSeconds
+                    )
+                ) catch ()
+                if (not operationTimedOut) do return true
+                try (integrationProcess.Kill()) catch ()
+                try (integrationProcess.Dispose()) catch ()
+                integrationProcess = undefined
+                integrationBusy = false
+                integrationAutomaticCheck = false
+                integrationOperationStartedAt = undefined
+                integrationLastCheckFailed = true
+                addActivity "error" ("AI integration " + (if (integrationOperationName == #install) then "setup" else "status check") + " timed out after " + (integrationOperationTimeoutSeconds as string) + " seconds")
+                refreshOnboardingDialog()
+                return true
+            )
+            local wasAutomaticCheck = integrationAutomaticCheck
+            local helperExitCode = -1
+            try (helperExitCode = integrationProcess.ExitCode) catch ()
+            try (integrationProcess.Dispose()) catch ()
+            integrationProcess = undefined
+            integrationBusy = false
+            integrationAutomaticCheck = false
+            integrationAutomaticCheckPending = false
+            integrationAutomaticCheckDueAt = undefined
+            integrationOperationStartedAt = undefined
+            integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
+            integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
+            local openAIStateValue = readIntegrationValue "openai" "state" fallbackValue: ""
+            local claudeStateValue = readIntegrationValue "claudeCode" "state" fallbackValue: ""
+            local conclusiveStates = #("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing")
+            local automaticCheckConclusive = (findItem conclusiveStates openAIStateValue) > 0 and (findItem conclusiveStates claudeStateValue) > 0
+            integrationLastCheckFailed = helperExitCode != 0 and openAIStateValue == "" and claudeStateValue == ""
+            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured) do persistOnboardingDismissed true
+            refreshOnboardingDialog()
+            if (helperExitCode != 0) do addActivity "error" ("AI integration helper failed: " + readIntegrationValue "operation" "message" fallbackValue: "unknown error")
+            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (loadOnboardingDismissed())) do showOnboardingDialog refreshStatus: false
+            return true
+        ),
+
         fn copyOnboardingTestPrompt = (
             try (
                 (dotNetClass "System.Windows.Forms.Clipboard").SetText (onboardingTestPromptText())
@@ -1721,7 +2393,20 @@ global MaxUltraMcpActiveClient
         ),
 
         fn beginAutomaticOnboardingCheck = (
-            if (loadOnboardingDismissed()) do return true
+            if (isDisposed) do return false
+            integrationAutomaticCheckPending = true
+            integrationAutomaticCheckDueAt = (dotNetClass "System.DateTime").UtcNow.AddSeconds 2.0
+            refreshAiStatusControls()
+            return true
+        ),
+
+        fn runPendingAutomaticOnboardingCheck = (
+            if (not integrationAutomaticCheckPending or integrationAutomaticCheckDueAt == undefined or integrationBusy) do return true
+            local deadlineReached = false
+            try (deadlineReached = (((dotNetClass "System.DateTime").UtcNow.CompareTo integrationAutomaticCheckDueAt) >= 0)) catch (deadlineReached = true)
+            if (not deadlineReached) do return true
+            integrationAutomaticCheckPending = false
+            integrationAutomaticCheckDueAt = undefined
             return startIntegrationOperation #status automaticCheck: true
         ),
 
@@ -1829,6 +2514,12 @@ global MaxUltraMcpActiveClient
             local bubbleLabelToDispose = restoreBubbleLabel
             local bubbleButtonToDispose = restoreBubbleButton
             local bubbleFormToDispose = restoreBubbleForm
+            local formOwnsSurface = false
+            local surfaceOwnsLabel = false
+            local surfaceOwnsButton = false
+            try (formOwnsSurface = bubbleFormToDispose != undefined and bubbleSurfaceToDispose != undefined and bubbleSurfaceToDispose.Parent == bubbleFormToDispose) catch ()
+            try (surfaceOwnsLabel = bubbleSurfaceToDispose != undefined and bubbleLabelToDispose != undefined and bubbleLabelToDispose.Parent == bubbleSurfaceToDispose) catch ()
+            try (surfaceOwnsButton = bubbleSurfaceToDispose != undefined and bubbleButtonToDispose != undefined and bubbleButtonToDispose.Parent == bubbleSurfaceToDispose) catch ()
             restoreBubbleSurface = undefined
             restoreBubbleLabel = undefined
             restoreBubbleButton = undefined
@@ -1836,11 +2527,9 @@ global MaxUltraMcpActiveClient
             restoreBubbleDragging = false
             restoreBubbleDragOffset = undefined
             restoreBubbleCloseAllowed = true
-            try (if (bubbleLabelToDispose != undefined) do dotNet.removeEventHandler bubbleLabelToDispose "MouseDown" handleRestoreBubbleMouseDown) catch ()
-            try (if (bubbleLabelToDispose != undefined) do dotNet.removeEventHandler bubbleLabelToDispose "MouseMove" handleRestoreBubbleMouseMove) catch ()
-            try (if (bubbleLabelToDispose != undefined) do dotNet.removeEventHandler bubbleLabelToDispose "MouseUp" handleRestoreBubbleMouseUp) catch ()
-            try (if (bubbleButtonToDispose != undefined) do dotNet.removeEventHandler bubbleButtonToDispose "Click" handleRestoreBubbleClick) catch ()
-            try (if (bubbleFormToDispose != undefined) do dotNet.removeEventHandler bubbleFormToDispose "FormClosing" handleRestoreBubbleFormClosing) catch ()
+            try (if (bubbleLabelToDispose != undefined) do dotNet.removeAllEventHandlers bubbleLabelToDispose) catch ()
+            try (if (bubbleButtonToDispose != undefined) do dotNet.removeAllEventHandlers bubbleButtonToDispose) catch ()
+            try (if (bubbleFormToDispose != undefined) do dotNet.removeAllEventHandlers bubbleFormToDispose) catch ()
             try (
                 if (bubbleFormToDispose != undefined) do (
                     bubbleFormToDispose.Hide()
@@ -1848,9 +2537,9 @@ global MaxUltraMcpActiveClient
                     bubbleFormToDispose.Dispose()
                 )
             ) catch ()
-            try (if (bubbleLabelToDispose != undefined) do bubbleLabelToDispose.Dispose()) catch ()
-            try (if (bubbleButtonToDispose != undefined) do bubbleButtonToDispose.Dispose()) catch ()
-            try (if (bubbleSurfaceToDispose != undefined) do bubbleSurfaceToDispose.Dispose()) catch ()
+            try (if (not surfaceOwnsLabel and bubbleLabelToDispose != undefined) do bubbleLabelToDispose.Dispose()) catch ()
+            try (if (not surfaceOwnsButton and bubbleButtonToDispose != undefined) do bubbleButtonToDispose.Dispose()) catch ()
+            try (if (not formOwnsSurface and bubbleSurfaceToDispose != undefined) do bubbleSurfaceToDispose.Dispose()) catch ()
             restoreBubbleCloseAllowed = false
             return true
         ),
@@ -1867,28 +2556,65 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
+        fn createPanelFloater panelPosition panelSize = (
+            if (isDisposed) do return false
+            if (panelIsOpen()) do return true
+            local panelGeometry = normalizePanelGeometry panelPosition panelSize
+            local resolvedPosition = panelGeometry[1]
+            local resolvedSize = panelGeometry[2]
+            try (
+                panelCloseInProgress = false
+                panelFloater = newRolloutFloater (productWindowTitle()) resolvedSize.x resolvedSize.y lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off
+                panelFloater.pos = resolvedPosition
+                addRollout statusDialog panelFloater rolledUp: false border: false
+                addRollout serverStatusDialog panelFloater rolledUp: false border: false
+                addRollout activityDialog panelFloater rolledUp: false border: false
+                addRollout supportDialog panelFloater rolledUp: false border: false
+                configureMainPanelControls()
+                resizePanelControls resolvedSize
+                return panelIsOpen()
+            ) catch (
+                format "[3DGROUND | Max Ultra MCP] PANEL CREATE ERROR | %\n" (getCurrentException() as string)
+                try (
+                    suppressPanelShutdown = true
+                    if (panelFloater != undefined and panelFloater.open) do closeRolloutFloater panelFloater
+                    suppressPanelShutdown = false
+                ) catch (
+                    suppressPanelShutdown = false
+                )
+                panelFloater = undefined
+                panelForm = undefined
+                return false
+            )
+        ),
+
         fn restoreHiddenPanel = (
             if (isDisposed) do return false
             local wasPersistedHidden = loadPanelHiddenState()
-            if (wasPersistedHidden and not (persistPanelHiddenState false)) do return false
             if (not panelIsOpen()) do (
                 local restoreGeometry = if (hiddenPanelPosition == undefined and hiddenPanelSize == undefined) then loadPanelGeometry() else normalizePanelGeometry hiddenPanelPosition hiddenPanelSize
                 local restorePosition = restoreGeometry[1]
                 local restoreSize = restoreGeometry[2]
-                try (
-                    createDialog statusDialog width: restoreSize.x height: restoreSize.y pos: restorePosition style: #(#style_titlebar, #style_sysmenu, #style_minimizebox, #style_resizing)
-                ) catch (
+                if (not (this.createPanelFloater restorePosition restoreSize)) do (
                     if (wasPersistedHidden) do persistPanelHiddenState true
-                    format "[3DGROUND | Max Ultra MCP] RESTORE ERROR | %\n" (getCurrentException() as string)
+                    return false
                 )
             )
-            if (not panelIsOpen()) do (
+            try (panelFloater.visible = true) catch ()
+            if (not panelIsVisible()) do (
                 if (wasPersistedHidden) do persistPanelHiddenState true
                 return false
+            )
+            if (not (persistPanelHiddenState false)) do (
+                addActivity "error" "Could not save the visible panel state; the restored panel remains available"
+                disposeRestoreBubble()
+                return true
             )
             hiddenPanelPosition = undefined
             hiddenPanelSize = undefined
             disposeRestoreBubble()
+            try (panelFloater.placementName = #normal) catch ()
+            resizePanelControls panelFloater.size
             return true
         ),
 
@@ -1928,18 +2654,21 @@ global MaxUltraMcpActiveClient
                 restoreBubbleForm.Size = dotNetObject "System.Drawing.Size" 236 64
                 local bubblePosition = loadRestoreBubblePosition()
                 restoreBubbleForm.Location = dotNetObject "System.Drawing.Point" bubblePosition.x bubblePosition.y
-                restoreBubbleForm.BackColor = (dotNetClass "System.Drawing.Color").Black
+                restoreBubbleForm.BackColor = MaxUltraMcpTheme.outlineColor
                 restoreBubbleForm.Text = "Max Ultra MCP"
                 restoreBubbleForm.AccessibleName = "Max Ultra MCP restore mini-panel"
                 restoreBubbleSurface.Location = dotNetObject "System.Drawing.Point" 1 1
                 restoreBubbleSurface.Size = dotNetObject "System.Drawing.Size" 234 62
-                restoreBubbleSurface.BackColor = themeDrawingColor #background 68 68 68
-                restoreBubbleSurface.AccessibleName = "Max Ultra MCP restore mini-panel surface inside a one-pixel black border"
+                restoreBubbleSurface.BackColor = MaxUltraMcpTheme.backgroundColor
+                restoreBubbleSurface.AccessibleName = "Max Ultra MCP restore mini-panel surface inside a one-pixel theme outline"
                 restoreBubbleLabel.Text = "Max Ultra MCP"
                 restoreBubbleLabel.Location = dotNetObject "System.Drawing.Point" 7 4
                 restoreBubbleLabel.Size = dotNetObject "System.Drawing.Size" 220 18
                 restoreBubbleLabel.BackColor = restoreBubbleSurface.BackColor
-                restoreBubbleLabel.ForeColor = themeDrawingColor #text 220 220 220
+                restoreBubbleLabel.ForeColor = MaxUltraMcpTheme.textColor
+                restoreBubbleLabel.AutoSize = false
+                restoreBubbleLabel.UseCompatibleTextRendering = false
+                MaxUltraMcpUiKit.applyIndependentBoldFont restoreBubbleLabel
                 restoreBubbleLabel.TabStop = false
                 restoreBubbleLabel.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeAll
                 restoreBubbleLabel.AccessibleDescription = "Drag to move the Max Ultra MCP restore mini-panel"
@@ -1947,13 +2676,9 @@ global MaxUltraMcpActiveClient
                 restoreBubbleButton.AccessibleName = "Expand MCP Server"
                 restoreBubbleButton.Location = dotNetObject "System.Drawing.Point" 7 26
                 restoreBubbleButton.Size = dotNetObject "System.Drawing.Size" 220 29
-                restoreBubbleButton.FlatStyle = (dotNetClass "System.Windows.Forms.FlatStyle").Flat
-                restoreBubbleButton.FlatAppearance.BorderSize = 1
-                restoreBubbleButton.FlatAppearance.BorderColor = (dotNetClass "System.Drawing.Color").Black
-                restoreBubbleButton.BackColor = lighterThemeSurface()
-                restoreBubbleButton.ForeColor = statusTextColor()
-                local boldFontStyle = (dotNetClass "System.Drawing.FontStyle").Bold
-                restoreBubbleButton.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 9.0 boldFontStyle
+                MaxUltraMcpUiKit.styleButton restoreBubbleButton baseColorValue: (statusTextColor())
+                MaxUltraMcpUiKit.applyIndependentBoldFont restoreBubbleButton
+                restoreBubbleButton.ForeColor = MaxUltraMcpTheme.textColor
                 dotNet.addEventHandler restoreBubbleLabel "MouseDown" handleRestoreBubbleMouseDown
                 dotNet.addEventHandler restoreBubbleLabel "MouseMove" handleRestoreBubbleMouseMove
                 dotNet.addEventHandler restoreBubbleLabel "MouseUp" handleRestoreBubbleMouseUp
@@ -1975,7 +2700,12 @@ global MaxUltraMcpActiveClient
             if (isDisposed or restoreBubbleForm == undefined or restoreBubbleButton == undefined) do return false
             try (
                 if (restoreBubbleForm.IsDisposed or restoreBubbleButton.IsDisposed) do return false
-                restoreBubbleButton.ForeColor = statusTextColor()
+                local bubbleStatusColor = statusTextColor()
+                local controlPaintClass = dotNetClass "System.Windows.Forms.ControlPaint"
+                restoreBubbleButton.BackColor = bubbleStatusColor
+                restoreBubbleButton.ForeColor = MaxUltraMcpTheme.textColor
+                restoreBubbleButton.FlatAppearance.MouseOverBackColor = controlPaintClass.Light bubbleStatusColor
+                restoreBubbleButton.FlatAppearance.MouseDownBackColor = controlPaintClass.Dark bubbleStatusColor
                 restoreBubbleButton.AccessibleDescription = "Connection status: " + connectionStateText()
                 restoreBubbleButton.Refresh()
                 return true
@@ -1989,8 +2719,15 @@ global MaxUltraMcpActiveClient
             pollTimer = undefined
             if (timerToDispose == undefined) do return true
             try (timerToDispose.Stop()) catch ()
-            try (dotNet.removeEventHandler timerToDispose "Tick" handleTimerTick) catch ()
+            try (dotNet.removeEventHandlers timerToDispose "Tick") catch ()
             try (timerToDispose.Dispose()) catch ()
+            return true
+        ),
+
+        fn disposePanelToolTip = (
+            local tooltipToDispose = panelToolTip
+            panelToolTip = undefined
+            try (if (tooltipToDispose != undefined) do tooltipToDispose.Dispose()) catch ()
             return true
         ),
 
@@ -2001,17 +2738,18 @@ global MaxUltraMcpActiveClient
             pendingConnectOnly = false
             panelCloseInProgress = true
             stopPollTimer()
-            if (formSender != undefined) do (
-                try (
-                    local finalGeometry = capturePanelGeometry formSender
-                    persistPanelGeometry finalGeometry[1] finalGeometry[2]
-                    persistPanelHiddenState false
-                ) catch (
-                    try (format "[3DGROUND | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
-                )
+            try (
+                local finalGeometry = capturePanelGeometry formSender
+                persistPanelGeometry finalGeometry[1] finalGeometry[2]
+                persistPanelHiddenState false
+            ) catch (
+                try (format "[3DGROUND | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
             )
             disposeSettingsDialog()
+            disposeOnboardingDialog()
             disposeRestoreBubble()
+            releasePanelIconImages()
+            disposePanelToolTip()
             if (suppressPanelShutdown or wasAlreadyDisposed) do return true
             connectionState = #stopped
             launchDetachedShutdownHelper()
@@ -2035,9 +2773,14 @@ global MaxUltraMcpActiveClient
         ),
 
         fn handlePanelRolloutClosed = (
-            if (suppressPanelShutdown or isDisposed or panelCloseInProgress) do return true
+            if (suppressPanelShutdown or isDisposed or panelCloseInProgress) do (
+                panelFloater = undefined
+                panelForm = undefined
+                return true
+            )
             local closedPanelForm = panelForm
             local cleanupResult = handlePanelFormClosing closedPanelForm undefined
+            panelFloater = undefined
             panelForm = undefined
             return cleanupResult
         ),
@@ -2050,16 +2793,32 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
+        fn configurePanelWindowChrome formSender = (
+            if (formSender == undefined) do return false
+            try (
+                formSender.FormBorderStyle = (dotNetClass "System.Windows.Forms.FormBorderStyle").FixedToolWindow
+                formSender.ControlBox = true
+                formSender.MinimizeBox = false
+                formSender.MaximizeBox = false
+                formSender.ShowIcon = false
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
         fn attachPanelFormClosing = (
             if (not panelIsOpen()) do return false
             try (
-                local dialogHandle = dotNetObject "System.IntPtr" statusDialog.hwnd
+                local dialogHandle = dotNetObject "System.IntPtr" panelFloater.hwnd
                 panelForm = (dotNetClass "System.Windows.Forms.Control").FromHandle dialogHandle
                 if (panelForm == undefined) do return false
+                configurePanelWindowChrome panelForm
                 detachPanelFormEvents panelForm
                 dotNet.addEventHandler panelForm "FormClosing" handlePanelFormClosing
                 dotNet.addEventHandler panelForm "LocationChanged" handlePanelGeometryChanged
                 dotNet.addEventHandler panelForm "ResizeEnd" handlePanelGeometryChanged
+                try (panelForm.MinimumSize = MaxUltraMcpUiKit.size 680 600) catch ()
                 applyProductVersionToUi()
                 rememberNormalPanelGeometry panelForm
                 return true
@@ -2074,32 +2833,42 @@ global MaxUltraMcpActiveClient
             applyProductVersionToUi()
             local miniPanelRefreshed = refreshRestoreBubbleStatus()
             if (not panelIsOpen()) do return miniPanelRefreshed
-            local statusText = "Status: " + connectionStateText()
-            if (connectionState == #error and connectionError != "") do statusText += " - " + connectionError
-            statusDialog.lblStatus.Text = statusText
-            statusDialog.lblStatus.ForeColor = statusTextColor()
-            statusDialog.lblStatus.AccessibleName = "Max Ultra MCP connection status"
-            statusDialog.lblStatus.AccessibleDescription = statusText
-            local contextText = "Server " + hostAddress + ":" + (hostPort as string) + " | Max " + (currentMaxYear() as string) + " PID " + (processId as string)
-            contextText += " | Scene " + currentSceneDisplayName() + " | Objects " + (objects.count as string) + " | Selection " + (selection.count as string) + " | Dirty " + jsonBoolean(isSceneSaveRequired())
-            statusDialog.lblContext.Text = contextText
-            statusDialog.lblContext.ForeColor = themeDrawingColor #text 220 220 220
-            statusDialog.lblContext.AccessibleName = "Max Ultra MCP server and scene context"
-            statusDialog.lblContext.AccessibleDescription = contextText
-            statusDialog.btnStop.enabled = not isStopped
-            statusDialog.btnStart.enabled = isStopped
+            refreshAiStatusControls()
+            local endpointText = ""
+            case connectionState of (
+                #connected: endpointText = "Server " + hostAddress + ":" + (hostPort as string)
+                #starting: endpointText = "Starting local MCP server..."
+                #connecting: endpointText = "Connecting to local MCP server..."
+                #reconnecting: endpointText = "Reconnecting to the running MCP server..."
+                #restarting: endpointText = "Restarting the verified local MCP server..."
+                #error: endpointText = safeSingleLineUiText connectionError "MCP bridge error"
+                default: endpointText = safeSingleLineUiText connectionError "MCP bridge is stopped"
+            )
+            local connectionColor = statusTextColor()
+            serverStatusDialog.lblConnectionIndicator.ForeColor = connectionColor
+            serverStatusDialog.lblConnectionIndicator.AccessibleDescription = connectionStateText()
+            serverStatusDialog.lblEndpoint.Text = endpointText
+            serverStatusDialog.lblEndpoint.ForeColor = connectionColor
+            serverStatusDialog.lblEndpoint.AccessibleDescription = endpointText
+            local contextText = "PID " + (processId as string) + " | Scene " + currentSceneUiName() + " | Objects " + (objects.count as string) + " | Selection " + (selection.count as string)
+            serverStatusDialog.lblContext.Text = contextText
+            serverStatusDialog.lblContext.ForeColor = MaxUltraMcpTheme.textColor
+            serverStatusDialog.lblContext.AccessibleDescription = contextText
+            if (panelToolTip != undefined) do (
+                panelToolTip.SetToolTip serverStatusDialog.lblEndpoint endpointText
+                panelToolTip.SetToolTip serverStatusDialog.lblContext contextText
+            )
+            MaxUltraMcpUiKit.updateButtonState activityDialog.btnStop (not isStopped)
+            MaxUltraMcpUiKit.updateButtonState activityDialog.btnReconnect (connectionState != #reconnecting)
             if (activityLogDirty) do refreshActivityText()
             return true
         ),
 
         fn showPanel = (
             if (isDisposed) do return false
-            if (not panelIsOpen()) then (
-                if (not (restoreHiddenPanel())) do return false
-            ) else (
-                try (if (panelForm != undefined) do panelForm.Show()) catch ()
-                disposeRestoreBubble()
-            )
+            if (not (restoreHiddenPanel())) do return false
+            attachPanelFormClosing()
+            resizePanelControls panelFloater.size
             refreshUserInterface()
             return true
         ),
@@ -2121,18 +2890,13 @@ global MaxUltraMcpActiveClient
                         addActivity "error" "Could not create the restore mini-panel; the MCP Server panel was shown again"
                         return false
                     )
-                    detachPanelFormEvents panelForm
-                    suppressPanelShutdown = true
-                    destroyDialog statusDialog
-                    suppressPanelShutdown = false
-                    panelForm = undefined
-                    if (panelIsOpen()) do throw "The native MCP Server rollout did not close"
+                    panelFloater.visible = false
+                    if (panelIsVisible()) do throw "The Max Ultra MCP floater remained visible"
                     addActivity "info" "Panel hidden; use the lower-left Expand MCP Server mini-panel to restore it"
                 ) catch (
-                    suppressPanelShutdown = false
                     persistPanelHiddenState false
                     disposeRestoreBubble()
-                    try (if (panelIsOpen()) do attachPanelFormClosing()) catch ()
+                    try (if (panelIsOpen()) do panelFloater.visible = true) catch ()
                     addActivity "error" ("Could not hide panel: " + (getCurrentException() as string))
                     return false
                 )
@@ -2157,7 +2921,7 @@ global MaxUltraMcpActiveClient
             connectionState = #stopped
             refreshUserInterface()
             if (panelIsOpen()) then (
-                destroyDialog statusDialog
+                closeRolloutFloater panelFloater
             ) else (
                 handlePanelFormClosing panelForm undefined
             )
@@ -2168,7 +2932,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (not (showPanel())) do return false
             try (
-                windows.sendMessage statusDialog.hwnd 0x0112 0xF020 0
+                panelFloater.placementName = #minimized
                 return true
             ) catch (
                 return false
@@ -2179,7 +2943,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (not (showPanel())) do return false
             try (
-                windows.sendMessage statusDialog.hwnd 0x0112 0xF120 0
+                panelFloater.placementName = #normal
             ) catch (
             )
             refreshUserInterface()
@@ -2667,6 +3431,7 @@ global MaxUltraMcpActiveClient
                     hasConnectedThisSession = true
                     connectionState = #connected
                     connectionError = ""
+                    armSupportReminders()
                     addActivity "success" ("Connected to local MCP server at " + hostAddress + ":" + (hostPort as string))
                 )
                 "server_ready": addActivity "success" "Local MCP server health check passed"
@@ -3145,10 +3910,8 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeForReload = (
-            if (isDisposed) do (
-                stopPollTimer()
-                return true
-            )
+            if (disposeInProgress) do return true
+            disposeInProgress = true
             isDisposed = true
             isStopped = true
             pendingConnectOnly = false
@@ -3156,6 +3919,7 @@ global MaxUltraMcpActiveClient
             disposeSettingsDialog()
             disposeOnboardingDialog()
             disposeRestoreBubble()
+            releasePanelIconImages()
             try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
             local integrationProcessFinished = true
             try (if (integrationProcess != undefined) do integrationProcessFinished = integrationProcess.HasExited) catch ()
@@ -3163,6 +3927,9 @@ global MaxUltraMcpActiveClient
             integrationProcess = undefined
             integrationBusy = false
             integrationAutomaticCheck = false
+            integrationAutomaticCheckPending = false
+            integrationAutomaticCheckDueAt = undefined
+            integrationOperationStartedAt = undefined
             try (
                 if (updateProcess != undefined and not updateProcess.HasExited) do updateProcess.Kill()
             ) catch ()
@@ -3178,18 +3945,22 @@ global MaxUltraMcpActiveClient
             cancelledRequestIds = #()
             try (
                 if (panelIsOpen()) do (
+                    detachPanelFormEvents panelForm
                     suppressPanelShutdown = true
-                    if (panelForm != undefined) then panelForm.Close() else destroyDialog statusDialog
+                    closeRolloutFloater panelFloater
                     suppressPanelShutdown = false
                 )
             ) catch (
                 suppressPanelShutdown = false
             )
             detachPanelFormEvents panelForm
+            disposePanelToolTip()
+            panelFloater = undefined
             panelForm = undefined
             transportWorker = undefined
             transportWorkerArguments = undefined
             try (callbacks.removeScripts id: maxShutdownCallbackId) catch ()
+            disposeInProgress = false
             return true
         ),
 
@@ -3223,7 +3994,7 @@ global MaxUltraMcpActiveClient
                 connectionState = #error
                 connectionError = getCurrentException() as string
             )
-            addActivity "info" "Connect-only retry requested; a stopped server will not be launched"
+            addActivity "info" "Reconnect requested; a stopped server will not be launched"
             refreshUserInterface()
             return true
         ),
@@ -3232,8 +4003,10 @@ global MaxUltraMcpActiveClient
             if (isDisposed or pollTimer == undefined or timerSender != pollTimer) do return true
             try (
                 tickCount += 1
+                runPendingAutomaticOnboardingCheck()
                 pollIntegrationOperation()
                 pollUpdateOperation()
+                pollSupportReminder()
                 local handledInboundLines = 0
                 while (inboundQueue != undefined and inboundQueue.Count > 0 and handledInboundLines < maximumInboundLinesPerTick) do (
                     handleInboundLine (inboundQueue.Dequeue())
@@ -3273,6 +4046,8 @@ global MaxUltraMcpActiveClient
             isStopped = false
             pendingConnectOnly = false
             hasConnectedThisSession = false
+            supportReminderCount = 0
+            supportReminderDueAt = undefined
             shutdownHelperStarted = false
             connectionState = #starting
             connectionError = ""
@@ -3290,18 +4065,16 @@ global MaxUltraMcpActiveClient
                 if (loadAutomaticUpdateSetting()) do startUpdateCheck automaticCheck: true
             ) catch (
                 local timerStartFailure = getCurrentException() as string
-                isDisposed = true
-                isStopped = true
-                stopPollTimer()
-                try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
                 try (format "[3DGROUND | Max Ultra MCP] TIMER START ERROR | %\n" timerStartFailure) catch ()
+                try (disposeForReload()) catch ()
+                MaxUltraMcpActiveClient = undefined
                 return false
             )
             return true
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpStatusDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog restartExistingServer: restartServerForReload
+    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpAiStatusDialog serverStatusDialog: MaxUltraMcpServerStatusDialog activityDialog: MaxUltraMcpActivityDialog supportDialog: MaxUltraMcpSupportDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog restartExistingServer: restartServerForReload
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient

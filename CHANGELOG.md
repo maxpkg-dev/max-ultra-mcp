@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Fixed: 3ds Max 2022 no longer routes server and mini-panel labels through the fragile compatible GDI+ `MeasureString` path. Bold controls now own independent rooted fonts, preventing the `Parameter is not valid` paint exception after reload or garbage collection.
+- Improved: The main panel now uses four resizable borderless rollout zones with a shared ColorMan-aware WinForms style, a dedicated AI readiness strip, concise server context, full-width Activity area, and an accented support footer.
+- Improved: The main floater now uses compact fixed toolbox chrome with mouse resizing disabled, no icon, Minimize, or Maximize buttons, and only the close action visible; programmatic minimize/restore remains supported.
+- Changed: Legacy saved panel dimensions are normalized to the fixed 720×640 content size so an earlier stretched window cannot reopen oversized; position and Hide state remain persistent.
+- Improved: The main AI strip now uses one aggregate status button that names ready clients and does not present an unused optional client as a separate red requirement.
+- Improved: The separate main-panel **AI setup** button was removed; the fixed-width aggregate status now opens Setup directly and displays **Click to set up AI agent** when no client is ready.
+- Fixed: Every rollout now tracks the live floater client width, the Activity log has a five-pixel top inset, native window chrome is excluded from rollout height, and transparent Server/footer controls inherit their rollout background without obscuring sibling controls.
+- Fixed: Server labels and footer links now use the actual opaque background exposed by their rollout parent chain, falling back to the ColorMan rollout color only when the host exposes no usable value.
+- Fixed: Custom bold UI font lifetime is retained by the bridge; labels are reset to the system font before the reference is released, and the shared Font is never manually disposed while Max can still paint a rollout control.
+- Fixed: Repeated panel configuration no longer disposes and recreates live GDI+ icon bitmaps, preventing the WinForms `Parameter is not valid` paint exception.
+- Fixed: Initial panel display no longer runs the complete WinForms configuration a second time after floater creation.
+- Fixed: Rollout labels reject unrelated system-white `Parent.BackColor` values and use the ColorMan rollout fallback unless a parent color is consistent with the active Max theme.
+- Changed: The redundant Connect only action was removed; Reconnect remains the explicit retry for an already-running daemon.
+- Improved: ChatGPT Desktop/Codex and Claude Code registration readiness is checked once two seconds after startup with a 30-second timeout, while a centered dependency-free Lucide `refresh-cw` vector icon starts an immediate check, inconclusive failures stay visible without opening setup, and onboarding dismissal suppresses only automatic setup opening.
+- Improved: Hide preserves geometry and makes the live rollout floater invisible without stopping the bridge; Expand reuses that floater and recreates it from saved geometry only when necessary.
+- Improved: The restore mini-panel now uses bold system text and a high-contrast connection-colored action background; the main Server endpoint/problem text is bold as well.
+- Added: The Activity log can show up to three highlighted support reminders per bridge session, beginning ten minutes after the first successful connection and continuing at hourly absolute deadlines that Hide and Reconnect do not reset.
+- Improved: The Activity log now keeps three empty display lines below the latest entry and inserts new text before them for more comfortable end scrolling, without adding padding to protocol responses.
+- Improved: The Activity RichTextBox now uses six-pixel native RichEdit margins on both horizontal sides instead of relying on the ineffective WinForms `Padding` property.
 - Added: A local ChatGPT and Codex plugin packages all Max Ultra workflow skills so natural 3ds Max requests route to the registered MCP tools.
 - Fixed: The natural workflow skill now uses readable examples and explicitly applies to requests in any user language.
 - Added: A client-neutral read-only diagnostics CLI discovers packaged skills, checks live health and capabilities, audits Codex and Claude Code registration, and prints setup commands without changing client configuration or 3ds Max scenes.

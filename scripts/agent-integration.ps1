@@ -16,6 +16,10 @@ $ErrorActionPreference = 'Stop'
 $serverName = 'max-ultra-mcp'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $serverPath = Join-Path $projectRoot 'core\server.js'
+$statusCheckDeadlineUtc = [DateTime]::UtcNow.AddSeconds(30)
+$clientCommandTimeoutMilliseconds = 10000
+$nodeProbeTimeoutMilliseconds = 5000
+$installDeadlineUtc = [DateTime]::UtcNow.AddSeconds(90)
 
 function ConvertTo-IniValue([object]$Value) {
     if ($null -eq $Value) { return '' }
@@ -40,7 +44,119 @@ function Write-IntegrationResult([hashtable]$Sections) {
     Move-Item -LiteralPath $temporaryPath -Destination $resolvedResultPath -Force
 }
 
-function Resolve-NodeRuntime {
+function ConvertTo-ProcessArgument([string]$ArgumentValue) {
+    if ($null -eq $ArgumentValue -or $ArgumentValue.Length -eq 0) { return '""' }
+    if ($ArgumentValue -notmatch '[\s"]') { return $ArgumentValue }
+
+    $quotedArgument = New-Object Text.StringBuilder
+    [void]$quotedArgument.Append('"')
+    $backslashCount = 0
+    foreach ($argumentCharacter in $ArgumentValue.ToCharArray()) {
+        if ($argumentCharacter -eq [char]'\') {
+            $backslashCount++
+            continue
+        }
+        if ($argumentCharacter -eq [char]'"') {
+            if ($backslashCount -gt 0) { [void]$quotedArgument.Append([char]'\', ($backslashCount * 2)) }
+            [void]$quotedArgument.Append('\"')
+            $backslashCount = 0
+            continue
+        }
+        if ($backslashCount -gt 0) {
+            [void]$quotedArgument.Append([char]'\', $backslashCount)
+            $backslashCount = 0
+        }
+        [void]$quotedArgument.Append($argumentCharacter)
+    }
+    if ($backslashCount -gt 0) { [void]$quotedArgument.Append([char]'\', ($backslashCount * 2)) }
+    [void]$quotedArgument.Append('"')
+    return $quotedArgument.ToString()
+}
+
+function Get-RemainingTimeoutMilliseconds([DateTime]$DeadlineUtc, [int]$MaximumWaitMilliseconds) {
+    $remainingMilliseconds = [Math]::Floor(($DeadlineUtc - [DateTime]::UtcNow).TotalMilliseconds)
+    if ($remainingMilliseconds -le 0) { return 0 }
+    return [int][Math]::Min($remainingMilliseconds, $MaximumWaitMilliseconds)
+}
+
+function Stop-ExternalCommandProcess([Diagnostics.Process]$CommandProcess) {
+    if ($null -eq $CommandProcess) { return }
+    try { if ($CommandProcess.HasExited) { return } } catch { return }
+
+    try {
+        $taskKillPath = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+        if (Test-Path -LiteralPath $taskKillPath -PathType Leaf) {
+            $stopInfo = New-Object Diagnostics.ProcessStartInfo
+            $stopInfo.FileName = $taskKillPath
+            $stopInfo.Arguments = "/PID $($CommandProcess.Id) /T /F"
+            $stopInfo.UseShellExecute = $false
+            $stopInfo.CreateNoWindow = $true
+            $stopInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+            $stopInfo.RedirectStandardOutput = $true
+            $stopInfo.RedirectStandardError = $true
+            $stopProcess = [Diagnostics.Process]::Start($stopInfo)
+            if ($null -ne $stopProcess) {
+                [void]$stopProcess.WaitForExit(3000)
+                $stopProcess.Dispose()
+            }
+        }
+    } catch {}
+
+    try { if (-not $CommandProcess.HasExited) { $CommandProcess.Kill() } } catch {}
+    try { [void]$CommandProcess.WaitForExit(2000) } catch {}
+}
+
+function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments, [DateTime]$DeadlineUtc, [int]$MaximumWaitMilliseconds) {
+    $waitMilliseconds = Get-RemainingTimeoutMilliseconds $DeadlineUtc $MaximumWaitMilliseconds
+    if ($waitMilliseconds -le 0) {
+        return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
+    }
+
+    $commandProcess = $null
+    try {
+        $startInfo = New-Object Diagnostics.ProcessStartInfo
+        $commandExtension = [IO.Path]::GetExtension($CommandPath).ToLowerInvariant()
+        if ($commandExtension -eq '.cmd' -or $commandExtension -eq '.bat') {
+            $startInfo.FileName = if ([string]::IsNullOrWhiteSpace($env:ComSpec)) { 'cmd.exe' } else { $env:ComSpec }
+            $commandLine = @((ConvertTo-ProcessArgument $CommandPath)) + @($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ })
+            $startInfo.Arguments = '/d /s /c call ' + ($commandLine -join ' ')
+        } else {
+            $startInfo.FileName = $CommandPath
+            $startInfo.Arguments = (@($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join ' ')
+        }
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+
+        $commandProcess = New-Object Diagnostics.Process
+        $commandProcess.StartInfo = $startInfo
+        if (-not $commandProcess.Start()) {
+            return @{ ExitCode = -1; Output = ''; TimedOut = $false; InvocationFailed = $true }
+        }
+        $standardOutputTask = $commandProcess.StandardOutput.ReadToEndAsync()
+        $standardErrorTask = $commandProcess.StandardError.ReadToEndAsync()
+        if (-not $commandProcess.WaitForExit($waitMilliseconds)) {
+            Stop-ExternalCommandProcess $commandProcess
+            return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
+        }
+        $commandProcess.WaitForExit()
+        $outputParts = New-Object System.Collections.Generic.List[string]
+        if ($standardOutputTask.IsCompleted -and -not [string]::IsNullOrWhiteSpace($standardOutputTask.Result)) { $outputParts.Add($standardOutputTask.Result) }
+        if ($standardErrorTask.IsCompleted -and -not [string]::IsNullOrWhiteSpace($standardErrorTask.Result)) { $outputParts.Add($standardErrorTask.Result) }
+        $outputText = (($outputParts.ToArray() -join ' ') -replace '[\r\n]+', ' ').Trim()
+        if ($outputText.Length -gt 65536) { $outputText = $outputText.Substring(0, 65536) }
+        return @{ ExitCode = $commandProcess.ExitCode; Output = $outputText; TimedOut = $false; InvocationFailed = $false }
+    } catch {
+        Stop-ExternalCommandProcess $commandProcess
+        return @{ ExitCode = -1; Output = ''; TimedOut = $false; InvocationFailed = $true }
+    } finally {
+        if ($null -ne $commandProcess) { try { $commandProcess.Dispose() } catch {} }
+    }
+}
+
+function Resolve-NodeRuntime([DateTime]$DeadlineUtc) {
     $candidates = New-Object System.Collections.Generic.List[string]
     $candidates.Add((Join-Path $projectRoot 'runtime\win-x64\node.exe'))
     $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -59,26 +175,15 @@ function Resolve-NodeRuntime {
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
         if ([string]::IsNullOrWhiteSpace($candidate) -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
         try {
-            $versionText = & $candidate -p 'process.versions.node' 2>$null | Select-Object -First 1
-            if ([Version]$versionText -ge [Version]'22.0.0') { return $candidate }
+            $versionProbe = Invoke-ExternalCommand $candidate @('-p','process.versions.node') $DeadlineUtc $nodeProbeTimeoutMilliseconds
+            if ($versionProbe.TimedOut) { break }
+            if (-not $versionProbe.InvocationFailed -and $versionProbe.ExitCode -eq 0) {
+                $versionText = ($versionProbe.Output -split '\s+' | Select-Object -First 1)
+                if ([Version]$versionText -ge [Version]'22.0.0') { return $candidate }
+            }
         } catch {}
     }
     return $null
-}
-
-function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments) {
-    $output = @()
-    $exitCode = 1
-    try {
-        $output = & $CommandPath @Arguments 2>&1
-        $exitCode = $LASTEXITCODE
-    } catch {
-        $output = @($_.Exception.Message)
-    }
-    return @{
-        ExitCode = $exitCode
-        Output = (($output | ForEach-Object { $_.ToString() }) -join ' ').Trim()
-    }
 }
 
 function Resolve-ClientCommandPath([string]$ClientId, [string]$ExecutableName) {
@@ -124,7 +229,19 @@ function Test-StdioHostRestartRequired {
     catch { return $false }
 }
 
-function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$ExecutableName) {
+function New-ClientCheckFailedStatus([string]$ClientId, [string]$DisplayName, [string]$CommandPath, [bool]$TimedOut) {
+    return @{
+        Id = $ClientId
+        DisplayName = $DisplayName
+        CommandPath = $CommandPath
+        CliAvailable = $true
+        Configured = $false
+        State = 'check_failed'
+        Detail = if ($TimedOut) { "$DisplayName status check timed out." } else { "$DisplayName status check failed. Refresh status to retry." }
+    }
+}
+
+function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$ExecutableName, [DateTime]$DeadlineUtc) {
     $commandPath = Resolve-ClientCommandPath $ClientId $ExecutableName
     if ([string]::IsNullOrWhiteSpace($commandPath)) {
         $configuredWithoutCli = $false
@@ -149,11 +266,17 @@ function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$Exec
         }
     }
 
-    $probe = Invoke-ExternalCommand $commandPath @('mcp','get',$serverName)
+    $probe = Invoke-ExternalCommand $commandPath @('mcp','get',$serverName) $DeadlineUtc $clientCommandTimeoutMilliseconds
+    if ($probe.TimedOut -or $probe.InvocationFailed) {
+        return New-ClientCheckFailedStatus $ClientId $DisplayName $commandPath $probe.TimedOut
+    }
     $configured = $probe.ExitCode -eq 0
     if (-not $configured) {
-        $listProbe = Invoke-ExternalCommand $commandPath @('mcp','list')
-        $configured = $listProbe.ExitCode -eq 0 -and $listProbe.Output -match '(?im)^\s*max-ultra-mcp(?:\s|$)'
+        $listProbe = Invoke-ExternalCommand $commandPath @('mcp','list') $DeadlineUtc $clientCommandTimeoutMilliseconds
+        if ($listProbe.TimedOut -or $listProbe.InvocationFailed -or $listProbe.ExitCode -ne 0) {
+            return New-ClientCheckFailedStatus $ClientId $DisplayName $commandPath $listProbe.TimedOut
+        }
+        $configured = $listProbe.Output -match '(?im)^\s*max-ultra-mcp(?:\s|$)'
     }
     $restartRequired = $configured -and (Test-StdioHostRestartRequired)
     return @{
@@ -167,7 +290,7 @@ function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$Exec
     }
 }
 
-function Install-OpenAIClient([hashtable]$Status, [string]$NodePath) {
+function Install-OpenAIClient([hashtable]$Status, [string]$NodePath, [DateTime]$DeadlineUtc) {
     if (-not $Status.CliAvailable) { return $Status }
     if ([string]::IsNullOrWhiteSpace($NodePath) -or -not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
         $Status.State = 'runtime_missing'
@@ -175,15 +298,15 @@ function Install-OpenAIClient([hashtable]$Status, [string]$NodePath) {
         $Status.Detail = 'The MCP runtime or core/server.js is missing from this package.'
         return $Status
     }
-    Invoke-ExternalCommand $Status.CommandPath @('mcp','remove',$serverName) | Out-Null
-    $install = Invoke-ExternalCommand $Status.CommandPath @('mcp','add',$serverName,'--env',"MAX_ULTRA_MCP_TOOL_PROFILE=$Profile",'--',$NodePath,$serverPath,'--stdio')
-    $Status.Configured = $install.ExitCode -eq 0
+    Invoke-ExternalCommand $Status.CommandPath @('mcp','remove',$serverName) $DeadlineUtc $clientCommandTimeoutMilliseconds | Out-Null
+    $install = Invoke-ExternalCommand $Status.CommandPath @('mcp','add',$serverName,'--env',"MAX_ULTRA_MCP_TOOL_PROFILE=$Profile",'--',$NodePath,$serverPath,'--stdio') $DeadlineUtc $clientCommandTimeoutMilliseconds
+    $Status.Configured = -not $install.TimedOut -and -not $install.InvocationFailed -and $install.ExitCode -eq 0
     $Status.State = if ($Status.Configured) { 'configured' } else { 'install_failed' }
     $Status.Detail = if ($Status.Configured) { 'ChatGPT Desktop / Codex integration was installed.' } else { 'Installation failed. Run the client CLI manually for diagnostic output.' }
     return $Status
 }
 
-function Install-ClaudeCodeClient([hashtable]$Status, [string]$NodePath) {
+function Install-ClaudeCodeClient([hashtable]$Status, [string]$NodePath, [DateTime]$DeadlineUtc) {
     if (-not $Status.CliAvailable) { return $Status }
     if ([string]::IsNullOrWhiteSpace($NodePath) -or -not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
         $Status.State = 'runtime_missing'
@@ -191,22 +314,22 @@ function Install-ClaudeCodeClient([hashtable]$Status, [string]$NodePath) {
         $Status.Detail = 'The MCP runtime or core/server.js is missing from this package.'
         return $Status
     }
-    Invoke-ExternalCommand $Status.CommandPath @('mcp','remove',$serverName,'--scope','user') | Out-Null
-    $install = Invoke-ExternalCommand $Status.CommandPath @('mcp','add',$serverName,'--scope','user','--env',"MAX_ULTRA_MCP_TOOL_PROFILE=$Profile",'--',$NodePath,$serverPath,'--stdio')
-    $Status.Configured = $install.ExitCode -eq 0
+    Invoke-ExternalCommand $Status.CommandPath @('mcp','remove',$serverName,'--scope','user') $DeadlineUtc $clientCommandTimeoutMilliseconds | Out-Null
+    $install = Invoke-ExternalCommand $Status.CommandPath @('mcp','add',$serverName,'--scope','user','--env',"MAX_ULTRA_MCP_TOOL_PROFILE=$Profile",'--',$NodePath,$serverPath,'--stdio') $DeadlineUtc $clientCommandTimeoutMilliseconds
+    $Status.Configured = -not $install.TimedOut -and -not $install.InvocationFailed -and $install.ExitCode -eq 0
     $Status.State = if ($Status.Configured) { 'configured' } else { 'install_failed' }
     $Status.Detail = if ($Status.Configured) { 'Claude Code integration was installed for the current Windows user.' } else { 'Installation failed. Run the client CLI manually for diagnostic output.' }
     return $Status
 }
 
 try {
-    $nodePath = Resolve-NodeRuntime
-    $openAI = Get-ClientStatus 'openai' 'ChatGPT Desktop / Codex' 'codex'
-    $claudeCode = Get-ClientStatus 'claudeCode' 'Claude Code' 'claude'
+    $nodePath = Resolve-NodeRuntime $statusCheckDeadlineUtc
+    $openAI = Get-ClientStatus 'openai' 'ChatGPT Desktop / Codex' 'codex' $statusCheckDeadlineUtc
+    $claudeCode = Get-ClientStatus 'claudeCode' 'Claude Code' 'claude' $statusCheckDeadlineUtc
 
     if ($Action -eq 'Install') {
-        if ($InstallOpenAI) { $openAI = Install-OpenAIClient $openAI $nodePath }
-        if ($InstallClaudeCode) { $claudeCode = Install-ClaudeCodeClient $claudeCode $nodePath }
+        if ($InstallOpenAI) { $openAI = Install-OpenAIClient $openAI $nodePath $installDeadlineUtc }
+        if ($InstallClaudeCode) { $claudeCode = Install-ClaudeCodeClient $claudeCode $nodePath $installDeadlineUtc }
     }
 
     $runtimeReady = -not [string]::IsNullOrWhiteSpace($nodePath) -and (Test-Path -LiteralPath $serverPath -PathType Leaf)
