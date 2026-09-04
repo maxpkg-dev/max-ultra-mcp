@@ -383,7 +383,7 @@ global MaxUltraMcpActiveClient
 
     rollout MaxUltraMcpActivityDialog "" width: 720 height: 484 (
         dotNetControl pnlActivityOutline "System.Windows.Forms.Panel" pos: [0,5] width: 720 height: 433
-        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [1,1] width: 718 height: 431
+        dotNetControl rtbActivity "System.Windows.Forms.RichTextBox" pos: [0,0] width: 718 height: 431
         dotNetControl btnReconnect "System.Windows.Forms.Button" pos: [8,446] width: 120 height: 30
         dotNetControl btnStop "System.Windows.Forms.Button" pos: [134,446] width: 120 height: 30
         dotNetControl btnSettings "System.Windows.Forms.Button" pos: [592,446] width: 120 height: 30
@@ -904,7 +904,7 @@ global MaxUltraMcpActiveClient
         fn configureActivityLog = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                activityDialog.pnlActivityOutline.BackColor = MaxUltraMcpTheme.outlineColor
+                activityDialog.pnlActivityOutline.BackColor = lighterThemeSurface()
                 activityDialog.pnlActivityOutline.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
                 if (activityDialog.rtbActivity.Parent != activityDialog.pnlActivityOutline) do activityDialog.pnlActivityOutline.Controls.Add activityDialog.rtbActivity
                 activityDialog.rtbActivity.Location = MaxUltraMcpUiKit.point 1 1
