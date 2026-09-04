@@ -742,13 +742,13 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rollout MaxUltraMcpSupportDialog "" width: 720 height: 44/);
     const dotNetButtonNames = [
       "btnAiStatus", "btnRefreshAgents", "btnHide",
-      "btnReconnect", "btnStop", "btnSettings", "btnDonate", "btnCheckUpdates", "btnAgentSetup",
+      "btnReconnect", "btnStop", "btnSettings", "btnDonate", "btnCheckUpdates", "btnAgentSetup", "btnAboutDonate",
       "btnInstallAgents", "btnCopyManual", "btnCopyTestPrompt",
     ];
     for (const buttonName of dotNetButtonNames) {
       assert.match(bootstrapSource, new RegExp(`dotNetControl ${buttonName} "System\\.Windows\\.Forms\\.Button"`));
     }
-    for (const linkName of ["lnkMaxPkg", "lnk3DGround", "lnkAboutWebsite", "lnkAboutPackageManager"]) {
+    for (const linkName of ["lnkMaxPkg", "lnk3DGround"]) {
       assert.match(bootstrapSource, new RegExp(`dotNetControl ${linkName} "System\\.Windows\\.Forms\\.LinkLabel"`));
     }
     assert.doesNotMatch(bootstrapSource, /(?:button|dotNetControl)\s+btn(?:ConnectOnly|Start)\b|["']Connect only["']/i);
@@ -825,27 +825,32 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /groupBox grpUpdates "Updates" pos: \[12,146\] width: 356 height: 94/);
     assert.match(bootstrapSource, /checkbox chkAutomaticUpdates "Check and install updates automatically"/);
     assert.match(bootstrapSource, /settingsDialog\.btnCheckUpdates\.Text = "Check now"/);
-    assert.match(bootstrapSource, /groupBox grpAbout "About" pos: \[12,320\] width: 356 height: 96/);
-    assert.match(bootstrapSource, /label lblAboutVersion "Version"/);
+    assert.match(bootstrapSource, /groupBox grpAbout "About" pos: \[12,320\] width: 356 height: 184/);
+    assert.match(bootstrapSource, /label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: \[24,342\] width: 332 height: 18 align: #center/);
+    assert.match(bootstrapSource, /label lblAboutVersion "Unknown" pos: \[24,362\] width: 332 height: 18 align: #center/);
+    assert.match(bootstrapSource, /label lblAboutAuthor "Lukianenko Vasyl" pos: \[24,382\] width: 332 height: 18 align: #center/);
+    assert.match(bootstrapSource, /hyperLink lnkAboutWebsite "3dground\.net" address: "https:\/\/3dground\.net" pos: \[24,406\] width: 332 height: 18 align: #center color: orange hoverColor: orange visitedColor: orange/);
+    assert.match(bootstrapSource, /hyperLink lnkAboutPackageManager "maxpkg\.dev" address: "https:\/\/maxpkg\.dev" pos: \[24,428\] width: 332 height: 18 align: #center color: orange hoverColor: orange visitedColor: orange/);
+    assert.doesNotMatch(bootstrapSource, /dotNetControl lnkAbout(?:Website|PackageManager)/);
+    assert.match(bootstrapSource, /dotNetControl btnAboutDonate "System\.Windows\.Forms\.Button" pos: \[130,458\] width: 120 height: 30/);
     assert.match(bootstrapSource, /readIniValueWithoutMutation manifestFilePath "package" "version"/);
     assert.match(bootstrapSource, /readIniValueWithoutMutation versionFilePath "MaxUltraMCP" "Version"/);
     assert.match(bootstrapSource, /\(dotNetClass "System\.IO\.File"\)\.ReadAllText filePath/);
     assert.doesNotMatch(bootstrapSource, /getINISetting (manifestFilePath|versionFilePath)/);
-    assert.match(bootstrapSource, /settingsDialog\.lblAboutVersion\.text = "Version: " \+ productVersion/);
+    assert.match(bootstrapSource, /settingsDialog\.lblAboutVersion\.caption = productVersion/);
     assert.match(bootstrapSource, /local activityLabel = if \(wireFields\.count >= 5\) then decodeWireField\(wireFields\[5\]\) else ""/);
     assert.match(bootstrapSource, /operationLabel \+ " \[" \+ shortRequestId \+ "\]"/);
     assert.doesNotMatch(bootstrapSource, /Executing MaxScript request/);
-    assert.match(bootstrapSource, /label lblAboutAuthor "Author: Lukianenko Vasyl"/);
-    assert.match(bootstrapSource, /settingsDialog\.lnkAboutWebsite\.Text = "https:\/\/3dground\.net"/);
-    assert.match(bootstrapSource, /label lblAboutPackageManager "Package Manager:"/);
-    assert.match(bootstrapSource, /settingsDialog\.lnkAboutPackageManager\.Text = "maxpkg\.dev"/);
+    assert.match(bootstrapSource, /MaxUltraMcpUiKit\.styleButton settingsDialog\.btnAboutDonate baseColorValue: MaxUltraMcpTheme\.linkColor/);
+    assert.match(bootstrapSource, /settingsDialog\.btnAboutDonate\.Text = if \(donateIconImage == undefined\) then "Donate" else "  Donate"[\s\S]*settingsDialog\.btnAboutDonate\.Image = donateIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /on btnAboutDonate Click eventSender eventArgs do try \(shellLaunch "https:\/\/store\.payproglobal\.com\/checkout\?products\[1\]\[id\]=137366" ""\) catch \(\)/);
     assert.match(bootstrapSource, /checkbox chkAutostart "Autostart with 3ds Max"/);
     assert.match(bootstrapSource, /on chkAutostart changed isChecked do if \(bridgeClient != undefined\) do bridgeClient\.handleAutostartSettingChanged isChecked/);
     assert.match(bootstrapSource, /groupBox grpServerConsole "Server console" pos: \[12,78\] width: 356 height: 58/);
     assert.match(bootstrapSource, /checkbox chkShowServerConsole "Show server console when starting"/);
     assert.match(bootstrapSource, /on chkShowServerConsole changed isChecked do if \(bridgeClient != undefined\) do bridgeClient\.handleServerConsoleVisibilityChanged isChecked/);
     assert.doesNotMatch(bootstrapSource, /btnSave|on btnSave pressed|btnClose|on btnClose pressed/);
-    assert.match(bootstrapSource, /createDialog settingsDialog width: 380 height: 426/);
+    assert.match(bootstrapSource, /createDialog settingsDialog width: 380 height: 516/);
     assert.match(bootstrapSource, /settingsDialog\.btnAgentSetup\.Text = "Open AI client setup\.\.\."/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingTabsDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingSetupDialog ""/);
@@ -1318,7 +1323,7 @@ async function runSmokeTest() {
     assert.match(disposeToolTipBody, /local tooltipToDispose = panelToolTip[\s\S]*panelToolTip = undefined[\s\S]*tooltipToDispose\.Dispose\(\)/);
     assert.doesNotMatch(bootstrapSource, /boldUiFont|ensureBoldUiFont|disposeBoldUiFont/);
     const releasePanelIconImagesBody = sourceSection(bootstrapSource, "fn releasePanelIconImages", "fn ensurePanelIconImages", "safe panel icon release");
-    assert.match(releasePanelIconImagesBody, /btnRefreshAgents\.Image = undefined[\s\S]*btnHide\.Image = undefined[\s\S]*btnReconnect\.Image = undefined[\s\S]*btnStop\.Image = undefined[\s\S]*btnSettings\.Image = undefined[\s\S]*btnDonate\.Image = undefined[\s\S]*refreshIconImage = undefined[\s\S]*donateIconImage = undefined[\s\S]*hideIconImage = undefined[\s\S]*settingsIconImage = undefined[\s\S]*stopIconImage = undefined[\s\S]*reconnectIconImage = undefined/);
+    assert.match(releasePanelIconImagesBody, /btnRefreshAgents\.Image = undefined[\s\S]*btnHide\.Image = undefined[\s\S]*btnReconnect\.Image = undefined[\s\S]*btnStop\.Image = undefined[\s\S]*btnSettings\.Image = undefined[\s\S]*supportDialog\.btnDonate\.Image = undefined[\s\S]*settingsDialog\.btnAboutDonate\.Image = undefined[\s\S]*refreshIconImage = undefined[\s\S]*donateIconImage = undefined[\s\S]*hideIconImage = undefined[\s\S]*settingsIconImage = undefined[\s\S]*stopIconImage = undefined[\s\S]*reconnectIconImage = undefined/);
     assert.doesNotMatch(releasePanelIconImagesBody, /\.Dispose\(\)/);
     assert.match(formClosingBody, /disposeRestoreBubble\(\)[\s\S]*releasePanelIconImages\(\)[\s\S]*disposePanelToolTip\(\)/);
     assert.match(panelResizeBody, /if \(isDisposed or not panelIsOpen\(\) or panelLayoutInProgress\) do return false/);

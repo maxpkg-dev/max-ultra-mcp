@@ -368,7 +368,7 @@ global MaxUltraMcpActiveClient
         on btnDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
 
-    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 426 (
+    rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings" width: 380 height: 516 (
         groupBox grpAutostart "Autostart" pos: [12,10] width: 356 height: 58
         checkbox chkAutostart "Autostart with 3ds Max" pos: [24,34] width: 250 height: 20
         groupBox grpServerConsole "Server console" pos: [12,78] width: 356 height: 58
@@ -379,13 +379,13 @@ global MaxUltraMcpActiveClient
         dotNetControl lblUpdateStatus "System.Windows.Forms.Label" pos: [24,198] width: 332 height: 24
         groupBox grpAgents "AI client integration" pos: [12,250] width: 356 height: 60
         dotNetControl btnAgentSetup "System.Windows.Forms.Button" pos: [24,272] width: 210 height: 26
-        groupBox grpAbout "About" pos: [12,320] width: 356 height: 96
-        label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 190 height: 18
-        label lblAboutVersion "Version" pos: [250,342] width: 100 height: 18
-        label lblAboutAuthor "Author: Lukianenko Vasyl" pos: [24,366] width: 180 height: 18
-        dotNetControl lnkAboutWebsite "System.Windows.Forms.LinkLabel" pos: [214,364] width: 138 height: 20
-        label lblAboutPackageManager "Package Manager:" pos: [24,390] width: 104 height: 18
-        dotNetControl lnkAboutPackageManager "System.Windows.Forms.LinkLabel" pos: [132,388] width: 90 height: 20
+        groupBox grpAbout "About" pos: [12,320] width: 356 height: 184
+        label lblAboutProduct "3DGROUND - Max Ultra MCP" pos: [24,342] width: 332 height: 18 align: #center
+        label lblAboutVersion "Unknown" pos: [24,362] width: 332 height: 18 align: #center
+        label lblAboutAuthor "Lukianenko Vasyl" pos: [24,382] width: 332 height: 18 align: #center
+        hyperLink lnkAboutWebsite "3dground.net" address: "https://3dground.net" pos: [24,406] width: 332 height: 18 align: #center color: orange hoverColor: orange visitedColor: orange
+        hyperLink lnkAboutPackageManager "maxpkg.dev" address: "https://maxpkg.dev" pos: [24,428] width: 332 height: 18 align: #center color: orange hoverColor: orange visitedColor: orange
+        dotNetControl btnAboutDonate "System.Windows.Forms.Button" pos: [130,458] width: 120 height: 30
 
         on MaxUltraMcpSettingsDialog open do if (bridgeClient != undefined) do bridgeClient.refreshSettingsDialog()
         on chkAutostart changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutostartSettingChanged isChecked
@@ -393,8 +393,7 @@ global MaxUltraMcpActiveClient
         on chkAutomaticUpdates changed isChecked do if (bridgeClient != undefined) do bridgeClient.handleAutomaticUpdateSettingChanged isChecked
         on btnCheckUpdates Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.startUpdateCheck automaticCheck: false
         on btnAgentSetup Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showOnboardingDialog()
-        on lnkAboutWebsite LinkClicked eventSender eventArgs do try (shellLaunch "https://3dground.net" "") catch ()
-        on lnkAboutPackageManager LinkClicked eventSender eventArgs do try (shellLaunch "https://maxpkg.dev" "") catch ()
+        on btnAboutDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
     rollout MaxUltraMcpOnboardingTabsDialog "" width: 540 height: 36 (
         dotNetControl dncPages "System.Windows.Forms.TabControl" pos: [8,2] width: 524 height: 30
@@ -636,7 +635,7 @@ global MaxUltraMcpActiveClient
                     if (currentTitle != expectedTitle) do UIAccessor.SetWindowText panelFloater.hwnd expectedTitle
                 )
             ) catch ()
-            try (if (settingsOpen) do settingsDialog.lblAboutVersion.text = "Version: " + productVersion) catch ()
+            try (if (settingsOpen) do settingsDialog.lblAboutVersion.caption = productVersion) catch ()
             return true
         ),
 
@@ -1185,6 +1184,7 @@ global MaxUltraMcpActiveClient
             try (activityDialog.btnStop.Image = undefined) catch ()
             try (activityDialog.btnSettings.Image = undefined) catch ()
             try (supportDialog.btnDonate.Image = undefined) catch ()
+            try (settingsDialog.btnAboutDonate.Image = undefined) catch ()
             refreshIconImage = undefined
             donateIconImage = undefined
             hideIconImage = undefined
@@ -1911,14 +1911,18 @@ global MaxUltraMcpActiveClient
             try (
                 MaxUltraMcpUiKit.styleButton settingsDialog.btnCheckUpdates
                 MaxUltraMcpUiKit.styleButton settingsDialog.btnAgentSetup
-                MaxUltraMcpUiKit.styleLink settingsDialog.lnkAboutWebsite
-                MaxUltraMcpUiKit.styleLink settingsDialog.lnkAboutPackageManager
+                MaxUltraMcpUiKit.styleButton settingsDialog.btnAboutDonate baseColorValue: MaxUltraMcpTheme.linkColor
+                ensurePanelIconImages()
                 settingsDialog.btnCheckUpdates.Text = "Check now"
                 settingsDialog.btnAgentSetup.Text = "Open AI client setup..."
-                settingsDialog.lnkAboutWebsite.Text = "https://3dground.net"
-                settingsDialog.lnkAboutPackageManager.Text = "maxpkg.dev"
+                settingsDialog.btnAboutDonate.Text = if (donateIconImage == undefined) then "Donate" else "  Donate"
+                settingsDialog.btnAboutDonate.Image = donateIconImage
+                settingsDialog.btnAboutDonate.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                settingsDialog.btnAboutDonate.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                settingsDialog.btnAboutDonate.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 settingsDialog.btnCheckUpdates.AccessibleName = "Check for Max Ultra MCP updates"
                 settingsDialog.btnAgentSetup.AccessibleName = "Open AI client setup"
+                settingsDialog.btnAboutDonate.AccessibleName = "Donate to support Max Ultra MCP"
             ) catch ()
             try (settingsDialog.chkAutostart.checked = loadAutostartSetting()) catch ()
             try (settingsDialog.chkShowServerConsole.checked = loadServerConsoleVisibleSetting()) catch ()
@@ -1955,7 +1959,7 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (settingsDialogIsOpen()) do return true
             try (
-                createDialog settingsDialog width: 380 height: 426 style: #(#style_titlebar, #style_sysmenu)
+                createDialog settingsDialog width: 380 height: 516 style: #(#style_titlebar, #style_sysmenu)
                 return settingsDialogIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETTINGS ERROR | %\n" (getCurrentException() as string)
