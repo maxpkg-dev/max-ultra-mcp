@@ -318,7 +318,6 @@ global MaxUltraMcpActiveClient
         dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [462,7] width: 38 height: 30
         dotNetControl btnHide "System.Windows.Forms.Button" pos: [592,7] width: 120 height: 30
 
-        on MaxUltraMcpAiStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.handlePanelResized panelSize
         on MaxUltraMcpAiStatusDialog moved panelPosition do if (bridgeClient != undefined) do bridgeClient.handlePanelMoved panelPosition
         on MaxUltraMcpAiStatusDialog close do (
             enableAccelerators = true
@@ -331,8 +330,8 @@ global MaxUltraMcpActiveClient
 
     rollout MaxUltraMcpServerStatusDialog "" width: 720 height: 36 (
         dotNetControl lblConnectionIndicator "System.Windows.Forms.Label" pos: [8,6] width: 18 height: 24
-        dotNetControl lblEndpoint "System.Windows.Forms.Label" pos: [26,6] width: 244 height: 24
-        dotNetControl lblContext "System.Windows.Forms.Label" pos: [278,6] width: 394 height: 24
+        dotNetControl lblEndpoint "System.Windows.Forms.Label" pos: [26,6] width: 273 height: 24
+        dotNetControl lblContext "System.Windows.Forms.Label" pos: [307,6] width: 405 height: 24
     )
 
     rollout MaxUltraMcpActivityDialog "" width: 720 height: 484 (
@@ -461,7 +460,6 @@ global MaxUltraMcpActiveClient
         activityDialog,
         supportDialog,
         panelFloater,
-        panelLayoutInProgress = false,
         settingsDialog,
         onboardingTabsDialog,
         onboardingSetupDialog,
@@ -481,9 +479,7 @@ global MaxUltraMcpActiveClient
         stopIconImage,
         reconnectIconImage,
         hiddenPanelPosition,
-        hiddenPanelSize,
         lastNormalPanelPosition,
-        lastNormalPanelSize,
         restoreBubbleForm,
         restoreBubbleSurface,
         restoreBubbleLabel,
@@ -1308,165 +1304,50 @@ global MaxUltraMcpActiveClient
             )
         ),
 
-        fn resizePanelControls panelSize = (
-            if (isDisposed or not panelIsOpen() or panelLayoutInProgress) do return false
-            try (if (panelFloater.placementName == #minimized) do return true) catch ()
-            panelLayoutInProgress = true
-            try (
-                local resolvedPanelSize = panelSize
-                try (resolvedPanelSize = panelFloater.size) catch ()
-                if (resolvedPanelSize.x < 680 or resolvedPanelSize.y < 600) do (
-                    resolvedPanelSize = [amax 680 resolvedPanelSize.x, amax 600 resolvedPanelSize.y]
-                    try (panelFloater.size = resolvedPanelSize) catch ()
-                )
-                local panelWidth = amax 680 resolvedPanelSize.x
-                local panelHeight = amax 400 resolvedPanelSize.y
-                local floaterChromeHeight = 32
-                try (
-                    if (panelForm != undefined and panelForm.ClientSize.Width > 0 and panelForm.ClientSize.Height > 0) do (
-                        panelWidth = amax 680 (panelForm.ClientSize.Width as integer)
-                        local measuredChromeHeight = (panelForm.Height as integer) - (panelForm.ClientSize.Height as integer)
-                        if (measuredChromeHeight >= 0 and measuredChromeHeight < 200) do floaterChromeHeight = measuredChromeHeight
-                    )
-                ) catch ()
-                local aiZoneHeight = 44
-                local serverZoneHeight = 36
-                local supportZoneHeight = 44
-                local minimumActivityZoneHeight = 320
-                local rolloutContentHeight = amax (aiZoneHeight + serverZoneHeight + supportZoneHeight + minimumActivityZoneHeight) (panelHeight - floaterChromeHeight)
-                local activityZoneHeight = rolloutContentHeight - aiZoneHeight - serverZoneHeight - supportZoneHeight
-
-                statusDialog.width = panelWidth
-                serverStatusDialog.width = panelWidth
-                activityDialog.width = panelWidth
-                supportDialog.width = panelWidth
-                statusDialog.height = aiZoneHeight
-                serverStatusDialog.height = serverZoneHeight
-                activityDialog.height = activityZoneHeight
-                supportDialog.height = supportZoneHeight
-                updateRolloutLayout panelFloater forceUpdate: true
-
-                local hideButtonWidth = 120
-                local refreshButtonWidth = 38
-                local horizontalGap = 10
-                local statusButtonWidth = 444
-                local hideButtonX = panelWidth - 8 - hideButtonWidth
-                local refreshButtonX = 8 + statusButtonWidth + horizontalGap
-                statusDialog.btnAiStatus.pos = [8,7]
-                statusDialog.btnAiStatus.width = statusButtonWidth
-                statusDialog.btnRefreshAgents.pos = [refreshButtonX,7]
-                statusDialog.btnHide.pos = [hideButtonX,7]
-                statusDialog.btnHide.width = hideButtonWidth
-
-                local endpointWidth = amin 280 (amax 200 ((panelWidth * 0.38) as integer))
-                serverStatusDialog.lblConnectionIndicator.pos = [8,6]
-                serverStatusDialog.lblEndpoint.pos = [26,6]
-                serverStatusDialog.lblEndpoint.width = endpointWidth
-                serverStatusDialog.lblContext.pos = [34 + endpointWidth,6]
-                serverStatusDialog.lblContext.width = amax 180 (panelWidth - endpointWidth - 42)
-
-                local actionRowHeight = 46
-                local activityTopPadding = 5
-                local logHeight = amax 1 (activityZoneHeight - actionRowHeight - activityTopPadding)
-                activityDialog.pnlActivityOutline.pos = [0,activityTopPadding]
-                activityDialog.pnlActivityOutline.width = panelWidth
-                activityDialog.pnlActivityOutline.height = logHeight
-                activityDialog.rtbActivity.Location = MaxUltraMcpUiKit.point 1 1
-                activityDialog.rtbActivity.Size = MaxUltraMcpUiKit.size (amax 1 (panelWidth - 2)) (amax 1 (logHeight - 2))
-                local actionButtonY = activityTopPadding + logHeight + 8
-                activityDialog.btnReconnect.pos = [8,actionButtonY]
-                activityDialog.btnStop.pos = [134,actionButtonY]
-                activityDialog.btnSettings.pos = [panelWidth - 128,actionButtonY]
-
-                -- These are MaxScript rollout controls. Moving the underlying
-                -- WinForms child with .Location offsets it inside its small host
-                -- and clips it; use the rollout control's .pos instead.
-                supportDialog.lnkMaxPkg.pos = [8,7]
-                supportDialog.lnk3DGround.pos = [104,7]
-                supportDialog.btnDonate.pos = [panelWidth - 128,7]
-                panelLayoutInProgress = false
-                return true
-            ) catch (
-                panelLayoutInProgress = false
-                try (format "[3DGROUND | Max Ultra MCP] PANEL LAYOUT ERROR | %\n" (getCurrentException() as string)) catch ()
-                return false
-            )
-        ),
-
-        fn requestedPanelSize panelSize = (
-            return [720, 640]
-        ),
-
-        fn clampPanelSizeToWorkingArea panelSize workingArea = (
-            local requestedSize = requestedPanelSize panelSize
-            local minimumWidth = 680
-            local minimumHeight = 600
-            local maximumWidth = amax minimumWidth (workingArea.Width as integer)
-            local maximumHeight = amax minimumHeight (workingArea.Height as integer)
-            local clampedWidth = amax minimumWidth (amin maximumWidth requestedSize.x)
-            local clampedHeight = amax minimumHeight (amin maximumHeight requestedSize.y)
-            return [clampedWidth as integer, clampedHeight as integer]
-        ),
-
-        fn defaultPanelGeometry panelSize = (
+        fn defaultPanelPosition = (
             local workingArea = (dotNetClass "System.Windows.Forms.Screen").PrimaryScreen.WorkingArea
-            local clampedSize = clampPanelSizeToWorkingArea panelSize workingArea
-            local centeredX = workingArea.Left + (amax 0 ((workingArea.Width - clampedSize.x) / 2))
-            local centeredY = workingArea.Top + (amax 0 ((workingArea.Height - clampedSize.y) / 2))
-            return #([centeredX as integer, centeredY as integer], clampedSize)
+            local centeredX = workingArea.Left + (amax 0 ((workingArea.Width - 720) / 2))
+            local centeredY = workingArea.Top + (amax 0 ((workingArea.Height - 640) / 2))
+            return [centeredX as integer, centeredY as integer]
         ),
 
-        fn normalizePanelGeometry panelPosition panelSize = (
-            if (panelPosition == undefined) do return defaultPanelGeometry panelSize
-            local requestedSize = requestedPanelSize panelSize
+        fn normalizePanelPosition panelPosition = (
+            if (panelPosition == undefined) do return defaultPanelPosition()
             try (
                 local panelX = panelPosition.x as integer
                 local panelY = panelPosition.y as integer
-                local candidateWidth = amin 1000000 (amax 1 requestedSize.x)
-                local candidateHeight = amin 1000000 (amax 1 requestedSize.y)
-                local candidateBounds = dotNetObject "System.Drawing.Rectangle" panelX panelY candidateWidth candidateHeight
+                local candidateBounds = dotNetObject "System.Drawing.Rectangle" panelX panelY 720 640
                 local targetScreen = (dotNetClass "System.Windows.Forms.Screen").FromRectangle candidateBounds
-                if (targetScreen == undefined) do return defaultPanelGeometry requestedSize
+                if (targetScreen == undefined) do return defaultPanelPosition()
                 local workingArea = targetScreen.WorkingArea
-                local clampedSize = clampPanelSizeToWorkingArea requestedSize workingArea
-                local maximumX = workingArea.Right - clampedSize.x
-                local maximumY = workingArea.Bottom - clampedSize.y
+                local maximumX = workingArea.Right - 720
+                local maximumY = workingArea.Bottom - 640
                 local clampedX = amax workingArea.Left (amin maximumX panelX)
                 local clampedY = amax workingArea.Top (amin maximumY panelY)
-                return #([clampedX as integer, clampedY as integer], clampedSize)
+                return [clampedX as integer, clampedY as integer]
             ) catch (
-                return defaultPanelGeometry requestedSize
+                return defaultPanelPosition()
             )
         ),
 
-        fn loadPanelGeometry = (
+        fn loadPanelPosition = (
             local storedPosition = undefined
-            local storedSize = undefined
-            if (uiStateFilePath == undefined or uiStateFilePath == "" or not (doesFileExist uiStateFilePath)) do return defaultPanelGeometry undefined
+            if (uiStateFilePath == undefined or uiStateFilePath == "" or not (doesFileExist uiStateFilePath)) do return defaultPanelPosition()
             try (
                 local storedX = getINISetting uiStateFilePath "panel" "x"
                 local storedY = getINISetting uiStateFilePath "panel" "y"
                 if (storedX != "" and storedY != "") do storedPosition = [storedX as integer, storedY as integer]
             ) catch (storedPosition = undefined)
-            try (
-                local storedWidth = getINISetting uiStateFilePath "panel" "width"
-                local storedHeight = getINISetting uiStateFilePath "panel" "height"
-                if (storedWidth != "" and storedHeight != "") do storedSize = [storedWidth as integer, storedHeight as integer]
-            ) catch (storedSize = undefined)
-            return normalizePanelGeometry storedPosition storedSize
+            return normalizePanelPosition storedPosition
         ),
 
-        fn persistPanelGeometry panelPosition panelSize = (
+        fn persistPanelPosition panelPosition = (
             if (panelPosition == undefined or uiStateDirectory == undefined or uiStateDirectory == "") do return false
             try (
-                local panelGeometry = normalizePanelGeometry panelPosition panelSize
-                local normalizedPosition = panelGeometry[1]
-                local normalizedSize = panelGeometry[2]
+                local normalizedPosition = normalizePanelPosition panelPosition
                 if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
                 setINISetting uiStateFilePath "panel" "x" ((normalizedPosition.x as integer) as string)
                 setINISetting uiStateFilePath "panel" "y" ((normalizedPosition.y as integer) as string)
-                setINISetting uiStateFilePath "panel" "width" ((normalizedSize.x as integer) as string)
-                setINISetting uiStateFilePath "panel" "height" ((normalizedSize.y as integer) as string)
                 return true
             ) catch (
                 return false
@@ -1496,49 +1377,36 @@ global MaxUltraMcpActiveClient
             return false
         ),
 
-        fn rememberNormalPanelGeometry formSender = (
+        fn rememberNormalPanelPosition formSender = (
             if (not panelIsOpen()) do return false
             try (
                 local currentPlacement = panelFloater.placementName
                 if (currentPlacement != undefined and currentPlacement != #normal) do return false
                 local normalWindowState = (dotNetClass "System.Windows.Forms.FormWindowState").Normal
                 if (formSender != undefined and formSender.WindowState != normalWindowState) do return false
-                local currentGeometry = normalizePanelGeometry panelFloater.pos panelFloater.size
-                lastNormalPanelPosition = currentGeometry[1]
-                lastNormalPanelSize = currentGeometry[2]
+                lastNormalPanelPosition = normalizePanelPosition panelFloater.pos
                 return true
             ) catch (
                 return false
             )
         ),
 
-        fn capturePanelGeometry formSender = (
-            rememberNormalPanelGeometry formSender
-            if (lastNormalPanelPosition != undefined and lastNormalPanelSize != undefined) do return normalizePanelGeometry lastNormalPanelPosition lastNormalPanelSize
+        fn capturePanelPosition formSender = (
+            rememberNormalPanelPosition formSender
+            if (lastNormalPanelPosition != undefined) do return normalizePanelPosition lastNormalPanelPosition
             try (
                 if (formSender != undefined) do (
                     local restoreBounds = formSender.RestoreBounds
-                    if (restoreBounds.Width > 0 and restoreBounds.Height > 0) do return normalizePanelGeometry [restoreBounds.X as integer, restoreBounds.Y as integer] [restoreBounds.Width as integer, restoreBounds.Height as integer]
+                    if (restoreBounds.Width > 0 and restoreBounds.Height > 0) do return normalizePanelPosition [restoreBounds.X as integer, restoreBounds.Y as integer]
                 )
             ) catch ()
-            return loadPanelGeometry()
-        ),
-
-        fn handlePanelResized panelSize = (
-            if (isDisposed or not panelIsOpen()) do return false
-            local layoutResult = resizePanelControls panelSize
-            try (
-                local panelGeometry = capturePanelGeometry panelForm
-                persistPanelGeometry panelGeometry[1] panelGeometry[2]
-            ) catch ()
-            return layoutResult
+            return loadPanelPosition()
         ),
 
         fn handlePanelMoved panelPosition = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                local panelGeometry = capturePanelGeometry panelForm
-                persistPanelGeometry panelGeometry[1] panelGeometry[2]
+                persistPanelPosition (capturePanelPosition panelForm)
                 return true
             ) catch (
                 return false
@@ -2650,28 +2518,25 @@ global MaxUltraMcpActiveClient
         ),
 
         fn handlePanelGeometryChanged formSender eventArgs = (
-            if (not isDisposed and rememberNormalPanelGeometry formSender) do (
-                persistPanelGeometry lastNormalPanelPosition lastNormalPanelSize
+            if (not isDisposed and rememberNormalPanelPosition formSender) do (
+                persistPanelPosition lastNormalPanelPosition
             )
             return true
         ),
 
-        fn createPanelFloater panelPosition panelSize = (
+        fn createPanelFloater panelPosition = (
             if (isDisposed) do return false
             if (panelIsOpen()) do return true
-            local panelGeometry = normalizePanelGeometry panelPosition panelSize
-            local resolvedPosition = panelGeometry[1]
-            local resolvedSize = panelGeometry[2]
+            local resolvedPosition = normalizePanelPosition panelPosition
             try (
                 panelCloseInProgress = false
-                panelFloater = newRolloutFloater (productWindowTitle()) resolvedSize.x resolvedSize.y lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off
+                panelFloater = newRolloutFloater (productWindowTitle()) 720 640 lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off
                 panelFloater.pos = resolvedPosition
                 addRollout statusDialog panelFloater rolledUp: false border: false
                 addRollout serverStatusDialog panelFloater rolledUp: false border: false
                 addRollout activityDialog panelFloater rolledUp: false border: false
                 addRollout supportDialog panelFloater rolledUp: false border: false
                 configureMainPanelControls()
-                resizePanelControls resolvedSize
                 return panelIsOpen()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] PANEL CREATE ERROR | %\n" (getCurrentException() as string)
@@ -2692,10 +2557,8 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             local wasPersistedHidden = loadPanelHiddenState()
             if (not panelIsOpen()) do (
-                local restoreGeometry = if (hiddenPanelPosition == undefined and hiddenPanelSize == undefined) then loadPanelGeometry() else normalizePanelGeometry hiddenPanelPosition hiddenPanelSize
-                local restorePosition = restoreGeometry[1]
-                local restoreSize = restoreGeometry[2]
-                if (not (this.createPanelFloater restorePosition restoreSize)) do (
+                local restorePosition = if (hiddenPanelPosition == undefined) then loadPanelPosition() else normalizePanelPosition hiddenPanelPosition
+                if (not (this.createPanelFloater restorePosition)) do (
                     if (wasPersistedHidden) do persistPanelHiddenState true
                     return false
                 )
@@ -2711,10 +2574,8 @@ global MaxUltraMcpActiveClient
                 return true
             )
             hiddenPanelPosition = undefined
-            hiddenPanelSize = undefined
             disposeRestoreBubble()
             try (panelFloater.placementName = #normal) catch ()
-            resizePanelControls panelFloater.size
             return true
         ),
 
@@ -2839,8 +2700,7 @@ global MaxUltraMcpActiveClient
             panelCloseInProgress = true
             stopPollTimer()
             try (
-                local finalGeometry = capturePanelGeometry formSender
-                persistPanelGeometry finalGeometry[1] finalGeometry[2]
+                persistPanelPosition (capturePanelPosition formSender)
                 persistPanelHiddenState false
             ) catch (
                 try (format "[3DGROUND | Max Ultra MCP] GEOMETRY SAVE ERROR | %\n" (getCurrentException() as string)) catch ()
@@ -2862,7 +2722,6 @@ global MaxUltraMcpActiveClient
         fn handlePanelFormClosing formSender eventArgs = (
             try (if (formSender != undefined) do dotNet.removeEventHandler formSender "FormClosing" handlePanelFormClosing) catch ()
             try (if (formSender != undefined) do dotNet.removeEventHandler formSender "LocationChanged" handlePanelGeometryChanged) catch ()
-            try (if (formSender != undefined) do dotNet.removeEventHandler formSender "ResizeEnd" handlePanelGeometryChanged) catch ()
             local cleanupResult = true
             try (
                 cleanupResult = performPanelFormClosing formSender eventArgs
@@ -2889,7 +2748,6 @@ global MaxUltraMcpActiveClient
             if (formSender == undefined) do return true
             try (dotNet.removeEventHandler formSender "FormClosing" handlePanelFormClosing) catch ()
             try (dotNet.removeEventHandler formSender "LocationChanged" handlePanelGeometryChanged) catch ()
-            try (dotNet.removeEventHandler formSender "ResizeEnd" handlePanelGeometryChanged) catch ()
             return true
         ),
 
@@ -2917,10 +2775,8 @@ global MaxUltraMcpActiveClient
                 detachPanelFormEvents panelForm
                 dotNet.addEventHandler panelForm "FormClosing" handlePanelFormClosing
                 dotNet.addEventHandler panelForm "LocationChanged" handlePanelGeometryChanged
-                dotNet.addEventHandler panelForm "ResizeEnd" handlePanelGeometryChanged
-                try (panelForm.MinimumSize = MaxUltraMcpUiKit.size 680 600) catch ()
                 applyProductVersionToUi()
-                rememberNormalPanelGeometry panelForm
+                rememberNormalPanelPosition panelForm
                 return true
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] FORM HOOK ERROR | %\n" (getCurrentException() as string)
@@ -2970,7 +2826,6 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (not (restoreHiddenPanel())) do return false
             attachPanelFormClosing()
-            resizePanelControls panelFloater.size
             refreshUserInterface()
             return true
         ),
@@ -2979,10 +2834,8 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (panelIsOpen()) do (
                 try (
-                    local hideGeometry = capturePanelGeometry panelForm
-                    hiddenPanelPosition = hideGeometry[1]
-                    hiddenPanelSize = hideGeometry[2]
-                    persistPanelGeometry hiddenPanelPosition hiddenPanelSize
+                    hiddenPanelPosition = capturePanelPosition panelForm
+                    persistPanelPosition hiddenPanelPosition
                     if (not (persistPanelHiddenState true)) do (
                         addActivity "error" "Could not save the hidden panel state; the MCP Server panel remains open"
                         return false
@@ -3008,9 +2861,7 @@ global MaxUltraMcpActiveClient
 
         fn restoreSavedPanelVisibility = (
             if (not (loadPanelHiddenState())) do return showPanel()
-            local savedPanelGeometry = loadPanelGeometry()
-            hiddenPanelPosition = savedPanelGeometry[1]
-            hiddenPanelSize = savedPanelGeometry[2]
+            hiddenPanelPosition = loadPanelPosition()
             if (showRestoreBubble()) do return true
             persistPanelHiddenState false
             return showPanel()
