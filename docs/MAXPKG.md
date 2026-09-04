@@ -67,6 +67,8 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 
 ## Maintainer files
 
+The production allowlist includes the ready-to-use white PNG UI icons under `assets/icons/`. They are derived from the official Lucide geometry and loaded directly by the MaxScript UI; no SVG runtime is packaged.
+
 - `maxpkg-files.txt` is the reviewed production file allowlist.
 - `.agents\plugins\marketplace.json` and `plugins\max-ultra-mcp` provide the installable ChatGPT/Codex workflow plugin; its copied skill tree must remain byte-for-byte synchronized with canonical `skills\` sources.
 - `skills\max-ultra-mcp`, `skills\max-ultra-camera-composition`, `skills\max-ultra-character-object-modeling`, `skills\max-ultra-renderer-settings`, `skills\max-ultra-spline-modeling`, `skills\max-ultra-floor-plan`, and `skills\max-ultra-maxpkg-packaging` are the optional file-based agent skills shipped with the package; MCP operation does not depend on installing them.

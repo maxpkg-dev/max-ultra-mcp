@@ -205,64 +205,18 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn createRefreshIcon iconColor = (
+        fn createPngIcon pngFilePath = (
             local iconBitmap = undefined
-            local iconGraphics = undefined
-            local iconPen = undefined
+            local temporaryBitmap = undefined
             try (
-                -- Lucide refresh-cw (ISC): https://lucide.dev/icons/refresh-cw
-                iconBitmap = dotNetObject "System.Drawing.Bitmap" 18 18
-                iconGraphics = (dotNetClass "System.Drawing.Graphics").FromImage iconBitmap
-                iconGraphics.SmoothingMode = (dotNetClass "System.Drawing.Drawing2D.SmoothingMode").AntiAlias
-                iconGraphics.Clear (dotNetClass "System.Drawing.Color").Transparent
-                iconPen = dotNetObject "System.Drawing.Pen" iconColor 1.5
-                iconPen.StartCap = (dotNetClass "System.Drawing.Drawing2D.LineCap").Round
-                iconPen.EndCap = (dotNetClass "System.Drawing.Drawing2D.LineCap").Round
-                iconPen.LineJoin = (dotNetClass "System.Drawing.Drawing2D.LineJoin").Round
-                iconGraphics.DrawArc iconPen 3.0 3.0 12.0 12.0 0.0 -135.0
-                iconGraphics.DrawLine iconPen 3.0 3.0 3.0 6.33
-                iconGraphics.DrawLine iconPen 3.0 6.33 6.33 6.33
-                iconGraphics.DrawArc iconPen 3.0 3.0 12.0 12.0 180.0 -135.0
-                iconGraphics.DrawLine iconPen 15.0 15.0 15.0 11.67
-                iconGraphics.DrawLine iconPen 15.0 11.67 11.67 11.67
-                iconPen.Dispose()
-                iconGraphics.Dispose()
+                if (pngFilePath == undefined or pngFilePath == "" or not (doesFileExist pngFilePath)) do return undefined
+                temporaryBitmap = dotNetObject "System.Drawing.Bitmap" pngFilePath
+                iconBitmap = dotNetObject "System.Drawing.Bitmap" temporaryBitmap
+                temporaryBitmap.Dispose()
+                temporaryBitmap = undefined
                 return iconBitmap
             ) catch (
-                try (if (iconPen != undefined) do iconPen.Dispose()) catch ()
-                try (if (iconGraphics != undefined) do iconGraphics.Dispose()) catch ()
-                try (if (iconBitmap != undefined) do iconBitmap.Dispose()) catch ()
-                return undefined
-            )
-        ),
-
-        fn createDonateIcon iconColor = (
-            local iconBitmap = undefined
-            local iconGraphics = undefined
-            local iconBrush = undefined
-            local iconPath = undefined
-            try (
-                iconBitmap = dotNetObject "System.Drawing.Bitmap" 16 16
-                iconGraphics = (dotNetClass "System.Drawing.Graphics").FromImage iconBitmap
-                iconGraphics.SmoothingMode = (dotNetClass "System.Drawing.Drawing2D.SmoothingMode").AntiAlias
-                iconGraphics.Clear (dotNetClass "System.Drawing.Color").Transparent
-                iconBrush = dotNetObject "System.Drawing.SolidBrush" iconColor
-                iconPath = dotNetObject "System.Drawing.Drawing2D.GraphicsPath"
-                iconPath.StartFigure()
-                iconPath.AddBezier 8 14 6 12 1 8 2 4
-                iconPath.AddBezier 2 4 3 1 7 2 8 5
-                iconPath.AddBezier 8 5 9 2 13 1 14 4
-                iconPath.AddBezier 14 4 15 8 10 12 8 14
-                iconPath.CloseFigure()
-                iconGraphics.FillPath iconBrush iconPath
-                iconPath.Dispose()
-                iconBrush.Dispose()
-                iconGraphics.Dispose()
-                return iconBitmap
-            ) catch (
-                try (if (iconPath != undefined) do iconPath.Dispose()) catch ()
-                try (if (iconBrush != undefined) do iconBrush.Dispose()) catch ()
-                try (if (iconGraphics != undefined) do iconGraphics.Dispose()) catch ()
+                try (if (temporaryBitmap != undefined) do temporaryBitmap.Dispose()) catch ()
                 try (if (iconBitmap != undefined) do iconBitmap.Dispose()) catch ()
                 return undefined
             )
@@ -362,7 +316,7 @@ global MaxUltraMcpActiveClient
     rollout MaxUltraMcpAiStatusDialog "" width: 720 height: 44 (
         dotNetControl btnAiStatus "System.Windows.Forms.Button" pos: [8,7] width: 444 height: 30
         dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [462,7] width: 38 height: 30
-        dotNetControl btnHide "System.Windows.Forms.Button" pos: [558,7] width: 94 height: 30
+        dotNetControl btnHide "System.Windows.Forms.Button" pos: [592,7] width: 120 height: 30
 
         on MaxUltraMcpAiStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.handlePanelResized panelSize
         on MaxUltraMcpAiStatusDialog moved panelPosition do if (bridgeClient != undefined) do bridgeClient.handlePanelMoved panelPosition
@@ -404,7 +358,7 @@ global MaxUltraMcpActiveClient
         on btnSettings Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
-    rollout MaxUltraMcpSupportDialog "" width: 720 height: 36 (
+    rollout MaxUltraMcpSupportDialog "" width: 720 height: 44 (
         dotNetControl lnkMaxPkg "System.Windows.Forms.LinkLabel" pos: [8,7] width: 90 height: 30
         dotNetControl lnk3DGround "System.Windows.Forms.LinkLabel" pos: [104,7] width: 104 height: 30
         dotNetControl btnDonate "System.Windows.Forms.Button" pos: [592,7] width: 120 height: 30
@@ -523,6 +477,10 @@ global MaxUltraMcpActiveClient
         panelToolTip,
         refreshIconImage,
         donateIconImage,
+        hideIconImage,
+        settingsIconImage,
+        stopIconImage,
+        reconnectIconImage,
         hiddenPanelPosition,
         hiddenPanelSize,
         lastNormalPanelPosition,
@@ -1021,11 +979,26 @@ global MaxUltraMcpActiveClient
         ),
 
         fn appendColoredActivityText activityEntry = (
+            local normalizedActivityEntry = activityEntry as string
+            local entryColor = activityEntryColor normalizedActivityEntry
+            local statusStart = findString normalizedActivityEntry "["
+            local statusEnd = findString normalizedActivityEntry "]"
+            local hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd >= statusStart
+            local prefixText = if (hasStatusToken and statusStart > 1) then (substring normalizedActivityEntry 1 (statusStart - 1)) else if (hasStatusToken) then "" else normalizedActivityEntry
+            local statusText = if (hasStatusToken) then (substring normalizedActivityEntry statusStart (statusEnd - statusStart + 1)) else ""
+            local suffixText = if (hasStatusToken and statusEnd < normalizedActivityEntry.count) then (substring normalizedActivityEntry (statusEnd + 1) -1) else ""
             if (activityDialog.rtbActivity.TextLength > 0) do activityDialog.rtbActivity.AppendText "\r\n"
             activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
             activityDialog.rtbActivity.SelectionLength = 0
-            activityDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
-            activityDialog.rtbActivity.AppendText activityEntry
+            activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
+            activityDialog.rtbActivity.SelectionColor = entryColor
+            if (prefixText != "") do activityDialog.rtbActivity.AppendText prefixText
+            activityDialog.rtbActivity.SelectionBackColor = entryColor
+            activityDialog.rtbActivity.SelectionColor = (dotNetClass "System.Drawing.Color").White
+            if (statusText != "") do activityDialog.rtbActivity.AppendText statusText
+            activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
+            activityDialog.rtbActivity.SelectionColor = entryColor
+            if (suffixText != "") do activityDialog.rtbActivity.AppendText suffixText
             activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
             return true
         ),
@@ -1084,14 +1057,10 @@ global MaxUltraMcpActiveClient
                 ) else (
                     activityDialog.rtbActivity.Clear()
                     for activityIndex in 1 to activityEntries.count do (
-                        local activityEntry = activityEntries[activityIndex]
-                        activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
-                        activityDialog.rtbActivity.SelectionLength = 0
-                        activityDialog.rtbActivity.SelectionColor = activityEntryColor activityEntry
-                        activityDialog.rtbActivity.AppendText activityEntry
-                        if (activityIndex < activityEntries.count) do activityDialog.rtbActivity.AppendText "\r\n"
+                        appendColoredActivityText activityEntries[activityIndex]
                     )
                     if (activityEntries.count > 0) do activityDialog.rtbActivity.AppendText activityBottomPadding
+                    activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
                     activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
                 )
                 activityLogDirty = false
@@ -1149,15 +1118,34 @@ global MaxUltraMcpActiveClient
 
         fn releasePanelIconImages = (
             try (statusDialog.btnRefreshAgents.Image = undefined) catch ()
+            try (statusDialog.btnHide.Image = undefined) catch ()
+            try (activityDialog.btnReconnect.Image = undefined) catch ()
+            try (activityDialog.btnStop.Image = undefined) catch ()
+            try (activityDialog.btnSettings.Image = undefined) catch ()
             try (supportDialog.btnDonate.Image = undefined) catch ()
             refreshIconImage = undefined
             donateIconImage = undefined
+            hideIconImage = undefined
+            settingsIconImage = undefined
+            stopIconImage = undefined
+            reconnectIconImage = undefined
             return true
         ),
 
+        fn uiIconAssetPath iconFileName = (
+            if (bootstrapFilePath == undefined or bootstrapFilePath == "") do return ""
+            local iconPath = (ensureSlash (getFilenamePath bootstrapFilePath)) + @"assets\icons\" + iconFileName
+            if (doesFileExist iconPath) do return iconPath
+            return ""
+        ),
+
         fn ensurePanelIconImages = (
-            if (refreshIconImage == undefined) do refreshIconImage = MaxUltraMcpUiKit.createRefreshIcon MaxUltraMcpTheme.textColor
-            if (donateIconImage == undefined) do donateIconImage = MaxUltraMcpUiKit.createDonateIcon MaxUltraMcpTheme.textColor
+            if (refreshIconImage == undefined) do refreshIconImage = MaxUltraMcpUiKit.createPngIcon (uiIconAssetPath "refresh-cw.png")
+            if (donateIconImage == undefined) do donateIconImage = MaxUltraMcpUiKit.createPngIcon (uiIconAssetPath "heart.png")
+            if (hideIconImage == undefined) do hideIconImage = MaxUltraMcpUiKit.createPngIcon (uiIconAssetPath "panel-top-close.png")
+            if (settingsIconImage == undefined) do settingsIconImage = MaxUltraMcpUiKit.createPngIcon (uiIconAssetPath "settings.png")
+            if (stopIconImage == undefined) do stopIconImage = MaxUltraMcpUiKit.createPngIcon (uiIconAssetPath "power.png")
+            if (reconnectIconImage == undefined) do reconnectIconImage = MaxUltraMcpUiKit.createPngIcon (uiIconAssetPath "plug-zap.png")
             return true
         ),
 
@@ -1170,14 +1158,18 @@ global MaxUltraMcpActiveClient
                 MaxUltraMcpUiKit.styleButton statusDialog.btnHide
                 ensurePanelIconImages()
                 statusDialog.btnAiStatus.Text = "AI client | Waiting..."
-                statusDialog.btnRefreshAgents.Text = if (refreshIconImage == undefined) then "R" else ""
+                statusDialog.btnRefreshAgents.Text = if (refreshIconImage == undefined) then ((dotNetClass "System.Char").ConvertFromUtf32 0x21BB) else ""
                 statusDialog.btnRefreshAgents.Image = refreshIconImage
                 statusDialog.btnRefreshAgents.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
                 statusDialog.btnRefreshAgents.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
                 statusDialog.btnRefreshAgents.UseCompatibleTextRendering = false
                 statusDialog.btnRefreshAgents.AccessibleName = "Refresh AI client readiness"
                 statusDialog.btnRefreshAgents.AccessibleDescription = "Check ChatGPT, Codex, and Claude Code MCP registration now"
-                statusDialog.btnHide.Text = "Hide panel"
+                statusDialog.btnHide.Text = if (hideIconImage == undefined) then "Hide panel" else "  Hide panel"
+                statusDialog.btnHide.Image = hideIconImage
+                statusDialog.btnHide.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                statusDialog.btnHide.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                statusDialog.btnHide.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 statusDialog.btnHide.AccessibleName = "Hide Max Ultra MCP panel"
                 statusDialog.btnAiStatus.AccessibleName = "AI client readiness and setup"
 
@@ -1199,23 +1191,36 @@ global MaxUltraMcpActiveClient
                 MaxUltraMcpUiKit.styleButton activityDialog.btnReconnect
                 MaxUltraMcpUiKit.styleButton activityDialog.btnStop
                 MaxUltraMcpUiKit.styleButton activityDialog.btnSettings
-                activityDialog.btnReconnect.Text = "Reconnect"
+                activityDialog.btnReconnect.Text = if (reconnectIconImage == undefined) then "Reconnect" else "  Reconnect"
+                activityDialog.btnReconnect.Image = reconnectIconImage
+                activityDialog.btnReconnect.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                activityDialog.btnReconnect.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                activityDialog.btnReconnect.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 activityDialog.btnReconnect.AccessibleName = "Reconnect to running MCP server"
-                activityDialog.btnStop.Text = "Stop / Exit"
+                activityDialog.btnStop.Text = if (stopIconImage == undefined) then "Stop / Exit" else "  Stop / Exit"
+                activityDialog.btnStop.Image = stopIconImage
+                activityDialog.btnStop.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                activityDialog.btnStop.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                activityDialog.btnStop.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 activityDialog.btnStop.AccessibleName = "Stop Max Ultra MCP and close this panel"
-                activityDialog.btnSettings.Text = "Settings"
+                activityDialog.btnSettings.Text = if (settingsIconImage == undefined) then "Settings" else "  Settings"
+                activityDialog.btnSettings.Image = settingsIconImage
+                activityDialog.btnSettings.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                activityDialog.btnSettings.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                activityDialog.btnSettings.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 activityDialog.btnSettings.AccessibleName = "Open Max Ultra MCP settings"
 
                 MaxUltraMcpUiKit.styleLink supportDialog.lnkMaxPkg
                 MaxUltraMcpUiKit.styleLink supportDialog.lnk3DGround
-                MaxUltraMcpUiKit.styleButton supportDialog.btnDonate baseColorValue: MaxUltraMcpTheme.supportColor
+                MaxUltraMcpUiKit.styleButton supportDialog.btnDonate baseColorValue: MaxUltraMcpTheme.linkColor
                 supportDialog.lnkMaxPkg.Text = "maxpkg.dev"
                 supportDialog.lnkMaxPkg.AccessibleName = "Open Max Ultra MCP on maxpkg.dev"
                 supportDialog.lnk3DGround.Text = "3dground.net"
                 supportDialog.lnk3DGround.AccessibleName = "Open 3DGROUND website"
-                supportDialog.btnDonate.Text = "Donate"
+                supportDialog.btnDonate.Text = "  Donate"
                 supportDialog.btnDonate.Image = donateIconImage
-                supportDialog.btnDonate.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleLeft
+                supportDialog.btnDonate.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
+                supportDialog.btnDonate.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
                 supportDialog.btnDonate.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 supportDialog.btnDonate.Padding = MaxUltraMcpUiKit.padding leftValue: 10
                 supportDialog.btnDonate.AccessibleName = "Donate to support Max Ultra MCP"
@@ -1251,7 +1256,7 @@ global MaxUltraMcpActiveClient
                     try (panelFloater.size = resolvedPanelSize) catch ()
                 )
                 local panelWidth = amax 680 resolvedPanelSize.x
-                local panelHeight = amax 600 resolvedPanelSize.y
+                local panelHeight = amax 400 resolvedPanelSize.y
                 local floaterChromeHeight = 32
                 try (
                     if (panelForm != undefined and panelForm.ClientSize.Width > 0 and panelForm.ClientSize.Height > 0) do (
@@ -1277,7 +1282,7 @@ global MaxUltraMcpActiveClient
                 supportDialog.height = supportZoneHeight
                 updateRolloutLayout panelFloater forceUpdate: true
 
-                local hideButtonWidth = 104
+                local hideButtonWidth = 120
                 local refreshButtonWidth = 38
                 local horizontalGap = 10
                 local statusButtonWidth = 444
@@ -1287,6 +1292,7 @@ global MaxUltraMcpActiveClient
                 statusDialog.btnAiStatus.width = statusButtonWidth
                 statusDialog.btnRefreshAgents.pos = [refreshButtonX,7]
                 statusDialog.btnHide.pos = [hideButtonX,7]
+                statusDialog.btnHide.width = hideButtonWidth
 
                 local endpointWidth = amin 280 (amax 200 ((panelWidth * 0.38) as integer))
                 serverStatusDialog.lblConnectionIndicator.pos = [8,6]
@@ -1308,9 +1314,12 @@ global MaxUltraMcpActiveClient
                 activityDialog.btnStop.pos = [134,actionButtonY]
                 activityDialog.btnSettings.pos = [panelWidth - 128,actionButtonY]
 
-                supportDialog.lnkMaxPkg.Location = MaxUltraMcpUiKit.point 8 7
-                supportDialog.lnk3DGround.Location = MaxUltraMcpUiKit.point 104 7
-                supportDialog.btnDonate.Location = MaxUltraMcpUiKit.point (panelWidth - 128) 7
+                -- These are MaxScript rollout controls. Moving the underlying
+                -- WinForms child with .Location offsets it inside its small host
+                -- and clips it; use the rollout control's .pos instead.
+                supportDialog.lnkMaxPkg.pos = [8,7]
+                supportDialog.lnk3DGround.pos = [104,7]
+                supportDialog.btnDonate.pos = [panelWidth - 128,7]
                 panelLayoutInProgress = false
                 return true
             ) catch (
@@ -2453,8 +2462,9 @@ global MaxUltraMcpActiveClient
                 local targetScreen = (dotNetClass "System.Windows.Forms.Screen").FromRectangle bubbleBounds
                 if (targetScreen == undefined) do return defaultRestoreBubblePosition()
                 local workingArea = targetScreen.WorkingArea
+                local minimumVisibleDragHeight = 24
                 local maximumX = workingArea.Right - 236
-                local maximumY = workingArea.Bottom - 64
+                local maximumY = workingArea.Bottom - minimumVisibleDragHeight
                 local clampedX = amax workingArea.Left (amin maximumX bubbleX)
                 local clampedY = amax workingArea.Top (amin maximumY bubbleY)
                 return [clampedX as integer, clampedY as integer]

@@ -4,6 +4,12 @@ THIRD_PARTY_NOTICES.md
 CHANGELOG.md
 version.ini
 01_START_MAX_ULTRA_MCP_FIRST.ms
+assets/icons/heart.png
+assets/icons/panel-top-close.png
+assets/icons/plug-zap.png
+assets/icons/power.png
+assets/icons/refresh-cw.png
+assets/icons/settings.png
 README.md
 AGENTS.md
 CLAUDE.md

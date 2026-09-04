@@ -9,3 +9,5 @@ The following source-controlled MaxPkg release-tooling files are synchronized fr
 They are kept in the project root because that is the layout required by MaxPkg Packager. `scripts/sync-maxpkg-tooling.ps1` verifies their pinned raw-file SHA-256 values before updating them. Preserve the original file headers and upstream notices when refreshing these files.
 
 Release artifacts also bundle the official Node.js runtime and its license file. `scripts/prepare-portable-node.ps1` downloads the pinned official archive from `nodejs.org`, verifies its published SHA-256 checksum, and places `NODE-LICENSE.txt` beside the executable.
+
+The UI includes PNG renditions of the `heart`, `panel-top-close`, `plug-zap`, `power`, `refresh-cw`, and `settings` icons from [Lucide](https://github.com/lucide-icons/lucide). Lucide is distributed under the ISC License, Copyright (c) 2020 Lucide Contributors. The ready-to-use transparent PNG files use white artwork and the official SVG geometry.

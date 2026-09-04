@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed: The restore mini-panel can again be dragged down near the Windows taskbar; only its 24 px title strip is kept reachable instead of clamping the entire 64 px panel above the taskbar.
+- Changed: Activity log bracketed category tokens now render in white over category-colored backgrounds. Timestamps and messages keep their previous foreground colors, while separators and trailing visual padding remain unfilled.
+- Improved: Donate keeps a readable gap between its label and an optically centered 16 px Lucide heart.
+- Improved: All main-panel button icons now use the same 16×16 canvas.
+- Changed: Donate now uses the exact orange link theme color. Donate, Refresh, Hide panel, Reconnect, Stop / Exit, and Settings load packaged, ready-to-use white PNG renditions of their official Lucide icons through native WinForms. Reconnect uses the distinct `plug-zap` symbol instead of duplicating Refresh. No runtime recoloring or SVG renderer is used.
+- Fixed: Footer links and Donate now move through the MaxScript rollout `.pos` property. Applying WinForms `.Location` had offset each child inside its own host, clipping the first link and hiding the remaining controls.
 - Changed: The bridge row uses lighter green and red foreground colors. Error text is now the stable short message `Please restart the script`; full diagnostics remain in the Activity log, tooltip, and accessibility description.
 - Changed: WinForms links now use the dedicated orange theme color `[255, 127, 0]` for normal and visited states.
 - Fixed: 3ds Max 2022 no longer routes server labels or mini-panel buttons through the fragile compatible GDI+ `MeasureString` path. Bold controls now own independent rooted fonts, preventing the `Parameter is not valid` paint exception after reload or garbage collection.

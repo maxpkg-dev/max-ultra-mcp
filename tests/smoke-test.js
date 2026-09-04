@@ -518,6 +518,12 @@ async function runSmokeTest() {
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
     const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "maxpkg-icon.svg"), "utf8");
+    const refreshIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "refresh-cw.png"));
+    const donateIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "heart.png"));
+    const hideIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "panel-top-close.png"));
+    const settingsIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "settings.png"));
+    const reconnectIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "plug-zap.png"));
+    const stopIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "power.png"));
     const gitIgnoreSource = fs.readFileSync(path.join(PROJECT_ROOT, ".gitignore"), "utf8");
     const githubReleaseSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "publish-github-release.ps1"), "utf8");
     const releaseVersionSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "release-mzp-utils.ps1"), "utf8");
@@ -733,7 +739,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rollout MaxUltraMcpAiStatusDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpServerStatusDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpActivityDialog ""/);
-    assert.match(bootstrapSource, /rollout MaxUltraMcpSupportDialog ""/);
+    assert.match(bootstrapSource, /rollout MaxUltraMcpSupportDialog "" width: 720 height: 44/);
     const dotNetButtonNames = [
       "btnAiStatus", "btnRefreshAgents", "btnHide",
       "btnReconnect", "btnStop", "btnSettings", "btnDonate", "btnCheckUpdates", "btnAgentSetup",
@@ -756,12 +762,12 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /on btnSettings Click[\s\S]*showSettingsDialog\(\)/);
     assert.match(bootstrapSource, /statusDialog\.btnAiStatus\.Text = "AI client \| Waiting\.\.\."/);
     assert.match(bootstrapSource, /statusDialog\.btnRefreshAgents\.AccessibleName = "Refresh AI client readiness"/);
-    assert.match(bootstrapSource, /Lucide refresh-cw \(ISC\): https:\/\/lucide\.dev\/icons\/refresh-cw/);
-    assert.match(bootstrapSource, /fn createRefreshIcon iconColor = \([\s\S]*System\.Drawing\.Bitmap" 18 18[\s\S]*SmoothingMode"\)\.AntiAlias/);
-    const refreshIconBody = sourceSection(bootstrapSource, "fn createRefreshIcon", "fn createDonateIcon", "Lucide refresh icon");
-    assert.equal((refreshIconBody.match(/DrawArc iconPen/g) || []).length, 2);
-    assert.equal((refreshIconBody.match(/DrawLine iconPen/g) || []).length, 4);
-    assert.match(bootstrapSource, /statusDialog\.btnRefreshAgents\.Text = if \(refreshIconImage == undefined\) then "R" else ""/);
+    assert.match(bootstrapSource, /fn createPngIcon pngFilePath = \([\s\S]*System\.Drawing\.Bitmap" pngFilePath[\s\S]*System\.Drawing\.Bitmap" temporaryBitmap[\s\S]*temporaryBitmap\.Dispose\(\)/);
+    assert.doesNotMatch(bootstrapSource, /GetPixel|SetPixel|createRefreshIcon|createDonateIcon|createSvgIcon|PresentationCore|System\.Windows\.Media|GraphicsPath|DrawArc iconPen/);
+    assert.match(bootstrapSource, /fn uiIconAssetPath iconFileName = \([\s\S]*doesFileExist iconPath/);
+    assert.ok(bootstrapSource.includes('@"assets\\icons\\"'));
+    assert.match(bootstrapSource, /createPngIcon \(uiIconAssetPath "refresh-cw\.png"\)[\s\S]*createPngIcon \(uiIconAssetPath "heart\.png"\)[\s\S]*createPngIcon \(uiIconAssetPath "panel-top-close\.png"\)[\s\S]*createPngIcon \(uiIconAssetPath "settings\.png"\)[\s\S]*createPngIcon \(uiIconAssetPath "power\.png"\)[\s\S]*createPngIcon \(uiIconAssetPath "plug-zap\.png"\)/);
+    assert.match(bootstrapSource, /statusDialog\.btnRefreshAgents\.Text = if \(refreshIconImage == undefined\) then \(\(dotNetClass "System\.Char"\)\.ConvertFromUtf32 0x21BB\) else ""/);
     assert.match(bootstrapSource, /statusDialog\.btnRefreshAgents\.Image = refreshIconImage[\s\S]*ImageAlign = \(dotNetClass "System\.Drawing\.ContentAlignment"\)\.MiddleCenter/);
     assert.match(bootstrapSource, /statusDialog\.btnAiStatus\.AccessibleName = "AI client readiness and setup"/);
     assert.match(bootstrapSource, /panelToolTip\.SetToolTip statusDialog\.btnRefreshAgents "Refresh AI client readiness"/);
@@ -811,7 +817,8 @@ async function runSmokeTest() {
     assert.match(panelResizeBody, /local activityTopPadding = 5[\s\S]*pnlActivityOutline\.pos = \[0,activityTopPadding\][\s\S]*actionButtonY = activityTopPadding \+ logHeight \+ 8/);
     assert.match(panelResizeBody, /activityDialog\.rtbActivity\.Size = MaxUltraMcpUiKit\.size \(amax 1 \(panelWidth - 2\)\) \(amax 1 \(logHeight - 2\)\)/);
     assert.match(panelResizeBody, /activityDialog\.btnSettings\.pos = \[panelWidth - 128,actionButtonY\]/);
-    assert.match(panelResizeBody, /supportDialog\.lnkMaxPkg\.Location = MaxUltraMcpUiKit\.point 8 7[\s\S]*supportDialog\.lnk3DGround\.Location = MaxUltraMcpUiKit\.point 104 7[\s\S]*supportDialog\.btnDonate\.Location = MaxUltraMcpUiKit\.point \(panelWidth - 128\) 7/);
+    assert.match(panelResizeBody, /supportDialog\.lnkMaxPkg\.pos = \[8,7\][\s\S]*supportDialog\.lnk3DGround\.pos = \[104,7\][\s\S]*supportDialog\.btnDonate\.pos = \[panelWidth - 128,7\]/);
+    assert.doesNotMatch(panelResizeBody, /supportDialog\.(?:lnkMaxPkg|lnk3DGround|btnDonate)\.Location/);
     assert.doesNotMatch(bootstrapSource, /pnlFooterSurface/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings"/);
     assert.match(bootstrapSource, /groupBox grpAutostart "Autostart" pos: \[12,10\] width: 356 height: 58/);
@@ -989,6 +996,23 @@ async function runSmokeTest() {
     assert.match(maxPkgFilesSource, /^\.agents\/coding-rules\.md$/m);
     assert.match(maxPkgFilesSource, /^\.agents\/release-rules\.md$/m);
     assert.match(maxPkgFilesSource, /^docs\/MAXPKG\.md$/m);
+    assert.match(maxPkgFilesSource, /^assets\/icons\/refresh-cw\.png$/m);
+    assert.match(maxPkgFilesSource, /^assets\/icons\/heart\.png$/m);
+    assert.match(maxPkgFilesSource, /^assets\/icons\/panel-top-close\.png$/m);
+    assert.match(maxPkgFilesSource, /^assets\/icons\/plug-zap\.png$/m);
+    assert.match(maxPkgFilesSource, /^assets\/icons\/power\.png$/m);
+    assert.match(maxPkgFilesSource, /^assets\/icons\/settings\.png$/m);
+    assert.equal(refreshIconPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    assert.equal(refreshIconPng.readUInt32BE(16), 16);
+    assert.equal(refreshIconPng.readUInt32BE(20), 16);
+    assert.equal(donateIconPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    assert.equal(donateIconPng.readUInt32BE(16), 16);
+    assert.equal(donateIconPng.readUInt32BE(20), 16);
+    for (const iconPng of [hideIconPng, settingsIconPng, reconnectIconPng, stopIconPng]) {
+      assert.equal(iconPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+      assert.equal(iconPng.readUInt32BE(16), 16);
+      assert.equal(iconPng.readUInt32BE(20), 16);
+    }
     assert.match(maxPkgFilesSource, /scripts\/update-manager\.ps1/);
     assert.match(maxPkgFilesSource, /scripts\/project-version\.ps1/);
     assert.match(releaseVersionSource, /max-ultra-mcp@\(\?<version>/);
@@ -1111,9 +1135,13 @@ async function runSmokeTest() {
     const inheritParentBackColorBody = sourceSection(bootstrapSource, "fn inheritParentBackColor", "fn styleLink", "parent background inheritance");
     assert.match(inheritParentBackColorBody, /maximumThemeChannelDelta = 32[\s\S]*targetControl\.Parent[\s\S]*parentDepth < 8[\s\S]*candidateColor = parentControl\.BackColor[\s\S]*not candidateColor\.IsEmpty[\s\S]*candidateColor\.A > 0[\s\S]*rolloutDelta[\s\S]*backgroundDelta[\s\S]*amin rolloutDelta backgroundDelta[\s\S]*theme\.rolloutColor[\s\S]*targetControl\.BackColor = inheritedColor/);
     assert.match(bootstrapSource, /fn styleLink linkControl = \([\s\S]*inheritParentBackColor linkControl fallbackColor: theme\.rolloutColor[\s\S]*LinkColor = theme\.linkColor[\s\S]*ActiveLinkColor = .*theme\.linkColor[\s\S]*VisitedLinkColor = theme\.linkColor[\s\S]*LinkBehavior"\)\.HoverUnderline[\s\S]*TabStop = true/);
-    assert.match(bootstrapSource, /MaxUltraMcpUiKit\.styleButton supportDialog\.btnDonate baseColorValue: MaxUltraMcpTheme\.supportColor/);
-    assert.match(bootstrapSource, /fn createDonateIcon iconColor = \([\s\S]*GraphicsPath[\s\S]*AddBezier[\s\S]*FillPath iconBrush iconPath/);
-    assert.match(bootstrapSource, /supportDialog\.btnDonate\.Text = "Donate"[\s\S]*supportDialog\.btnDonate\.Image = donateIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /MaxUltraMcpUiKit\.styleButton supportDialog\.btnDonate baseColorValue: MaxUltraMcpTheme\.linkColor/);
+    assert.match(bootstrapSource, /supportDialog\.btnDonate\.Text = "  Donate"[\s\S]*supportDialog\.btnDonate\.Image = donateIconImage[\s\S]*ImageAlign = \(dotNetClass "System\.Drawing\.ContentAlignment"\)\.MiddleCenter[\s\S]*TextAlign = \(dotNetClass "System\.Drawing\.ContentAlignment"\)\.MiddleCenter[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /statusDialog\.btnHide\.Text = if \(hideIconImage == undefined\) then "Hide panel" else "  Hide panel"[\s\S]*statusDialog\.btnHide\.Image = hideIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /activityDialog\.btnReconnect\.Text = if \(reconnectIconImage == undefined\) then "Reconnect" else "  Reconnect"[\s\S]*activityDialog\.btnReconnect\.Image = reconnectIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /activityDialog\.btnStop\.Text = if \(stopIconImage == undefined\) then "Stop \/ Exit" else "  Stop \/ Exit"[\s\S]*activityDialog\.btnStop\.Image = stopIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /activityDialog\.btnSettings\.Text = if \(settingsIconImage == undefined\) then "Settings" else "  Settings"[\s\S]*activityDialog\.btnSettings\.Image = settingsIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
+    assert.match(bootstrapSource, /local hideButtonWidth = 120[\s\S]*statusDialog\.btnHide\.width = hideButtonWidth/);
     assert.match(bootstrapSource, /fn lighterThemeSurface/);
     const lighterThemeSurfaceBody = sourceSection(bootstrapSource, "fn lighterThemeSurface", "fn themeIsDark", "lighter themed log surface");
     assert.equal((lighterThemeSurfaceBody.match(/\* 0\.08\) as integer/g) || []).length, 3);
@@ -1166,14 +1194,16 @@ async function runSmokeTest() {
     assert.match(activityLogPaddingBody, /richEditMessageSetMargins = 0x00D3[\s\S]*bothHorizontalMargins = 0x0003[\s\S]*horizontalPadding = 6[\s\S]*packedMargins = horizontalPadding \+ \(horizontalPadding \* 65536\)[\s\S]*windows\.sendMessage logWindowHandle richEditMessageSetMargins bothHorizontalMargins packedMargins/);
     assert.match(bootstrapSource, /activityDialog\.rtbActivity\.Font = MaxUltraMcpUiKit\.messageFont\(\)[\s\S]*applyActivityLogPadding\(\)/);
     assert.match(bootstrapSource, /activityLogDirty = true/);
-    assert.match(bootstrapSource, /SelectionColor = activityEntryColor/);
+    const appendColoredActivityTextBody = sourceSection(bootstrapSource, "fn appendColoredActivityText", "fn refreshActivityText", "activity log category highlighting");
+    assert.match(appendColoredActivityTextBody, /statusStart = findString normalizedActivityEntry "\["[\s\S]*statusEnd = findString normalizedActivityEntry "\]"[\s\S]*hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd >= statusStart/);
+    assert.match(appendColoredActivityTextBody, /prefixText = if \(hasStatusToken and statusStart > 1\)[\s\S]*statusText = if \(hasStatusToken\)[\s\S]*suffixText = if \(hasStatusToken and statusEnd < normalizedActivityEntry\.count\)/);
+    assert.match(appendColoredActivityTextBody, /SelectionBackColor = activityDialog\.rtbActivity\.BackColor[\s\S]*SelectionColor = entryColor[\s\S]*AppendText prefixText[\s\S]*SelectionBackColor = entryColor[\s\S]*SelectionColor = \(dotNetClass "System\.Drawing\.Color"\)\.White[\s\S]*AppendText statusText[\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor[\s\S]*SelectionColor = entryColor[\s\S]*AppendText suffixText[\s\S]*SelectionColor = activityDialog\.rtbActivity\.ForeColor/);
     assert.match(bootstrapSource, /FromArgb 255 125 125/);
     assert.match(bootstrapSource, /FromArgb 255 195 80/);
     assert.match(bootstrapSource, /FromArgb 120 225 150/);
     assert.match(bootstrapSource, /findString normalizedEntry " \[support\] "[\s\S]*ControlPaint"\)\.Light MaxUltraMcpTheme\.supportColor[\s\S]*ControlPaint"\)\.Dark MaxUltraMcpTheme\.supportColor/);
     assert.match(bootstrapSource, /FromArgb 110 205 235/);
     assert.match(bootstrapSource, /FromArgb 20 90 145/);
-    assert.match(bootstrapSource, /AppendText activityEntry/);
     assert.match(bootstrapSource, /ScrollToCaret\(\)/);
     assert.match(bootstrapSource, /fn activityLogIsNearBottom/);
     assert.match(bootstrapSource, /fn activityLogFirstVisibleLine/);
@@ -1193,7 +1223,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /if \(not activityLogDirty and currentActivityText == expectedActivityText\) do return true/);
     assert.match(bootstrapSource, /changedIncrementally/);
     assert.match(bootstrapSource, /local currentActivityCoreText = activityTextWithoutBottomPadding currentActivityText[\s\S]*Select currentActivityCoreText\.count bottomPaddingLength[\s\S]*appendColoredActivityText appendedActivityText[\s\S]*AppendText activityBottomPadding/);
-    assert.match(bootstrapSource, /if \(activityEntries\.count > 0\) do activityDialog\.rtbActivity\.AppendText activityBottomPadding/);
+    assert.match(bootstrapSource, /for activityIndex in 1 to activityEntries\.count do \([\s\S]*appendColoredActivityText activityEntries\[activityIndex\][\s\S]*if \(activityEntries\.count > 0\) do activityDialog\.rtbActivity\.AppendText activityBottomPadding[\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor/);
     assert.match(bootstrapSource, /responseBody \+= ",\\"content\\":\\"" \+ jsonEscape\(activityText\(\)\)/);
     assert.match(bootstrapSource, /singleLineActivityMessage = substituteString/);
     assert.match(bootstrapSource, /on rtbActivity MouseEnter[\s\S]*enableAccelerators = false/);
@@ -1223,6 +1253,8 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /workingArea\.Bottom - 64 - 12/);
     assert.match(bootstrapSource, /fn normalizeRestoreBubblePosition/);
     assert.match(bootstrapSource, /Screen"\)\.FromRectangle bubbleBounds/);
+    assert.match(bootstrapSource, /local minimumVisibleDragHeight = 24[\s\S]*local maximumY = workingArea\.Bottom - minimumVisibleDragHeight/);
+    assert.doesNotMatch(bootstrapSource, /local maximumY = workingArea\.Bottom - 64/);
     assert.match(bootstrapSource, /local clampedX = amax workingArea\.Left \(amin maximumX bubbleX\)/);
     assert.match(bootstrapSource, /local clampedY = amax workingArea\.Top \(amin maximumY bubbleY\)/);
     assert.match(bootstrapSource, /getINISetting uiStateFilePath "restoreBubble" "x"/);
@@ -1263,7 +1295,7 @@ async function runSmokeTest() {
     assert.match(disposeToolTipBody, /local tooltipToDispose = panelToolTip[\s\S]*panelToolTip = undefined[\s\S]*tooltipToDispose\.Dispose\(\)/);
     assert.doesNotMatch(bootstrapSource, /boldUiFont|ensureBoldUiFont|disposeBoldUiFont/);
     const releasePanelIconImagesBody = sourceSection(bootstrapSource, "fn releasePanelIconImages", "fn ensurePanelIconImages", "safe panel icon release");
-    assert.match(releasePanelIconImagesBody, /btnRefreshAgents\.Image = undefined[\s\S]*btnDonate\.Image = undefined[\s\S]*refreshIconImage = undefined[\s\S]*donateIconImage = undefined/);
+    assert.match(releasePanelIconImagesBody, /btnRefreshAgents\.Image = undefined[\s\S]*btnHide\.Image = undefined[\s\S]*btnReconnect\.Image = undefined[\s\S]*btnStop\.Image = undefined[\s\S]*btnSettings\.Image = undefined[\s\S]*btnDonate\.Image = undefined[\s\S]*refreshIconImage = undefined[\s\S]*donateIconImage = undefined[\s\S]*hideIconImage = undefined[\s\S]*settingsIconImage = undefined[\s\S]*stopIconImage = undefined[\s\S]*reconnectIconImage = undefined/);
     assert.doesNotMatch(releasePanelIconImagesBody, /\.Dispose\(\)/);
     assert.match(formClosingBody, /disposeRestoreBubble\(\)[\s\S]*releasePanelIconImages\(\)[\s\S]*disposePanelToolTip\(\)/);
     assert.match(panelResizeBody, /if \(isDisposed or not panelIsOpen\(\) or panelLayoutInProgress\) do return false/);
