@@ -538,6 +538,10 @@ global MaxUltraMcpActiveClient
         cancelledRequestIds = #(),
         activityEntries = #(),
         maximumActivityEntries = 30,
+        activityStatusColumnWidth = 7,
+        activityStatusLeadingGap = "  ",
+        activityStatusSeparator = "  >  ",
+        activityBadgeFont,
         activityBottomPadding = "\r\n\r\n\r\n",
         activityLogDirty = true,
         activityAutoScroll = true,
@@ -828,8 +832,34 @@ global MaxUltraMcpActiveClient
             return outputText
         ),
 
+        fn activityDisplayEntryText activityEntry = (
+            local normalizedEntry = activityEntry as string
+            local statusStart = findString normalizedEntry "["
+            local statusEnd = findString normalizedEntry "]"
+            if (statusStart == undefined or statusEnd == undefined or statusEnd <= statusStart) do return normalizedEntry
+            local suffixText = if (statusEnd < normalizedEntry.count) then (substring normalizedEntry (statusEnd + 1) -1) else ""
+            if (suffixText.count >= activityStatusSeparator.count and (substring suffixText 1 activityStatusSeparator.count) == activityStatusSeparator) do return normalizedEntry
+            local statusNameLength = statusEnd - statusStart - 1
+            local statusName = if (statusNameLength > 0) then (substring normalizedEntry (statusStart + 1) statusNameLength) else ""
+            while (statusName.count < activityStatusColumnWidth) do statusName += " "
+            local prefixText = if (statusStart > 1) then ((substring normalizedEntry 1 (statusStart - 1)) + activityStatusLeadingGap + "[") else "["
+            if (suffixText.count > 0 and (substring suffixText 1 1) == " ") do (
+                suffixText = if (suffixText.count > 1) then (substring suffixText 2 -1) else ""
+            )
+            return prefixText + statusName + "]" + activityStatusSeparator + suffixText
+        ),
+
+        fn activityDisplayCoreText = (
+            local outputText = ""
+            for activityEntry in activityEntries do (
+                if (outputText != "") do outputText += "\r\n"
+                outputText += activityDisplayEntryText activityEntry
+            )
+            return outputText
+        ),
+
         fn activityDisplayText = (
-            local outputText = activityText()
+            local outputText = activityDisplayCoreText()
             if (outputText == "") do return ""
             return outputText + activityBottomPadding
         ),
@@ -859,6 +889,18 @@ global MaxUltraMcpActiveClient
             )
         ),
 
+        fn ensureActivityBadgeFont = (
+            if (activityBadgeFont != undefined) do return activityBadgeFont
+            try (
+                local baseFont = MaxUltraMcpUiKit.messageFont()
+                local monospaceFamily = (dotNetClass "System.Drawing.FontFamily").GenericMonospace
+                activityBadgeFont = dotNetObject "System.Drawing.Font" monospaceFamily baseFont.SizeInPoints (dotNetClass "System.Drawing.FontStyle").Regular
+            ) catch (
+                activityBadgeFont = undefined
+            )
+            return activityBadgeFont
+        ),
+
         fn configureActivityLog = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
@@ -880,6 +922,7 @@ global MaxUltraMcpActiveClient
                 activityLogDirty = true
                 activityAutoScroll = true
                 activityDialog.rtbActivity.Font = MaxUltraMcpUiKit.messageFont()
+                ensureActivityBadgeFont()
                 applyActivityLogPadding()
             ) catch (
             )
@@ -890,13 +933,24 @@ global MaxUltraMcpActiveClient
             local colorClass = dotNetClass "System.Drawing.Color"
             local normalizedEntry = toLower (activityEntry as string)
             local darkTheme = themeIsDark()
-            if ((findString normalizedEntry " [error] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 125 125) else (colorClass.FromArgb 180 0 0)
-            if ((findString normalizedEntry " [warning] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 195 80) else (colorClass.FromArgb 145 105 0)
-            if ((findString normalizedEntry " [success] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 120 225 150) else (colorClass.FromArgb 0 100 0)
-            if ((findString normalizedEntry " [support] ") != undefined) do return if (darkTheme) then ((dotNetClass "System.Windows.Forms.ControlPaint").Light MaxUltraMcpTheme.supportColor) else ((dotNetClass "System.Windows.Forms.ControlPaint").Dark MaxUltraMcpTheme.supportColor)
-            if ((findString normalizedEntry " [system] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 165 255) else (colorClass.FromArgb 80 55 140)
-            if ((findString normalizedEntry " [debug] ") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 190 140) else (colorClass.FromArgb 90 90 0)
+            if ((findString normalizedEntry " [error") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 125 125) else (colorClass.FromArgb 180 0 0)
+            if ((findString normalizedEntry " [warning") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 195 80) else (colorClass.FromArgb 145 105 0)
+            if ((findString normalizedEntry " [success") != undefined) do return if (darkTheme) then (colorClass.FromArgb 120 225 150) else (colorClass.FromArgb 0 100 0)
+            if ((findString normalizedEntry " [support") != undefined) do return if (darkTheme) then ((dotNetClass "System.Windows.Forms.ControlPaint").Light MaxUltraMcpTheme.supportColor) else ((dotNetClass "System.Windows.Forms.ControlPaint").Dark MaxUltraMcpTheme.supportColor)
+            if ((findString normalizedEntry " [system") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 165 255) else (colorClass.FromArgb 80 55 140)
+            if ((findString normalizedEntry " [debug") != undefined) do return if (darkTheme) then (colorClass.FromArgb 190 190 140) else (colorClass.FromArgb 90 90 0)
             return if (darkTheme) then (colorClass.FromArgb 110 205 235) else (colorClass.FromArgb 20 90 145)
+        ),
+
+        fn activityEntryBadgeBackgroundColor activityEntry = (
+            local entryColor = activityEntryColor activityEntry
+            if (themeIsDark()) do return entryColor
+            return (dotNetClass "System.Windows.Forms.ControlPaint").Light entryColor 0.65
+        ),
+
+        fn activityEntryBadgeTextColor activityEntry = (
+            local entryColor = activityEntryColor activityEntry
+            return (dotNetClass "System.Windows.Forms.ControlPaint").Dark entryColor 0.55
         ),
 
         fn activityLogIsNearBottom = (
@@ -979,25 +1033,33 @@ global MaxUltraMcpActiveClient
         ),
 
         fn appendColoredActivityText activityEntry = (
-            local normalizedActivityEntry = activityEntry as string
+            local normalizedActivityEntry = activityDisplayEntryText activityEntry
             local entryColor = activityEntryColor normalizedActivityEntry
+            local badgeBackgroundColor = activityEntryBadgeBackgroundColor normalizedActivityEntry
+            local badgeTextColor = activityEntryBadgeTextColor normalizedActivityEntry
+            local badgeFont = ensureActivityBadgeFont()
             local statusStart = findString normalizedActivityEntry "["
             local statusEnd = findString normalizedActivityEntry "]"
             local hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd >= statusStart
-            local prefixText = if (hasStatusToken and statusStart > 1) then (substring normalizedActivityEntry 1 (statusStart - 1)) else if (hasStatusToken) then "" else normalizedActivityEntry
-            local statusText = if (hasStatusToken) then (substring normalizedActivityEntry statusStart (statusEnd - statusStart + 1)) else ""
-            local suffixText = if (hasStatusToken and statusEnd < normalizedActivityEntry.count) then (substring normalizedActivityEntry (statusEnd + 1) -1) else ""
+            local badgeStart = if (hasStatusToken and statusStart > 1 and (substring normalizedActivityEntry (statusStart - 1) 1) == " ") then (statusStart - 1) else statusStart
+            local badgeEnd = if (hasStatusToken and statusEnd < normalizedActivityEntry.count and (substring normalizedActivityEntry (statusEnd + 1) 1) == " ") then (statusEnd + 1) else statusEnd
+            local prefixText = if (hasStatusToken and badgeStart > 1) then (substring normalizedActivityEntry 1 (badgeStart - 1)) else if (hasStatusToken) then "" else normalizedActivityEntry
+            local statusText = if (hasStatusToken) then (substring normalizedActivityEntry badgeStart (badgeEnd - badgeStart + 1)) else ""
+            local suffixText = if (hasStatusToken and badgeEnd < normalizedActivityEntry.count) then (substring normalizedActivityEntry (badgeEnd + 1) -1) else ""
             if (activityDialog.rtbActivity.TextLength > 0) do activityDialog.rtbActivity.AppendText "\r\n"
             activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
             activityDialog.rtbActivity.SelectionLength = 0
             activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
             activityDialog.rtbActivity.SelectionColor = entryColor
+            activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
             if (prefixText != "") do activityDialog.rtbActivity.AppendText prefixText
-            activityDialog.rtbActivity.SelectionBackColor = entryColor
-            activityDialog.rtbActivity.SelectionColor = (dotNetClass "System.Drawing.Color").White
+            activityDialog.rtbActivity.SelectionBackColor = badgeBackgroundColor
+            activityDialog.rtbActivity.SelectionColor = badgeTextColor
+            if (badgeFont != undefined) do activityDialog.rtbActivity.SelectionFont = badgeFont
             if (statusText != "") do activityDialog.rtbActivity.AppendText statusText
             activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
             activityDialog.rtbActivity.SelectionColor = entryColor
+            activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
             if (suffixText != "") do activityDialog.rtbActivity.AppendText suffixText
             activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
             return true
@@ -1006,7 +1068,7 @@ global MaxUltraMcpActiveClient
         fn refreshActivityText = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                local expectedActivityCoreText = activityText()
+                local expectedActivityCoreText = activityDisplayCoreText()
                 local expectedActivityText = activityDisplayText()
                 local currentActivityText = activityDialog.rtbActivity.Text as string
                 if (not activityLogDirty and currentActivityText == expectedActivityText) do return true
