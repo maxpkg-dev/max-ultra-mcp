@@ -92,6 +92,9 @@ global MaxUltraMcpActiveClient
         passPoint = [66, 125, 75],
         issuePoint = [145, 58, 58],
         warningPoint = [160, 119, 68],
+        bridgePassTextPoint = [112, 210, 125],
+        bridgeIssueTextPoint = [238, 126, 126],
+        linkPoint = [255, 127, 0],
         footerPoint = [84, 84, 84],
         buttonPoint = [96, 96, 96],
         disabledPoint = [76, 76, 76],
@@ -105,10 +108,13 @@ global MaxUltraMcpActiveClient
         passColor = undefined,
         issueColor = undefined,
         warningColor = undefined,
+        bridgePassTextColor = undefined,
+        bridgeIssueTextColor = undefined,
         footerColor = undefined,
         buttonColor = undefined,
         disabledColor = undefined,
         disabledTextColor = undefined,
+        linkColor = undefined,
         supportColor = undefined,
         outlineColor = undefined,
 
@@ -140,10 +146,13 @@ global MaxUltraMcpActiveClient
             passPoint = (backgroundPoint * 0.20) + ([54, 132, 66] * 0.80)
             issuePoint = (backgroundPoint * 0.20) + ([164, 52, 52] * 0.80)
             warningPoint = (backgroundPoint * 0.32) + ([184, 132, 62] * 0.68)
+            bridgePassTextPoint = [112, 210, 125]
+            bridgeIssueTextPoint = [238, 126, 126]
             footerPoint = backgroundPoint
             buttonPoint = (backgroundPoint * 0.74) + (textPoint * 0.26)
             disabledPoint = (backgroundPoint * 0.90) + (textPoint * 0.10)
             disabledTextPoint = (backgroundPoint * 0.48) + (textPoint * 0.52)
+            linkPoint = [255, 127, 0]
             supportPoint = (backgroundPoint * 0.18) + ([184, 88, 52] * 0.82)
             outlinePoint = (backgroundPoint * 0.62) + ([20, 20, 20] * 0.38)
             backgroundColor = this.toDotNetColor backgroundPoint
@@ -153,10 +162,13 @@ global MaxUltraMcpActiveClient
             passColor = this.toDotNetColor passPoint
             issueColor = this.toDotNetColor issuePoint
             warningColor = this.toDotNetColor warningPoint
+            bridgePassTextColor = this.toDotNetColor bridgePassTextPoint
+            bridgeIssueTextColor = this.toDotNetColor bridgeIssueTextPoint
             footerColor = this.toDotNetColor footerPoint
             buttonColor = this.toDotNetColor buttonPoint
             disabledColor = this.toDotNetColor disabledPoint
             disabledTextColor = this.toDotNetColor disabledTextPoint
+            linkColor = this.toDotNetColor linkPoint
             supportColor = this.toDotNetColor supportPoint
             outlineColor = this.toDotNetColor outlinePoint
             return true
@@ -264,7 +276,9 @@ global MaxUltraMcpActiveClient
             buttonControl.UseVisualStyleBackColor = false
             buttonControl.Font = messageFont()
             buttonControl.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
-            buttonControl.UseCompatibleTextRendering = true
+            -- Avoid the GDI+ MeasureString path that can receive an invalidated
+            -- custom Font during 3ds Max 2022 garbage collection.
+            buttonControl.UseCompatibleTextRendering = false
             buttonControl.AutoEllipsis = true
             buttonControl.Padding = padding()
             buttonControl.TabStop = tabStop
@@ -333,9 +347,9 @@ global MaxUltraMcpActiveClient
         fn styleLink linkControl = (
             styleLabel linkControl backgroundValue: theme.rolloutColor
             inheritParentBackColor linkControl fallbackColor: theme.rolloutColor
-            linkControl.LinkColor = theme.warningColor
-            linkControl.ActiveLinkColor = (dotNetClass "System.Windows.Forms.ControlPaint").Light theme.warningColor
-            linkControl.VisitedLinkColor = theme.warningColor
+            linkControl.LinkColor = theme.linkColor
+            linkControl.ActiveLinkColor = (dotNetClass "System.Windows.Forms.ControlPaint").Light theme.linkColor
+            linkControl.VisitedLinkColor = theme.linkColor
             linkControl.LinkBehavior = (dotNetClass "System.Windows.Forms.LinkBehavior").HoverUnderline
             linkControl.Cursor = (dotNetClass "System.Windows.Forms.Cursors").Hand
             linkControl.TabStop = true
@@ -348,7 +362,7 @@ global MaxUltraMcpActiveClient
     rollout MaxUltraMcpAiStatusDialog "" width: 720 height: 44 (
         dotNetControl btnAiStatus "System.Windows.Forms.Button" pos: [8,7] width: 444 height: 30
         dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [462,7] width: 38 height: 30
-        dotNetControl btnHide "System.Windows.Forms.Button" pos: [558,7] width: 114 height: 30
+        dotNetControl btnHide "System.Windows.Forms.Button" pos: [558,7] width: 94 height: 30
 
         on MaxUltraMcpAiStatusDialog resized panelSize do if (bridgeClient != undefined) do bridgeClient.handlePanelResized panelSize
         on MaxUltraMcpAiStatusDialog moved panelPosition do if (bridgeClient != undefined) do bridgeClient.handlePanelMoved panelPosition
@@ -390,7 +404,7 @@ global MaxUltraMcpActiveClient
         on btnSettings Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
-    rollout MaxUltraMcpSupportDialog "" width: 720 height: 44 (
+    rollout MaxUltraMcpSupportDialog "" width: 720 height: 36 (
         dotNetControl lnkMaxPkg "System.Windows.Forms.LinkLabel" pos: [8,7] width: 90 height: 30
         dotNetControl lnk3DGround "System.Windows.Forms.LinkLabel" pos: [104,7] width: 104 height: 30
         dotNetControl btnDonate "System.Windows.Forms.Button" pos: [592,7] width: 120 height: 30
@@ -823,6 +837,14 @@ global MaxUltraMcpActiveClient
 
         fn statusTextColor = (
             return MaxUltraMcpTheme.statusColor (connectionStatusState())
+        ),
+
+        fn bridgeStatusTextColor = (
+            case (connectionStatusState()) of (
+                #pass: MaxUltraMcpTheme.bridgePassTextColor
+                #issue: MaxUltraMcpTheme.bridgeIssueTextColor
+                default: statusTextColor()
+            )
         ),
 
         fn panelIsOpen = (
@@ -2835,27 +2857,29 @@ global MaxUltraMcpActiveClient
             if (not panelIsOpen()) do return miniPanelRefreshed
             refreshAiStatusControls()
             local endpointText = ""
+            local endpointDetails = ""
             case connectionState of (
                 #connected: endpointText = "Server " + hostAddress + ":" + (hostPort as string)
                 #starting: endpointText = "Starting local MCP server..."
                 #connecting: endpointText = "Connecting to local MCP server..."
                 #reconnecting: endpointText = "Reconnecting to the running MCP server..."
                 #restarting: endpointText = "Restarting the verified local MCP server..."
-                #error: endpointText = safeSingleLineUiText connectionError "MCP bridge error"
-                default: endpointText = safeSingleLineUiText connectionError "MCP bridge is stopped"
+                #error: endpointText = "Please restart the script"
+                default: endpointText = "Please restart the script"
             )
-            local connectionColor = statusTextColor()
+            endpointDetails = if (connectionState == #error or connectionState == #disconnected or connectionState == #stopped) then (safeSingleLineUiText connectionError endpointText) else endpointText
+            local connectionColor = bridgeStatusTextColor()
             serverStatusDialog.lblConnectionIndicator.ForeColor = connectionColor
             serverStatusDialog.lblConnectionIndicator.AccessibleDescription = connectionStateText()
             serverStatusDialog.lblEndpoint.Text = endpointText
             serverStatusDialog.lblEndpoint.ForeColor = connectionColor
-            serverStatusDialog.lblEndpoint.AccessibleDescription = endpointText
+            serverStatusDialog.lblEndpoint.AccessibleDescription = endpointDetails
             local contextText = "PID " + (processId as string) + " | Scene " + currentSceneUiName() + " | Objects " + (objects.count as string) + " | Selection " + (selection.count as string)
             serverStatusDialog.lblContext.Text = contextText
             serverStatusDialog.lblContext.ForeColor = MaxUltraMcpTheme.textColor
             serverStatusDialog.lblContext.AccessibleDescription = contextText
             if (panelToolTip != undefined) do (
-                panelToolTip.SetToolTip serverStatusDialog.lblEndpoint endpointText
+                panelToolTip.SetToolTip serverStatusDialog.lblEndpoint endpointDetails
                 panelToolTip.SetToolTip serverStatusDialog.lblContext contextText
             )
             MaxUltraMcpUiKit.updateButtonState activityDialog.btnStop (not isStopped)

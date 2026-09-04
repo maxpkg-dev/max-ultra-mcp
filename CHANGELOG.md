@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Fixed: 3ds Max 2022 no longer routes server and mini-panel labels through the fragile compatible GDI+ `MeasureString` path. Bold controls now own independent rooted fonts, preventing the `Parameter is not valid` paint exception after reload or garbage collection.
+- Changed: The bridge row uses lighter green and red foreground colors. Error text is now the stable short message `Please restart the script`; full diagnostics remain in the Activity log, tooltip, and accessibility description.
+- Changed: WinForms links now use the dedicated orange theme color `[255, 127, 0]` for normal and visited states.
+- Fixed: 3ds Max 2022 no longer routes server labels or mini-panel buttons through the fragile compatible GDI+ `MeasureString` path. Bold controls now own independent rooted fonts, preventing the `Parameter is not valid` paint exception after reload or garbage collection.
 - Improved: The main panel now uses four resizable borderless rollout zones with a shared ColorMan-aware WinForms style, a dedicated AI readiness strip, concise server context, full-width Activity area, and an accented support footer.
 - Improved: The main floater now uses compact fixed toolbox chrome with mouse resizing disabled, no icon, Minimize, or Maximize buttons, and only the close action visible; programmatic minimize/restore remains supported.
 - Changed: Legacy saved panel dimensions are normalized to the fixed 720×640 content size so an earlier stretched window cannot reopen oversized; position and Hide state remain persistent.
