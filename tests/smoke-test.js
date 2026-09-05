@@ -1150,6 +1150,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /AccessibleName = "Bridge connection indicator"/);
     assert.match(bootstrapSource, /AccessibleName = "Max Ultra MCP endpoint or connection problem"/);
     assert.match(bootstrapSource, /AccessibleName = "3ds Max scene context"/);
+    assert.match(bootstrapSource, /serverStatusDialog\.lblEndpoint\.AutoEllipsis = false[\s\S]*serverStatusDialog\.lblContext\.AutoEllipsis = false/);
     const sceneUiNameBody = sourceSection(bootstrapSource, "fn currentSceneUiName", "fn safeSingleLineUiText", "filename-only scene UI name");
     assert.match(sceneUiNameBody, /if \(maxFileName == undefined or maxFileName == ""\) do return "Untitled"[\s\S]*return maxFileName/);
     assert.doesNotMatch(sceneUiNameBody, /maxFilePath|currentSceneFilePath|currentSceneDisplayName/);
@@ -1163,7 +1164,7 @@ async function runSmokeTest() {
     assert.doesNotMatch(refreshUiBody, /currentSceneFilePath|currentSceneDisplayName/);
     assert.match(refreshUiBody, /serverStatusDialog\.lblEndpoint\.AccessibleDescription = endpointDetails/);
     assert.match(refreshUiBody, /serverStatusDialog\.lblContext\.AccessibleDescription = contextText/);
-    assert.match(refreshUiBody, /panelToolTip\.SetToolTip serverStatusDialog\.lblEndpoint endpointDetails[\s\S]*panelToolTip\.SetToolTip serverStatusDialog\.lblContext contextText/);
+    assert.doesNotMatch(refreshUiBody, /panelToolTip\.SetToolTip serverStatusDialog\.lbl(?:Endpoint|Context)/);
     assert.match(bootstrapSource, /firstSupportReminderMinutes = 1/);
     assert.match(bootstrapSource, /secondSupportReminderMinutes = 10/);
     assert.match(bootstrapSource, /finalSupportReminderMinutes = 60/);
@@ -1186,7 +1187,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /activityStatusColumnWidth = 7/);
     assert.match(bootstrapSource, /activityStatusLeadingGap = "  "/);
     assert.match(bootstrapSource, /activityStatusSeparator = "  >  "/);
-    assert.match(bootstrapSource, /activityBottomPadding = "\\r\\n\\r\\n\\r\\n"/);
+    assert.doesNotMatch(bootstrapSource, /activityBottomPadding/);
     const activityDisplayEntryTextBody = sourceSection(bootstrapSource, "fn activityDisplayEntryText", "fn activityDisplayCoreText", "activity status display alignment");
     assert.match(activityDisplayEntryTextBody, /statusStart = findString normalizedEntry "\["[\s\S]*statusEnd = findString normalizedEntry "\]"/);
     assert.match(activityDisplayEntryTextBody, /while \(statusName\.count < activityStatusColumnWidth\) do statusName \+= " "/);
@@ -1195,10 +1196,10 @@ async function runSmokeTest() {
     assert.match(activityDisplayEntryTextBody, /substring suffixText 1 1\) == " "[\s\S]*return prefixText \+ statusName \+ "\]" \+ activityStatusSeparator \+ suffixText/);
     const activityDisplayCoreTextBody = sourceSection(bootstrapSource, "fn activityDisplayCoreText", "fn activityDisplayText", "activity display-only text");
     assert.match(activityDisplayCoreTextBody, /outputText \+= activityDisplayEntryText activityEntry/);
-    const activityDisplayTextBody = sourceSection(bootstrapSource, "fn activityDisplayText", "fn activityTextWithoutBottomPadding", "activity log bottom padding");
-    assert.match(activityDisplayTextBody, /local outputText = activityDisplayCoreText\(\)[\s\S]*return outputText \+ activityBottomPadding/);
-    const activityStripPaddingBody = sourceSection(bootstrapSource, "fn activityTextWithoutBottomPadding", "fn configureActivityLog", "activity log padding removal");
-    assert.match(activityStripPaddingBody, /suffixStart = normalizedText\.count - activityBottomPadding\.count \+ 1[\s\S]*contentLength = normalizedText\.count - activityBottomPadding\.count/);
+    const activityDisplayTextBody = sourceSection(bootstrapSource, "fn activityDisplayText", "fn normalizeActivityLineEndings", "compact activity log text");
+    assert.match(activityDisplayTextBody, /return activityDisplayCoreText\(\)/);
+    const activityLineEndingBody = sourceSection(bootstrapSource, "fn normalizeActivityLineEndings", "fn applyActivityLogPadding", "activity log line-ending normalization");
+    assert.match(activityLineEndingBody, /substituteString normalizedText "\\r\\n" "\\n"[\s\S]*substituteString normalizedText "\\r" "\\n"/);
     const activityLogPaddingBody = sourceSection(bootstrapSource, "fn applyActivityLogPadding", "fn configureActivityLog", "activity log horizontal padding");
     assert.match(activityLogPaddingBody, /richEditMessageSetMargins = 0x00D3[\s\S]*bothHorizontalMargins = 0x0003[\s\S]*horizontalPadding = 6[\s\S]*packedMargins = horizontalPadding \+ \(horizontalPadding \* 65536\)[\s\S]*windows\.sendMessage logWindowHandle richEditMessageSetMargins bothHorizontalMargins packedMargins/);
     const activityBadgeFontBody = sourceSection(bootstrapSource, "fn ensureActivityBadgeFont", "fn configureActivityLog", "activity status monospace font");
@@ -1227,7 +1228,8 @@ async function runSmokeTest() {
     assert.match(badgeBackgroundColorBody, /entryColor = activityEntryColor activityEntry[\s\S]*if \(themeIsDark\(\)\) do return entryColor[\s\S]*ControlPaint"\)\.Light entryColor 0\.65/);
     const badgeTextColorBody = sourceSection(bootstrapSource, "fn activityEntryBadgeTextColor", "fn activityLogIsNearBottom", "activity status badge text");
     assert.match(badgeTextColorBody, /entryColor = activityEntryColor activityEntry[\s\S]*ControlPaint"\)\.Dark entryColor 0\.55/);
-    assert.match(bootstrapSource, /ScrollToCaret\(\)/);
+    const activityScrollBody = sourceSection(bootstrapSource, "fn scrollActivityLogToBottom", "fn shiftActivityDonateLinkRanges", "caret-free activity scrolling");
+    assert.doesNotMatch(activityScrollBody, /ScrollToCaret\(\)|SelectionStart|SelectionLength/);
     assert.match(bootstrapSource, /fn activityLogIsNearBottom/);
     assert.match(bootstrapSource, /fn activityLogFirstVisibleLine/);
     assert.match(bootstrapSource, /fn restoreActivityLogFirstVisibleLine/);
@@ -1244,11 +1246,12 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /if \(activityLogUpdating\) do return true/);
     assert.match(bootstrapSource, /if \(activityLogDirty\) do refreshActivityText\(\)/);
     assert.match(bootstrapSource, /if \(not activityLogDirty and currentActivityText == expectedActivityText\) do return true/);
-    assert.match(bootstrapSource, /local expectedActivityCoreText = activityDisplayCoreText\(\)/);
+    assert.match(bootstrapSource, /local expectedActivityCoreText = normalizeActivityLineEndings \(activityDisplayCoreText\(\)\)[\s\S]*local expectedActivityText = normalizeActivityLineEndings \(activityDisplayText\(\)\)[\s\S]*local currentActivityText = normalizeActivityLineEndings \(activityDialog\.rtbActivity\.Text as string\)/);
+    assert.match(bootstrapSource, /local appendPrefix = currentActivityCoreText \+ "\\n"[\s\S]*findString currentActivityCoreText "\\n"[\s\S]*remainingActivityText = substring currentActivityCoreText \(firstLineBreak \+ 1\)[\s\S]*removedCharacterCount = firstLineBreak/);
     assert.match(bootstrapSource, /changedIncrementally/);
-    assert.match(bootstrapSource, /local currentActivityCoreText = activityTextWithoutBottomPadding currentActivityText[\s\S]*Select currentActivityCoreText\.count bottomPaddingLength[\s\S]*appendColoredActivityText appendedActivityText[\s\S]*AppendText activityBottomPadding/);
+    assert.match(bootstrapSource, /local currentActivityCoreText = currentActivityText[\s\S]*appendColoredActivityText appendedActivityText/);
     assert.match(bootstrapSource, /shiftActivityDonateLinkRanges removedCharacterCount[\s\S]*appendColoredActivityText appendedActivityText/);
-    assert.match(bootstrapSource, /for activityIndex in 1 to activityEntries\.count do \([\s\S]*appendColoredActivityText activityEntries\[activityIndex\][\s\S]*if \(activityEntries\.count > 0\) do activityDialog\.rtbActivity\.AppendText activityBottomPadding[\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor/);
+    assert.match(bootstrapSource, /for activityIndex in 1 to activityEntries\.count do \([\s\S]*appendColoredActivityText activityEntries\[activityIndex\][\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor/);
     assert.match(bootstrapSource, /responseBody \+= ",\\"content\\":\\"" \+ jsonEscape\(activityText\(\)\)/);
     assert.doesNotMatch(bootstrapSource, /responseBody \+= ",\\"content\\":\\"" \+ jsonEscape\(activityDisplayCoreText\(\)\)/);
     assert.match(bootstrapSource, /singleLineActivityMessage = substituteString/);

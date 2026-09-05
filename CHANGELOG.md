@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed: 3ds Max 2027 no longer enters the unstable .NET 10 `Label.WndProc` tooltip-notification path when server status text refreshes; full diagnostics remain available in Activity and accessibility descriptions.
+- Fixed: Activity entries no longer include three display-only blank lines, and automatic end scrolling no longer moves the read-only caret.
 - Fixed: The rotating footer promotion no longer receives persistent input focus or displays a text caret.
 - Improved: The support footer now shows a borderless, rollout-matched RichTextBox with sixteen linked project and donation promotions, selecting a different random message every 30 seconds while keeping the dedicated Donate button.
 - Improved: The disconnected Activity message now simply asks users to restart the script without exposing the package entry filename.
@@ -13,12 +15,12 @@
 - Changed: Support reminders now appear one minute after the first successful connection, ten minutes after the first reminder, and 60 minutes after the second reminder.
 - Changed: Settings About now uses a centered vertical layout with native MAXScript labels and hyperlinks for the product, version, author, project site, and package manager, followed by the themed Donate action.
 - Fixed: The restore mini-panel can again be dragged down near the Windows taskbar; only its 24 px title strip is kept reachable instead of clamping the entire 64 px panel above the taskbar.
-- Changed: Activity log category badges now have a two-space unfilled gap after timestamps, include filled outer spaces, and render padded seven-character statuses in a monospaced font, giving every colored block the same pixel width. An unfilled ` > ` separator aligns message starts without changing MCP activity responses. Badge text uses a darker, more saturated shade derived from its category-colored background; light themes use a lighter badge surface for contrast. Timestamps and messages keep their previous foreground colors, while separators and trailing visual padding remain unfilled.
+- Changed: Activity log category badges now have a two-space unfilled gap after timestamps, include filled outer spaces, and render padded seven-character statuses in a monospaced font, giving every colored block the same pixel width. An unfilled ` > ` separator aligns message starts without changing MCP activity responses. Badge text uses a darker, more saturated shade derived from its category-colored background; light themes use a lighter badge surface for contrast. Timestamps and messages keep their previous foreground colors, while separators remain unfilled.
 - Improved: Donate keeps a readable gap between its label and an optically centered 16 px Lucide heart.
 - Improved: All main-panel button icons now use the same 16×16 canvas.
 - Changed: Donate now uses the exact orange link theme color. Donate, Refresh, Hide panel, Reconnect, Stop / Exit, and Settings load packaged, ready-to-use white PNG renditions of their official Lucide icons through native WinForms. Reconnect uses the distinct `plug-zap` symbol instead of duplicating Refresh. No runtime recoloring or SVG renderer is used.
 - Fixed: Footer links and Donate now move through the MaxScript rollout `.pos` property. Applying WinForms `.Location` had offset each child inside its own host, clipping the first link and hiding the remaining controls.
-- Changed: The bridge row uses lighter green and red foreground colors. Error text is now the stable short message `Please restart the script`; full diagnostics remain in the Activity log, tooltip, and accessibility description.
+- Changed: The bridge row uses lighter green and red foreground colors. Error text is now the stable short message `Please restart the script`; full diagnostics remain in the Activity log and accessibility description.
 - Changed: WinForms links now use the dedicated orange theme color `[255, 127, 0]` for normal and visited states.
 - Fixed: 3ds Max 2022 no longer routes server labels or mini-panel buttons through the fragile compatible GDI+ `MeasureString` path. Bold controls now own independent rooted fonts, preventing the `Parameter is not valid` paint exception after reload or garbage collection.
 - Improved: The main panel now uses four fixed borderless rollout zones with a shared ColorMan-aware WinForms style, a dedicated AI readiness strip, concise server context, full-width Activity area, and an accented support footer.
@@ -37,7 +39,6 @@
 - Improved: Hide preserves position and makes the live rollout floater invisible without stopping the bridge; Expand reuses that floater and recreates it at the saved position only when necessary.
 - Improved: The restore mini-panel now uses bold system text and a high-contrast connection-colored action background; the main Server endpoint/problem text is bold as well.
 - Added: The Activity log can show up to three highlighted support reminders per bridge session: one minute after the first successful connection, ten minutes after the first reminder, and 60 minutes after the second. Hide and Reconnect do not reset the absolute deadlines.
-- Improved: The Activity log now keeps three empty display lines below the latest entry and inserts new text before them for more comfortable end scrolling, without adding padding to protocol responses.
 - Improved: The Activity RichTextBox now uses six-pixel native RichEdit margins on both horizontal sides instead of relying on the ineffective WinForms `Padding` property.
 - Added: A local ChatGPT and Codex plugin packages all Max Ultra workflow skills so natural 3ds Max requests route to the registered MCP tools.
 - Fixed: The natural workflow skill now uses readable examples and explicitly applies to requests in any user language.

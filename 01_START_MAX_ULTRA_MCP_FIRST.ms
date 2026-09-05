@@ -570,7 +570,6 @@ global MaxUltraMcpActiveClient
         activityStatusSeparator = "  >  ",
         activityBadgeFont,
         activityDonateLinkFont,
-        activityBottomPadding = "\r\n\r\n\r\n",
         activityLogDirty = true,
         activityAutoScroll = true,
         activityLogUpdating = false,
@@ -887,19 +886,14 @@ global MaxUltraMcpActiveClient
         ),
 
         fn activityDisplayText = (
-            local outputText = activityDisplayCoreText()
-            if (outputText == "") do return ""
-            return outputText + activityBottomPadding
+            return activityDisplayCoreText()
         ),
 
-        fn activityTextWithoutBottomPadding sourceText = (
+        fn normalizeActivityLineEndings sourceText = (
             local normalizedText = sourceText as string
-            if (normalizedText.count < activityBottomPadding.count) do return normalizedText
-            local suffixStart = normalizedText.count - activityBottomPadding.count + 1
-            if ((substring normalizedText suffixStart activityBottomPadding.count) != activityBottomPadding) do return normalizedText
-            local contentLength = normalizedText.count - activityBottomPadding.count
-            if (contentLength <= 0) do return ""
-            return substring normalizedText 1 contentLength
+            normalizedText = substituteString normalizedText "\r\n" "\n"
+            normalizedText = substituteString normalizedText "\r" "\n"
+            return normalizedText
         ),
 
         fn applyActivityLogPadding = (
@@ -1106,9 +1100,6 @@ global MaxUltraMcpActiveClient
 
         fn scrollActivityLogToBottom = (
             if (isDisposed or not panelIsOpen()) do return false
-            activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
-            activityDialog.rtbActivity.SelectionLength = 0
-            activityDialog.rtbActivity.ScrollToCaret()
             try (
                 local logWindowHandle = activityDialog.rtbActivity.Handle.ToInt64()
                 local windowsMessageVerticalScroll = 0x0115
@@ -1180,9 +1171,9 @@ global MaxUltraMcpActiveClient
         fn refreshActivityText = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
-                local expectedActivityCoreText = activityDisplayCoreText()
-                local expectedActivityText = activityDisplayText()
-                local currentActivityText = activityDialog.rtbActivity.Text as string
+                local expectedActivityCoreText = normalizeActivityLineEndings (activityDisplayCoreText())
+                local expectedActivityText = normalizeActivityLineEndings (activityDisplayText())
+                local currentActivityText = normalizeActivityLineEndings (activityDialog.rtbActivity.Text as string)
                 if (not activityLogDirty and currentActivityText == expectedActivityText) do return true
                 if (currentActivityText == expectedActivityText) then (
                     activityLogDirty = false
@@ -1197,19 +1188,19 @@ global MaxUltraMcpActiveClient
                 local removedLineCount = 0
                 local appendedActivityText = ""
                 local changedIncrementally = false
-                local currentActivityCoreText = activityTextWithoutBottomPadding currentActivityText
-                local appendPrefix = currentActivityCoreText + "\r\n"
+                local currentActivityCoreText = currentActivityText
+                local appendPrefix = currentActivityCoreText + "\n"
                 if (currentActivityCoreText != "" and activityTextStartsWith expectedActivityCoreText appendPrefix) then (
                     appendedActivityText = substring expectedActivityCoreText (appendPrefix.count + 1) -1
                     changedIncrementally = appendedActivityText != ""
                 ) else if (currentActivityCoreText != "") do (
-                    local firstLineBreak = findString currentActivityCoreText "\r\n"
+                    local firstLineBreak = findString currentActivityCoreText "\n"
                     if (firstLineBreak != undefined) do (
-                        local remainingActivityText = substring currentActivityCoreText (firstLineBreak + 2) -1
-                        local rollingPrefix = remainingActivityText + "\r\n"
+                        local remainingActivityText = substring currentActivityCoreText (firstLineBreak + 1) -1
+                        local rollingPrefix = remainingActivityText + "\n"
                         if (activityTextStartsWith expectedActivityCoreText rollingPrefix) do (
                             appendedActivityText = substring expectedActivityCoreText (rollingPrefix.count + 1) -1
-                            removedCharacterCount = firstLineBreak + 1
+                            removedCharacterCount = firstLineBreak
                             removedLineCount = 1
                             changedIncrementally = appendedActivityText != ""
                         )
@@ -1217,25 +1208,18 @@ global MaxUltraMcpActiveClient
                 )
                 activityDialog.rtbActivity.SuspendLayout()
                 if (changedIncrementally) then (
-                    local bottomPaddingLength = currentActivityText.count - currentActivityCoreText.count
-                    if (bottomPaddingLength > 0) do (
-                        activityDialog.rtbActivity.Select currentActivityCoreText.count bottomPaddingLength
-                        activityDialog.rtbActivity.SelectedText = ""
-                    )
                     if (removedCharacterCount > 0) do (
                         activityDialog.rtbActivity.Select 0 removedCharacterCount
                         activityDialog.rtbActivity.SelectedText = ""
                     )
                     shiftActivityDonateLinkRanges removedCharacterCount
                     appendColoredActivityText appendedActivityText
-                    activityDialog.rtbActivity.AppendText activityBottomPadding
                 ) else (
                     activityDonateLinkRanges = #()
                     activityDialog.rtbActivity.Clear()
                     for activityIndex in 1 to activityEntries.count do (
                         appendColoredActivityText activityEntries[activityIndex]
                     )
-                    if (activityEntries.count > 0) do activityDialog.rtbActivity.AppendText activityBottomPadding
                     activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
                     activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
                 )
@@ -1453,9 +1437,11 @@ global MaxUltraMcpActiveClient
                 serverStatusDialog.lblConnectionIndicator.Text = (dotNetClass "System.Char").ConvertFromUtf32 0x25CF
                 serverStatusDialog.lblConnectionIndicator.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
                 serverStatusDialog.lblConnectionIndicator.AccessibleName = "Bridge connection indicator"
-                serverStatusDialog.lblEndpoint.AutoEllipsis = true
+                -- Label tooltips enter Control.WmNotify. That path is unstable in
+                -- 3ds Max 2027's .NET 10 host, so server labels clip without them.
+                serverStatusDialog.lblEndpoint.AutoEllipsis = false
                 serverStatusDialog.lblEndpoint.AccessibleName = "Max Ultra MCP endpoint or connection problem"
-                serverStatusDialog.lblContext.AutoEllipsis = true
+                serverStatusDialog.lblContext.AutoEllipsis = false
                 serverStatusDialog.lblContext.AccessibleName = "3ds Max scene context"
 
                 MaxUltraMcpUiKit.styleButton activityDialog.btnReconnect
@@ -3018,10 +3004,6 @@ global MaxUltraMcpActiveClient
             serverStatusDialog.lblContext.Text = contextText
             serverStatusDialog.lblContext.ForeColor = MaxUltraMcpTheme.textColor
             serverStatusDialog.lblContext.AccessibleDescription = contextText
-            if (panelToolTip != undefined) do (
-                panelToolTip.SetToolTip serverStatusDialog.lblEndpoint endpointDetails
-                panelToolTip.SetToolTip serverStatusDialog.lblContext contextText
-            )
             MaxUltraMcpUiKit.updateButtonState activityDialog.btnStop (not isStopped)
             MaxUltraMcpUiKit.updateButtonState activityDialog.btnReconnect (connectionState != #reconnecting)
             if (activityLogDirty) do refreshActivityText()
