@@ -6,7 +6,7 @@ All automated verification code and test-only fixtures live in this directory.
 
 - `smoke-test.js` verifies the original tool surface, routing, lifecycle, packaging, documentation contracts, MaxScript structure, and examples.
 - `v1-smoke-test.js` verifies tool profiles, structured envelopes, revisions, jobs, floor-plan generation, screenshots, and multi-client routing.
-- `cli-integration-test.js` launches real daemon and STDIO child processes and verifies authenticated JSON-only MCP transport.
+- `cli-integration-test.js` launches real daemon and STDIO child processes, replaces the daemon behind the same live STDIO host, and verifies authenticated JSON-only MCP recovery.
 - `diagnostics-cli-test.js` verifies help and dynamic skill discovery without Max, Codex/Claude setup instructions, the source-only launcher, MaxPkg exclusion, and read-only status/health/capabilities/skill checks against a mock Max.
 - `helpers/mock-max-client.js` simulates supported 3ds Max protocol endpoints without opening 3ds Max.
 - `fixtures/ui-automation-rollout/` contains the MaxScript rollout used for real-Max UI Automation verification.

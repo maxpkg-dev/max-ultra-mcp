@@ -15,6 +15,10 @@ const { BridgeControlClient } = require("./bridge-control-client");
 const { getMcpTools, normalizeProfile } = require("./tool-catalog");
 const { version: SERVER_VERSION } = require("./package.json");
 
+const DEFAULT_RECONNECT_GRACE_MS = 10000;
+const RECONNECT_PROBE_TIMEOUT_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 1000;
+
 const NATURAL_WORKFLOW_INSTRUCTIONS = "Treat a natural request to make, edit, inspect, or render something in 3ds Max, the user's 3D program, or their 3D editor as intent to use Max Ultra MCP. Start with max_list_instances. Select the only instance explicitly, or select a uniquely identified matching instance. With zero instances or several ambiguous instances, ask exactly one short question and do not operate in an uncertain window. Perform the requested action through the narrowest tool, then verify the resulting state or image. For Max-owned windows, inspect first, capture a returned HWND directly with max_ui_capture_window, and use max_ui_diagnostics when bounded UI Automation, native WinForms, or WebBrowser layout evidence is needed.";
 const BASE_INSTRUCTIONS = "Control already-open Autodesk 3ds Max through semantic tools. If several Max instances are connected, list and select one explicitly. Run mutations serially. Use max_job_* for the common lifecycle of long operations; render-specific job tools remain compatible. Inspect max_renderer_properties_get before renderer-specific configuration and use only exact runtime properties with read-back verification. Use max_material_find_unassigned before changing material assignments. For polygon modeling, inspect scene units, validate object-local vertices and zero-based faces, create with the unchanged validation token, then capture and inspect the viewport. For floor-plan images, interpret the image in the model, validate the structured plan, and build it with the unchanged token. The floor-plan builder preserves a source wall spline, extrudes a separate working copy, and creates door/window topology through meshOp before viewport verification. Raw image bytes are not sent to Max Ultra MCP. Use max_execute only when no semantic tool fits. max_run_script, max_run_script_file, and max_execute require activity to name the exact operation, such as Create wall openings, Assign tree materials, or Delete opening helpers. Generic labels, code, filenames, and paths are rejected.";
 const INSTRUCTIONS = NATURAL_WORKFLOW_INSTRUCTIONS + " " + BASE_INSTRUCTIONS;
@@ -25,7 +29,7 @@ function writeRpc(message) {
 
 function errorCode(error) {
   const message = String(error?.message || error || "Unknown error");
-  if (/ECONNREFUSED|control client is not connected|connection closed/i.test(message)) return "BRIDGE_DOWN";
+  if (/ECONNREFUSED|ECONNRESET|EPIPE|ENOTCONN|socket hang up|Bridge stopped|daemon unavailable|control client is not connected|connection closed/i.test(message)) return "BRIDGE_DOWN";
   if (/No 3ds Max instances/i.test(message)) return "MAX_NOT_CONNECTED";
   if (/Multiple 3ds Max|max_select_instance/i.test(message)) return "INSTANCE_REQUIRED";
   if (/STALE_NODE_REF/i.test(message)) return "STALE_NODE_REF";
@@ -45,6 +49,12 @@ function errorCode(error) {
 }
 
 function errorHints(error) {
+  if (/outcome may be unknown/i.test(String(error?.message || error || ""))) {
+    return [
+      "The interrupted request was not retried automatically.",
+      "If it could have changed the scene, inspect fresh state before deciding whether to retry it.",
+    ];
+  }
   const hints = {
     BRIDGE_DOWN: ["Run 01_START_MAX_ULTRA_MCP_FIRST.ms in 3ds Max, then retry max_health."],
     MAX_NOT_CONNECTED: ["Open 3ds Max, run 01_START_MAX_ULTRA_MCP_FIRST.ms, then call max_list_instances."],
@@ -152,12 +162,50 @@ class StdioHost {
     this.toolByName = new Map(this.tools.map((entry) => [entry.name, entry]));
     this.client = options.client || new BridgeControlClient({
       timeoutMs: Number(process.env.MAX_ULTRA_MCP_TIMEOUT_MS || 600000),
-      onDisconnect: options.onBridgeDisconnect,
     });
+    const requestedGraceMs = Number(options.reconnectGraceMs ?? DEFAULT_RECONNECT_GRACE_MS);
+    this.reconnectGraceMs = Number.isFinite(requestedGraceMs) ? Math.max(0, requestedGraceMs) : DEFAULT_RECONNECT_GRACE_MS;
+    this.reconnectPromise = null;
+    this.verifiedSocket = null;
+    this.daemonIdentity = null;
   }
 
   async ensureConnected() {
-    if (!this.client.socket || this.client.socket.destroyed) await this.client.connect();
+    if (this.client.socket && !this.client.socket.destroyed && this.verifiedSocket === this.client.socket) return this.daemonIdentity;
+    if (this.reconnectPromise) return this.reconnectPromise;
+    const reconnect = async () => {
+      const deadline = Date.now() + this.reconnectGraceMs;
+      let retryDelayMs = 100;
+      let lastError = null;
+      do {
+        try {
+          const remainingMs = Math.max(1, deadline - Date.now());
+          await this.client.connect(Math.min(RECONNECT_PROBE_TIMEOUT_MS, remainingMs));
+          const identity = await this.client.probe(Math.min(RECONNECT_PROBE_TIMEOUT_MS, Math.max(1, deadline - Date.now())));
+          if (!identity || identity.server !== "max-ultra-mcp" || String(identity.wireVersion) !== "1" || identity.healthy !== true || identity.authRequired !== true) {
+            throw new Error("Configured endpoint did not return a valid Max Ultra MCP daemon identity");
+          }
+          this.verifiedSocket = this.client.socket;
+          this.daemonIdentity = identity;
+          return identity;
+        } catch (error) {
+          lastError = error;
+          this.verifiedSocket = null;
+          this.daemonIdentity = null;
+          this.client.close();
+        }
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) break;
+        await new Promise((resolve) => setTimeout(resolve, Math.min(retryDelayMs, remainingMs)));
+        retryDelayMs = Math.min(MAX_RECONNECT_DELAY_MS, retryDelayMs * 2);
+      } while (Date.now() <= deadline);
+      throw new Error(`Max Ultra MCP daemon unavailable after ${this.reconnectGraceMs} ms${lastError ? `: ${lastError.message}` : ""}`);
+    };
+    const reconnectPromise = reconnect().finally(() => {
+      if (this.reconnectPromise === reconnectPromise) this.reconnectPromise = null;
+    });
+    this.reconnectPromise = reconnectPromise;
+    return reconnectPromise;
   }
 
   async handle(message, send = writeRpc) {
@@ -216,7 +264,7 @@ async function main() {
     host.close();
     process.exit(0);
   };
-  const host = new StdioHost({ onBridgeDisconnect: shutdown });
+  const host = new StdioHost();
   input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   input.on("line", (line) => {
     if (!line.trim()) return;

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fixed: The rotating footer promotion no longer receives persistent input focus or displays a text caret.
+- Improved: The support footer now shows a borderless, rollout-matched RichTextBox with sixteen linked project and donation promotions, selecting a different random message every 30 seconds while keeping the dedicated Donate button.
+- Improved: The disconnected Activity message now simply asks users to restart the script without exposing the package entry filename.
+- Improved: The underlined Donate word in Activity support reminders now opens the secure donation checkout by mouse click or keyboard activation.
+- Fixed: AI-client STDIO hosts now survive daemon replacement and use one verified, bounded reconnect attempt on the next tool call, preventing an existing Codex or Claude Code session from receiving a terminal transport close during an ordinary same-port bridge restart.
+- Changed: Interrupted tool calls are never replayed automatically and return `BRIDGE_DOWN` with an unknown-outcome warning; daemon-owned selection and jobs reset after reconnect.
+- Changed: Scene revisions now start from a new opaque nonzero epoch for every daemon process so NodeRefs from a previous daemon are rejected as stale.
 - Changed: Removed the obsolete adaptive main-panel layout path. The 720×640 floater, four rollout heights, and all control coordinates are now declared directly; only position and Hide state persist.
 - Changed: Support reminders now appear one minute after the first successful connection, ten minutes after the first reminder, and 60 minutes after the second reminder.
 - Changed: Settings About now uses a centered vertical layout with native MAXScript labels and hyperlinks for the product, version, author, project site, and package manager, followed by the themed Donate action.

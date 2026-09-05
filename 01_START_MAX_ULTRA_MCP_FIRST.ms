@@ -352,18 +352,23 @@ global MaxUltraMcpActiveClient
         on rtbActivity GotFocus eventSender eventArgs do enableAccelerators = false
         on rtbActivity LostFocus eventSender eventArgs do enableAccelerators = true
         on rtbActivity VScroll eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleActivityLogScrolled()
+        on rtbActivity MouseMove eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleActivityLogMouseMove eventArgs.Location
+        on rtbActivity MouseClick eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleActivityLogMouseClick eventArgs
+        on rtbActivity KeyDown eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleActivityLogKeyDown eventArgs
         on btnReconnect Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.reconnectBridge()
         on btnStop Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.closeForLifecycle reason: "Stop / Exit pressed"
         on btnSettings Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.showSettingsDialog()
     )
 
     rollout MaxUltraMcpSupportDialog "" width: 720 height: 44 (
-        dotNetControl lnkMaxPkg "System.Windows.Forms.LinkLabel" pos: [8,7] width: 90 height: 30
-        dotNetControl lnk3DGround "System.Windows.Forms.LinkLabel" pos: [104,7] width: 104 height: 30
+        dotNetControl rtbPromotion "System.Windows.Forms.RichTextBox" pos: [8,13] width: 568 height: 22
         dotNetControl btnDonate "System.Windows.Forms.Button" pos: [592,7] width: 120 height: 30
 
-        on lnkMaxPkg LinkClicked eventSender eventArgs do try (shellLaunch "https://maxpkg.dev/catalog/max-ultra-mcp" "") catch ()
-        on lnk3DGround LinkClicked eventSender eventArgs do try (shellLaunch "https://3dground.net" "") catch ()
+        on rtbPromotion MouseEnter eventSender eventArgs do enableAccelerators = false
+        on rtbPromotion MouseLeave eventSender eventArgs do enableAccelerators = true
+        on rtbPromotion GotFocus eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.clearFooterPromotionFocus()
+        on rtbPromotion LostFocus eventSender eventArgs do enableAccelerators = true
+        on rtbPromotion MouseDown eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleFooterPromotionMouseDown eventArgs
         on btnDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
 
@@ -530,6 +535,32 @@ global MaxUltraMcpActiveClient
         finalSupportReminderMinutes = 60,
         maximumSupportReminders = 3,
         supportReminderMessage = "Max Ultra MCP is maintained independently in personal time. Without community support, continued development may not be sustainable. If it helps your work, please use Donate to support it.",
+        footerPromotions = #(
+            #("Visit maxpkg.dev for useful 3ds Max tools.", "https://maxpkg.dev"),
+            #("Discover free, high-quality scripts on maxpkg.dev.", "https://maxpkg.dev"),
+            #("Find practical 3ds Max scripts on 3dground.net.", "https://3dground.net"),
+            #("Explore Max Ultra MCP on maxpkg.dev.", "https://maxpkg.dev/catalog/max-ultra-mcp"),
+            #("Support Max Ultra MCP and help keep development moving.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Donate today to help fund the next Max Ultra MCP update.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("If Max Ultra MCP saves you time, support its development.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Help keep Max Ultra MCP free for everyone - donate.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Community support keeps independent tools alive - donate.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Enjoying Max Ultra MCP? Help make the next update possible.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Back Max Ultra MCP today and support continued development.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("More support means more time for Max Ultra MCP improvements.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Help the author cover the AI tokens used to develop this script.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Buy the author a coffee and support the next update.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Buy the author a beer and keep development moving.", "https://store.payproglobal.com/checkout?products[1][id]=137366"),
+            #("Saved some time? Someone worked very hard on this script.", "https://store.payproglobal.com/checkout?products[1][id]=137366")
+        ),
+        footerPromotionIndex = 0,
+        footerPromotionUrl = "",
+        footerPromotionDueAt,
+        footerPromotionIntervalSeconds = 30,
+        footerPromotionFont,
+        activityDonateLinkText = "Donate",
+        activityDonateLinkUrl = "https://store.payproglobal.com/checkout?products[1][id]=137366",
+        activityDonateLinkRanges = #(),
         pendingRequestLines = #(),
         cancelledRequestIds = #(),
         activityEntries = #(),
@@ -538,6 +569,7 @@ global MaxUltraMcpActiveClient
         activityStatusLeadingGap = "  ",
         activityStatusSeparator = "  >  ",
         activityBadgeFont,
+        activityDonateLinkFont,
         activityBottomPadding = "\r\n\r\n\r\n",
         activityLogDirty = true,
         activityAutoScroll = true,
@@ -897,6 +929,17 @@ global MaxUltraMcpActiveClient
             return activityBadgeFont
         ),
 
+        fn ensureActivityDonateLinkFont = (
+            if (activityDonateLinkFont != undefined) do return activityDonateLinkFont
+            try (
+                local baseFont = MaxUltraMcpUiKit.messageFont()
+                activityDonateLinkFont = dotNetObject "System.Drawing.Font" baseFont.FontFamily baseFont.SizeInPoints (dotNetClass "System.Drawing.FontStyle").Underline
+            ) catch (
+                activityDonateLinkFont = undefined
+            )
+            return activityDonateLinkFont
+        ),
+
         fn configureActivityLog = (
             if (isDisposed or not panelIsOpen()) do return false
             try (
@@ -913,12 +956,14 @@ global MaxUltraMcpActiveClient
                 activityDialog.rtbActivity.BackColor = lighterThemeSurface()
                 activityDialog.rtbActivity.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
                 activityDialog.rtbActivity.AccessibleName = "Max Ultra MCP color-coded activity log"
-                activityDialog.rtbActivity.AccessibleDescription = "Recent bridge, setup, request, and support activity"
+                activityDialog.rtbActivity.AccessibleDescription = "Recent bridge, setup, request, and support activity. Underlined Donate text opens the donation checkout."
                 activityDialog.rtbActivity.TabStop = true
+                activityDialog.rtbActivity.Cursor = (dotNetClass "System.Windows.Forms.Cursors").IBeam
                 activityLogDirty = true
                 activityAutoScroll = true
                 activityDialog.rtbActivity.Font = MaxUltraMcpUiKit.messageFont()
                 ensureActivityBadgeFont()
+                ensureActivityDonateLinkFont()
                 applyActivityLogPadding()
             ) catch (
             )
@@ -997,6 +1042,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn handleActivityLogMouseLeave = (
+            try (if (panelIsOpen()) do activityDialog.rtbActivity.Cursor = (dotNetClass "System.Windows.Forms.Cursors").IBeam) catch ()
             activityAutoScroll = activityLogIsNearBottom()
             return true
         ),
@@ -1005,6 +1051,51 @@ global MaxUltraMcpActiveClient
             if (activityLogUpdating) do return true
             activityAutoScroll = activityLogIsNearBottom()
             return true
+        ),
+
+        fn activityDonateLinkAtCharacter characterIndex = (
+            if (characterIndex == undefined or characterIndex < 0) do return false
+            for linkRangeIndex in 1 to activityDonateLinkRanges.count do (
+                local linkRange = activityDonateLinkRanges[linkRangeIndex]
+                if (characterIndex >= linkRange[1] and characterIndex < (linkRange[1] + linkRange[2])) do return true
+            )
+            return false
+        ),
+
+        fn handleActivityLogMouseMove mousePosition = (
+            if (isDisposed or not panelIsOpen()) do return false
+            local characterIndex = -1
+            try (characterIndex = activityDialog.rtbActivity.GetCharIndexFromPosition mousePosition) catch ()
+            local linkIsHovered = activityDonateLinkAtCharacter characterIndex
+            try (activityDialog.rtbActivity.Cursor = if (linkIsHovered) then (dotNetClass "System.Windows.Forms.Cursors").Hand else (dotNetClass "System.Windows.Forms.Cursors").IBeam) catch ()
+            return linkIsHovered
+        ),
+
+        fn openActivityDonateLink = (
+            try (
+                shellLaunch activityDonateLinkUrl ""
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn handleActivityLogMouseClick eventArgs = (
+            if (isDisposed or not panelIsOpen() or eventArgs == undefined) do return false
+            if (eventArgs.Button != (dotNetClass "System.Windows.Forms.MouseButtons").Left) do return false
+            local characterIndex = -1
+            try (characterIndex = activityDialog.rtbActivity.GetCharIndexFromPosition eventArgs.Location) catch ()
+            if (not (activityDonateLinkAtCharacter characterIndex)) do return false
+            return openActivityDonateLink()
+        ),
+
+        fn handleActivityLogKeyDown eventArgs = (
+            if (isDisposed or not panelIsOpen() or eventArgs == undefined) do return false
+            local keysClass = dotNetClass "System.Windows.Forms.Keys"
+            if (eventArgs.KeyCode != keysClass.Enter and eventArgs.KeyCode != keysClass.Space) do return false
+            if (not (activityDonateLinkAtCharacter activityDialog.rtbActivity.SelectionStart)) do return false
+            eventArgs.SuppressKeyPress = true
+            return openActivityDonateLink()
         ),
 
         fn activityTextStartsWith sourceText prefixText = (
@@ -1028,12 +1119,24 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
+        fn shiftActivityDonateLinkRanges removedCharacterCount = (
+            if (removedCharacterCount <= 0) do return true
+            local shiftedLinkRanges = #()
+            for linkRangeIndex in 1 to activityDonateLinkRanges.count do (
+                local linkRange = activityDonateLinkRanges[linkRangeIndex]
+                if (linkRange[1] >= removedCharacterCount) do append shiftedLinkRanges #((linkRange[1] - removedCharacterCount), linkRange[2])
+            )
+            activityDonateLinkRanges = shiftedLinkRanges
+            return true
+        ),
+
         fn appendColoredActivityText activityEntry = (
             local normalizedActivityEntry = activityDisplayEntryText activityEntry
             local entryColor = activityEntryColor normalizedActivityEntry
             local badgeBackgroundColor = activityEntryBadgeBackgroundColor normalizedActivityEntry
             local badgeTextColor = activityEntryBadgeTextColor normalizedActivityEntry
             local badgeFont = ensureActivityBadgeFont()
+            local donateLinkFont = ensureActivityDonateLinkFont()
             local statusStart = findString normalizedActivityEntry "["
             local statusEnd = findString normalizedActivityEntry "]"
             local hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd >= statusStart
@@ -1057,6 +1160,19 @@ global MaxUltraMcpActiveClient
             activityDialog.rtbActivity.SelectionColor = entryColor
             activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
             if (suffixText != "") do activityDialog.rtbActivity.AppendText suffixText
+            local isSupportReminder = (findString normalizedActivityEntry " [support") != undefined and (findString suffixText supportReminderMessage) != undefined
+            local donateTextOffset = if (isSupportReminder) then (findString suffixText activityDonateLinkText) else undefined
+            if (donateTextOffset != undefined) do (
+                local donateCharacterIndex = activityDialog.rtbActivity.TextLength - suffixText.count + donateTextOffset - 1
+                activityDialog.rtbActivity.Select donateCharacterIndex activityDonateLinkText.count
+                activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
+                activityDialog.rtbActivity.SelectionColor = MaxUltraMcpTheme.linkColor
+                if (donateLinkFont != undefined) do activityDialog.rtbActivity.SelectionFont = donateLinkFont
+                append activityDonateLinkRanges #(donateCharacterIndex, activityDonateLinkText.count)
+                activityDialog.rtbActivity.Select activityDialog.rtbActivity.TextLength 0
+                activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
+                activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
+            )
             activityDialog.rtbActivity.SelectionColor = activityDialog.rtbActivity.ForeColor
             return true
         ),
@@ -1110,9 +1226,11 @@ global MaxUltraMcpActiveClient
                         activityDialog.rtbActivity.Select 0 removedCharacterCount
                         activityDialog.rtbActivity.SelectedText = ""
                     )
+                    shiftActivityDonateLinkRanges removedCharacterCount
                     appendColoredActivityText appendedActivityText
                     activityDialog.rtbActivity.AppendText activityBottomPadding
                 ) else (
+                    activityDonateLinkRanges = #()
                     activityDialog.rtbActivity.Clear()
                     for activityIndex in 1 to activityEntries.count do (
                         appendColoredActivityText activityEntries[activityIndex]
@@ -1173,6 +1291,98 @@ global MaxUltraMcpActiveClient
                 supportReminderDueAt = undefined
             )
             return true
+        ),
+
+        fn ensureFooterPromotionFont = (
+            if (footerPromotionFont != undefined) do return footerPromotionFont
+            try (
+                local baseFont = MaxUltraMcpUiKit.messageFont()
+                footerPromotionFont = dotNetObject "System.Drawing.Font" baseFont.FontFamily baseFont.SizeInPoints (dotNetClass "System.Drawing.FontStyle").Underline
+            ) catch (
+                footerPromotionFont = undefined
+            )
+            return footerPromotionFont
+        ),
+
+        fn showRandomFooterPromotion forceRefresh: false = (
+            if (isDisposed or not panelIsOpen() or footerPromotions.count == 0) do return false
+            if (not forceRefresh and footerPromotionDueAt != undefined) do (
+                local deadlineReached = false
+                try (deadlineReached = ((dotNetClass "System.DateTime").UtcNow.CompareTo footerPromotionDueAt) >= 0) catch (deadlineReached = true)
+                if (not deadlineReached) do return true
+            )
+            local nextPromotionIndex = 1
+            if (footerPromotionIndex < 1 or footerPromotionIndex > footerPromotions.count) then (
+                nextPromotionIndex = random 1 footerPromotions.count
+            ) else if (footerPromotions.count > 1) do (
+                local randomOffset = random 1 (footerPromotions.count - 1)
+                nextPromotionIndex = (mod ((footerPromotionIndex - 1) + randomOffset) footerPromotions.count) + 1
+            )
+            local promotionData = footerPromotions[nextPromotionIndex]
+            local promotionFont = ensureFooterPromotionFont()
+            footerPromotionIndex = nextPromotionIndex
+            footerPromotionUrl = promotionData[2]
+            supportDialog.rtbPromotion.Text = promotionData[1]
+            supportDialog.rtbPromotion.SelectAll()
+            supportDialog.rtbPromotion.SelectionBackColor = supportDialog.rtbPromotion.BackColor
+            supportDialog.rtbPromotion.SelectionColor = MaxUltraMcpTheme.linkColor
+            if (promotionFont != undefined) do supportDialog.rtbPromotion.SelectionFont = promotionFont
+            supportDialog.rtbPromotion.Select 0 0
+            supportDialog.rtbPromotion.AccessibleName = promotionData[1]
+            supportDialog.rtbPromotion.AccessibleDescription = "Open the current Max Ultra MCP promotion in the default browser"
+            footerPromotionDueAt = (dotNetClass "System.DateTime").UtcNow.AddSeconds (footerPromotionIntervalSeconds as double)
+            return true
+        ),
+
+        fn configureFooterPromotion = (
+            if (isDisposed or not panelIsOpen()) do return false
+            try (
+                supportDialog.rtbPromotion.ReadOnly = true
+                supportDialog.rtbPromotion.Multiline = false
+                supportDialog.rtbPromotion.WordWrap = false
+                supportDialog.rtbPromotion.DetectUrls = false
+                supportDialog.rtbPromotion.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").None
+                supportDialog.rtbPromotion.BorderStyle = (dotNetClass "System.Windows.Forms.BorderStyle").None
+                supportDialog.rtbPromotion.Font = MaxUltraMcpUiKit.messageFont()
+                supportDialog.rtbPromotion.ForeColor = MaxUltraMcpTheme.linkColor
+                supportDialog.rtbPromotion.Cursor = (dotNetClass "System.Windows.Forms.Cursors").Hand
+                supportDialog.rtbPromotion.TabStop = false
+                supportDialog.rtbPromotion.HideSelection = false
+                MaxUltraMcpUiKit.inheritParentBackColor supportDialog.rtbPromotion fallbackColor: MaxUltraMcpTheme.rolloutColor
+                ensureFooterPromotionFont()
+                showRandomFooterPromotion forceRefresh: true
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn pollFooterPromotion = (
+            if (footerPromotionDueAt == undefined) do return showRandomFooterPromotion forceRefresh: true
+            return showRandomFooterPromotion()
+        ),
+
+        fn openFooterPromotionLink = (
+            if (footerPromotionUrl == "") do return false
+            try (
+                shellLaunch footerPromotionUrl ""
+                return true
+            ) catch (
+                return false
+            )
+        ),
+
+        fn clearFooterPromotionFocus = (
+            try (if (panelForm != undefined) do panelForm.ActiveControl = undefined) catch ()
+            try (supportDialog.rtbPromotion.Select 0 0) catch ()
+            return true
+        ),
+
+        fn handleFooterPromotionMouseDown eventArgs = (
+            if (eventArgs == undefined or eventArgs.Button != (dotNetClass "System.Windows.Forms.MouseButtons").Left) do return false
+            local linkOpened = openFooterPromotionLink()
+            clearFooterPromotionFocus()
+            return linkOpened
         ),
 
         fn releasePanelIconImages = (
@@ -1270,13 +1480,8 @@ global MaxUltraMcpActiveClient
                 activityDialog.btnSettings.TextImageRelation = (dotNetClass "System.Windows.Forms.TextImageRelation").ImageBeforeText
                 activityDialog.btnSettings.AccessibleName = "Open Max Ultra MCP settings"
 
-                MaxUltraMcpUiKit.styleLink supportDialog.lnkMaxPkg
-                MaxUltraMcpUiKit.styleLink supportDialog.lnk3DGround
                 MaxUltraMcpUiKit.styleButton supportDialog.btnDonate baseColorValue: MaxUltraMcpTheme.linkColor
-                supportDialog.lnkMaxPkg.Text = "maxpkg.dev"
-                supportDialog.lnkMaxPkg.AccessibleName = "Open Max Ultra MCP on maxpkg.dev"
-                supportDialog.lnk3DGround.Text = "3dground.net"
-                supportDialog.lnk3DGround.AccessibleName = "Open 3DGROUND website"
+                configureFooterPromotion()
                 supportDialog.btnDonate.Text = "  Donate"
                 supportDialog.btnDonate.Image = donateIconImage
                 supportDialog.btnDonate.ImageAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
@@ -1295,6 +1500,7 @@ global MaxUltraMcpActiveClient
                 panelToolTip.SetToolTip statusDialog.btnRefreshAgents "Refresh AI client readiness"
                 panelToolTip.SetToolTip statusDialog.btnHide "Hide the panel without stopping the bridge"
                 panelToolTip.SetToolTip statusDialog.btnAiStatus "Open AI Client Setup"
+                panelToolTip.SetToolTip supportDialog.rtbPromotion "Open this link in the default browser"
                 panelToolTip.SetToolTip supportDialog.btnDonate "Support continued independent development"
                 configureActivityLog()
                 return true
@@ -3421,7 +3627,7 @@ global MaxUltraMcpActiveClient
                         isStopped = true
                         connectionState = #error
                         if (hasConnectedThisSession) then (
-                            connectionError = "Server connection ended. Run 01_START_MAX_ULTRA_MCP_FIRST.ms to start it again."
+                            connectionError = "Please restart the script."
                             addActivity "warning" connectionError
                         ) else if (connectionError == "") do (
                             connectionError = "Initial server connection ended before this Max registered. Run 01_START_MAX_ULTRA_MCP_FIRST.ms to retry."
@@ -3960,6 +4166,7 @@ global MaxUltraMcpActiveClient
                 pollIntegrationOperation()
                 pollUpdateOperation()
                 pollSupportReminder()
+                pollFooterPromotion()
                 local handledInboundLines = 0
                 while (inboundQueue != undefined and inboundQueue.Count > 0 and handledInboundLines < maximumInboundLinesPerTick) do (
                     handleInboundLine (inboundQueue.Dequeue())

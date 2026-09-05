@@ -112,7 +112,8 @@ function ensureRuntime(bridge, session) {
 }
 
 function revisionFor(bridge, instanceId) {
-  return bridge.sceneRevisions?.get(instanceId) || 0;
+  if (bridge.sceneRevisions?.has(instanceId)) return bridge.sceneRevisions.get(instanceId);
+  return Number.isSafeInteger(bridge.sceneRevisionEpoch) && bridge.sceneRevisionEpoch >= 0 ? bridge.sceneRevisionEpoch : 0;
 }
 
 function incrementRevision(bridge, instanceId) {

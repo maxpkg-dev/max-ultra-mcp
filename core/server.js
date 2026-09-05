@@ -12,7 +12,7 @@ const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 const readline = require("node:readline");
-const { randomUUID } = require("node:crypto");
+const { randomBytes, randomUUID } = require("node:crypto");
 const { allToolNames } = require("./tool-catalog");
 const { activityLabelForTool, invokeV1Tool, NOT_HANDLED } = require("./tool-runtime");
 const { version: SERVER_VERSION } = require("./package.json");
@@ -37,6 +37,10 @@ const MAX_EXECUTION_TIMEOUT_MS = 600000;
 const MAX_LINE_BYTES = 4 * 1024 * 1024;
 const MAX_LOG_ENTRIES = 200;
 let launchOwnershipRecord = null;
+
+function createSceneRevisionEpoch() {
+  return randomBytes(6).readUIntBE(0, 6) + 1;
+}
 
 function writeLaunchOwnership(bridge) {
   const ownerFileValue = process.env.MAX_ULTRA_MCP_OWNER_FILE || "";
@@ -137,6 +141,11 @@ class MaxBridge {
     this.connections = new Set();
     this.controlToken = options.controlToken || ensureControlToken();
     this.pendingRequests = new Map();
+    const requestedRevisionEpoch = Number(options.sceneRevisionEpoch);
+    this.sceneRevisionEpoch = Number.isSafeInteger(requestedRevisionEpoch) && requestedRevisionEpoch >= 0
+      ? requestedRevisionEpoch
+      : createSceneRevisionEpoch();
+    this.sceneRevisions = new Map();
     this.selectedInstanceId = "";
     this.startedAt = new Date().toISOString();
     this.shutdownHandler = options.shutdownHandler || (() => this.stop().finally(() => process.exit(0)));

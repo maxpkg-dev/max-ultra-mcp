@@ -60,17 +60,25 @@ async function run() {
   let mockError = "";
   let hostError = "";
   const hostLines = [];
+  const launchDaemon = () => {
+    const child = spawn(process.execPath, [path.join(CORE_ROOT, "server.js"), "--daemon"], { env: environment, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { daemonOutput += chunk; });
+    child.stderr.on("data", (chunk) => { daemonError += chunk; });
+    return child;
+  };
+  const launchMock = () => {
+    const child = spawn(process.execPath, [path.join(__dirname, "helpers", "mock-max-client.js"), "2027"], { env: environment, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => { mockError += chunk; });
+    return child;
+  };
   try {
-    daemon = spawn(process.execPath, [path.join(CORE_ROOT, "server.js"), "--daemon"], { env: environment, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-    daemon.stdout.setEncoding("utf8");
-    daemon.stderr.setEncoding("utf8");
-    daemon.stdout.on("data", (chunk) => { daemonOutput += chunk; });
-    daemon.stderr.on("data", (chunk) => { daemonError += chunk; });
+    daemon = launchDaemon();
     await waitForText(() => daemonError, /RUNNING/);
 
-    mock = spawn(process.execPath, [path.join(__dirname, "helpers", "mock-max-client.js"), "2027"], { env: environment, stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
-    mock.stderr.setEncoding("utf8");
-    mock.stderr.on("data", (chunk) => { mockError += chunk; });
+    mock = launchMock();
     await waitForText(() => daemonError, /CONNECTED/);
 
     host = spawn(process.execPath, [path.join(CORE_ROOT, "server.js"), "--stdio"], { env: environment, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
@@ -112,16 +120,46 @@ async function run() {
     const control = new BridgeControlClient({ port, timeoutMs: 5000 });
     await control.connect();
     const daemonExit = daemon.exitCode === null ? new Promise((resolve) => daemon.once("exit", resolve)) : Promise.resolve();
-    const hostExit = host.exitCode === null ? new Promise((resolve) => host.once("exit", resolve)) : Promise.resolve(host.exitCode);
     await control.shutdownServer();
     control.close();
     await daemonExit;
     daemon = null;
-    const hostExitCode = await Promise.race([
-      hostExit,
-      new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000)),
-    ]);
-    assert.notEqual(hostExitCode, "timeout", "STDIO host remained alive after its verified daemon connection closed");
+    if (mock && mock.exitCode === null) {
+      const mockExit = new Promise((resolve) => mock.once("exit", resolve));
+      mock.kill();
+      await mockExit;
+    }
+    mock = null;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.equal(host.exitCode, null, `STDIO host exited after daemon shutdown: ${hostError}`);
+
+    host.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "max_list_instances", arguments: {} } })}\n`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.equal(hostLines.length, 3, "Tool call should wait while the daemon is restarting");
+
+    daemonError = "";
+    daemonOutput = "";
+    daemon = launchDaemon();
+    await waitForText(() => daemonError, /RUNNING/);
+    await waitForLines(hostLines, 4);
+    const recoveryResponse = JSON.parse(hostLines[3]);
+    assert.equal(recoveryResponse.id, 4);
+    assert.equal(recoveryResponse.result.structuredContent.ok, true, JSON.stringify(recoveryResponse.result.structuredContent));
+
+    mockError = "";
+    mock = launchMock();
+    await waitForText(() => daemonError, /CONNECTED/);
+    host.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "max_list_instances", arguments: {} } })}\n`);
+    await waitForLines(hostLines, 5);
+    const reconnectedResponse = JSON.parse(hostLines[4]);
+    assert.equal(reconnectedResponse.result.structuredContent.ok, true, JSON.stringify(reconnectedResponse.result.structuredContent));
+    assert.equal(reconnectedResponse.result.structuredContent.data.count, 1);
+    assert.equal(hostError, "", `STDIO host emitted unexpected stderr: ${hostError}`);
+
+    const hostExit = new Promise((resolve) => host.once("exit", resolve));
+    host.stdin.end();
+    const hostExitCode = await Promise.race([hostExit, new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000))]);
+    assert.notEqual(hostExitCode, "timeout", "STDIO host did not exit after its MCP stdin closed");
     assert.equal(hostExitCode, 0, `STDIO host exited with code ${hostExitCode}: ${hostError}`);
     host = null;
   } finally {

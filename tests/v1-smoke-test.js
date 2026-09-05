@@ -82,6 +82,69 @@ async function rpc(host, message) {
   return responses[0];
 }
 
+async function runStdioReconnectTests() {
+  let connectAttempts = 0;
+  const unavailableClient = {
+    socket: null,
+    async connect() {
+      connectAttempts += 1;
+      throw new Error("connect ECONNREFUSED 127.0.0.1");
+    },
+    close() {},
+  };
+  const unavailableHost = new StdioHost({ client: unavailableClient, reconnectGraceMs: 0 });
+  const unavailableCalls = await Promise.all([
+    rpc(unavailableHost, { jsonrpc: "2.0", id: 9001, method: "tools/call", params: { name: "max_list_instances", arguments: {} } }),
+    rpc(unavailableHost, { jsonrpc: "2.0", id: 9002, method: "tools/call", params: { name: "max_list_instances", arguments: {} } }),
+  ]);
+  assert.equal(connectAttempts, 1, "Concurrent calls must share one reconnect attempt");
+  for (const response of unavailableCalls) assert.equal(response.result.structuredContent.error.code, "BRIDGE_DOWN");
+  const ping = await rpc(unavailableHost, { jsonrpc: "2.0", id: 9003, method: "ping" });
+  assert.deepEqual(ping.result, {}, "MCP ping must remain available while the daemon is down");
+
+  let successfulConnectAttempts = 0;
+  const reconnectingClient = {
+    socket: null,
+    async connect() {
+      successfulConnectAttempts += 1;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      this.socket = { destroyed: false };
+    },
+    async probe() {
+      return { server: "max-ultra-mcp", wireVersion: "1", healthy: true, authRequired: true, startedAt: "fixture" };
+    },
+    async callTool() {
+      return { count: 0, selectedInstanceId: null, instances: [] };
+    },
+    close() {},
+  };
+  const reconnectingHost = new StdioHost({ client: reconnectingClient, reconnectGraceMs: 100 });
+  const recoveredCalls = await Promise.all([
+    rpc(reconnectingHost, { jsonrpc: "2.0", id: 9011, method: "tools/call", params: { name: "max_list_instances", arguments: {} } }),
+    rpc(reconnectingHost, { jsonrpc: "2.0", id: 9012, method: "tools/call", params: { name: "max_list_instances", arguments: {} } }),
+  ]);
+  assert.equal(successfulConnectAttempts, 1, "Successful concurrent calls must share one verified connection");
+  for (const response of recoveredCalls) assert.equal(response.result.structuredContent.ok, true);
+
+  let inFlightCalls = 0;
+  const inFlightSocket = { destroyed: false };
+  const inFlightClient = {
+    socket: inFlightSocket,
+    async callTool() {
+      inFlightCalls += 1;
+      throw new Error("Max Ultra MCP control connection closed while a request was in flight; its outcome may be unknown");
+    },
+    close() {},
+  };
+  const inFlightHost = new StdioHost({ client: inFlightClient });
+  inFlightHost.verifiedSocket = inFlightSocket;
+  const interrupted = await rpc(inFlightHost, { jsonrpc: "2.0", id: 9021, method: "tools/call", params: { name: "max_create_box", arguments: { name: "InterruptedBox" } } });
+  assert.equal(inFlightCalls, 1, "An interrupted mutation must never be replayed automatically");
+  assert.equal(interrupted.result.structuredContent.error.code, "BRIDGE_DOWN");
+  assert.match(interrupted.result.structuredContent.hints.join(" "), /not retried automatically/i);
+  assert.match(interrupted.result.structuredContent.hints.join(" "), /inspect fresh state/i);
+}
+
 const PLAN = {
   units: "mm",
   origin: [0, 0],
@@ -117,6 +180,7 @@ const POLYGON_CUBE = {
 };
 
 async function run() {
+  await runStdioReconnectTests();
   const coreTools = getMcpTools("core");
   const archvizTools = getMcpTools("archviz");
   const fullTools = getMcpTools("full");
@@ -268,7 +332,7 @@ async function run() {
   assert.deepEqual(isolatedJobs.getResult(isolatedJob.jobId).result, { manifest: ["verified"] });
   assert.equal(isolatedJobs.list({ type: "fixture" }).length, 1);
 
-  const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 2000 });
+  const bridge = new MaxBridge({ port: 0, requestTimeoutMs: 2000, sceneRevisionEpoch: 1000 });
   await bridge.start();
   const max2022 = new MockMaxClient({ port: bridge.port, maxVersion: "2022", pid: 22022, instanceId: "v1-max-2022" });
   const max2027 = new MockMaxClient({ port: bridge.port, maxVersion: "2027", pid: 22027, instanceId: "v1-max-2027" });
@@ -312,17 +376,17 @@ async function run() {
     assert.equal(materialIssues.result.structuredContent.data.matched, 2);
     assert.equal(materialIssues.result.structuredContent.data.counts.noMaterial, 1);
     assert.equal(materialIssues.result.structuredContent.data.counts.emptyMultiSubSlot, 1);
-    assert.equal(materialIssues.result.structuredContent.data.categories.noMaterial[0].node.sceneRevision, 0);
+    assert.equal(materialIssues.result.structuredContent.data.categories.noMaterial[0].node.sceneRevision, 1000);
     assert.equal(max2022.activityLabels.at(-1), "Find material issues");
 
     const box = await rpc(hostA, { jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: "max_create_box", arguments: { name: "V1Box", position: [1, 2, 3], size: [10, 20, 30] } } });
     assert.equal(box.result.isError, false);
     assert.equal(box.result.structuredContent.data.box.name, "V1Box");
-    assert.equal(box.result.structuredContent.sceneRevision, 1);
+    assert.equal(box.result.structuredContent.sceneRevision, 1001);
     assert.match(max2022.executeRequests.at(-1), /width:10 length:20 height:30/);
-    const unchangedScene = await rpc(hostA, { jsonrpc: "2.0", id: 81, method: "tools/call", params: { name: "max_query_scene", arguments: { sinceRevision: 1 } } });
+    const unchangedScene = await rpc(hostA, { jsonrpc: "2.0", id: 81, method: "tools/call", params: { name: "max_query_scene", arguments: { sinceRevision: 1001 } } });
     assert.equal(unchangedScene.result.structuredContent.data.changed, false);
-    const changedScene = await rpc(hostA, { jsonrpc: "2.0", id: 82, method: "tools/call", params: { name: "max_query_scene", arguments: { sinceRevision: 0 } } });
+    const changedScene = await rpc(hostA, { jsonrpc: "2.0", id: 82, method: "tools/call", params: { name: "max_query_scene", arguments: { sinceRevision: 1000 } } });
     assert.equal(changedScene.result.structuredContent.data.changed, true);
     assert.equal(changedScene.result.structuredContent.data.scene.objectCount, 3);
 
@@ -333,14 +397,14 @@ async function run() {
     assert.equal(createPolygon.result.isError, false, JSON.stringify(createPolygon.result.structuredContent));
     assert.deepEqual(createPolygon.result.structuredContent.data.topology, { vertices: 8, edges: 12, faces: 6, openEdges: 0 });
     assert.equal(createPolygon.result.structuredContent.data.node.name, "AgentPolygonCube");
-    assert.equal(createPolygon.result.structuredContent.data.node.sceneRevision, 2);
+    assert.equal(createPolygon.result.structuredContent.data.node.sceneRevision, 1002);
     assert.equal(createPolygon.result.structuredContent.data.baseObjectClass, "Editable_Poly");
     assert.match(max2022.executeRequests.at(-1), /Max Ultra MCP: Create polygon mesh/);
     const rejectedPolygon = structuredClone(POLYGON_CUBE);
     rejectedPolygon.position = [10, 0, 500];
     const stalePolygonPlan = await rpc(hostA, { jsonrpc: "2.0", id: 85, method: "tools/call", params: { name: "max_create_polygon_mesh", arguments: { mesh: rejectedPolygon, validationToken: polygonToken } } });
     assert.equal(stalePolygonPlan.result.structuredContent.error.code, "VALIDATION_FAILED");
-    const stale = await rpc(hostA, { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "max_transform_object", arguments: { node: { name: "V1Box", sceneRevision: 0 }, position: [0, 0, 0] } } });
+    const stale = await rpc(hostA, { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "max_transform_object", arguments: { node: { name: "V1Box", sceneRevision: 1000 }, position: [0, 0, 0] } } });
     assert.equal(stale.result.isError, true);
     assert.equal(stale.result.structuredContent.error.code, "STALE_NODE_REF");
 

@@ -748,9 +748,8 @@ async function runSmokeTest() {
     for (const buttonName of dotNetButtonNames) {
       assert.match(bootstrapSource, new RegExp(`dotNetControl ${buttonName} "System\\.Windows\\.Forms\\.Button"`));
     }
-    for (const linkName of ["lnkMaxPkg", "lnk3DGround"]) {
-      assert.match(bootstrapSource, new RegExp(`dotNetControl ${linkName} "System\\.Windows\\.Forms\\.LinkLabel"`));
-    }
+    assert.match(bootstrapSource, /dotNetControl rtbPromotion "System\.Windows\.Forms\.RichTextBox"/);
+    assert.doesNotMatch(bootstrapSource, /dotNetControl lnk(?:MaxPkg|3DGround)/);
     assert.doesNotMatch(bootstrapSource, /(?:button|dotNetControl)\s+btn(?:ConnectOnly|Start)\b|["']Connect only["']/i);
     assert.doesNotMatch(bootstrapSource, /dotNetControl btnAgents\b|on btnAgents Click|statusDialog\.btnAgents/);
     assert.match(bootstrapSource, /on btnAiStatus Click[\s\S]*showOnboardingDialog refreshStatus: false/);
@@ -760,6 +759,8 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /on btnReconnect Click[\s\S]*reconnectBridge\(\)/);
     assert.match(bootstrapSource, /on btnStop Click[\s\S]*closeForLifecycle reason: "Stop \/ Exit pressed"/);
     assert.match(bootstrapSource, /on btnSettings Click[\s\S]*showSettingsDialog\(\)/);
+    assert.match(bootstrapSource, /on rtbPromotion GotFocus[\s\S]*clearFooterPromotionFocus\(\)/);
+    assert.match(bootstrapSource, /on rtbPromotion MouseDown[\s\S]*handleFooterPromotionMouseDown eventArgs/);
     assert.match(bootstrapSource, /statusDialog\.btnAiStatus\.Text = "AI client \| Waiting\.\.\."/);
     assert.match(bootstrapSource, /statusDialog\.btnRefreshAgents\.AccessibleName = "Refresh AI client readiness"/);
     assert.match(bootstrapSource, /fn createPngIcon pngFilePath = \([\s\S]*System\.Drawing\.Bitmap" pngFilePath[\s\S]*System\.Drawing\.Bitmap" temporaryBitmap[\s\S]*temporaryBitmap\.Dispose\(\)/);
@@ -782,8 +783,6 @@ async function runSmokeTest() {
     assert.match(aiStatusRefreshBody, /combinedStatusDescription = "ChatGPT \/ Codex: "[\s\S]*" \| Claude Code: "/);
     assert.match(aiStatusRefreshBody, /btnAiStatus\.AccessibleDescription = combinedStatusDescription[\s\S]*SetToolTip statusDialog\.btnAiStatus combinedStatusDescription/);
     assert.match(bootstrapSource, /on btnDonate Click[\s\S]*shellLaunch "https:\/\/store\.payproglobal\.com\/checkout\?products\[1\]\[id\]=137366"/);
-    assert.match(bootstrapSource, /on lnkMaxPkg LinkClicked[\s\S]*shellLaunch "https:\/\/maxpkg\.dev\/catalog\/max-ultra-mcp"/);
-    assert.match(bootstrapSource, /on lnk3DGround LinkClicked[\s\S]*shellLaunch "https:\/\/3dground\.net"/);
     const createPanelBody = sourceSection(bootstrapSource, "fn createPanelFloater", "fn restoreHiddenPanel", "main rollout floater creation");
     assert.match(createPanelBody, /newRolloutFloater \(productWindowTitle\(\)\) 720 640 lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off/);
     assert.equal((createPanelBody.match(/configureMainPanelControls\(\)/g) || []).length, 1);
@@ -807,7 +806,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rollout MaxUltraMcpAiStatusDialog "" width: 720 height: 44 \([\s\S]*btnAiStatus .*pos: \[8,7\] width: 444 height: 30[\s\S]*btnRefreshAgents .*pos: \[462,7\] width: 38 height: 30[\s\S]*btnHide .*pos: \[592,7\] width: 120 height: 30/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpServerStatusDialog "" width: 720 height: 36 \([\s\S]*lblEndpoint .*pos: \[26,6\] width: 273 height: 24[\s\S]*lblContext .*pos: \[307,6\] width: 405 height: 24/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpActivityDialog "" width: 720 height: 484 \([\s\S]*pnlActivityOutline .*pos: \[0,5\] width: 720 height: 433[\s\S]*rtbActivity .*width: 718 height: 431[\s\S]*btnReconnect .*pos: \[8,446\][\s\S]*btnStop .*pos: \[134,446\][\s\S]*btnSettings .*pos: \[592,446\]/);
-    assert.match(bootstrapSource, /rollout MaxUltraMcpSupportDialog "" width: 720 height: 44 \([\s\S]*lnkMaxPkg .*pos: \[8,7\][\s\S]*lnk3DGround .*pos: \[104,7\][\s\S]*btnDonate .*pos: \[592,7\]/);
+    assert.match(bootstrapSource, /rollout MaxUltraMcpSupportDialog "" width: 720 height: 44 \([\s\S]*rtbPromotion .*pos: \[8,13\] width: 568 height: 22[\s\S]*btnDonate .*pos: \[592,7\]/);
     assert.doesNotMatch(bootstrapSource, /pnlFooterSurface/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpSettingsDialog "Max Ultra MCP Settings"/);
     assert.match(bootstrapSource, /groupBox grpAutostart "Autostart" pos: \[12,10\] width: 356 height: 58/);
@@ -1119,7 +1118,19 @@ async function runSmokeTest() {
     const inheritParentBackColorBody = sourceSection(bootstrapSource, "fn inheritParentBackColor", "fn styleLink", "parent background inheritance");
     assert.match(inheritParentBackColorBody, /maximumThemeChannelDelta = 32[\s\S]*targetControl\.Parent[\s\S]*parentDepth < 8[\s\S]*candidateColor = parentControl\.BackColor[\s\S]*not candidateColor\.IsEmpty[\s\S]*candidateColor\.A > 0[\s\S]*rolloutDelta[\s\S]*backgroundDelta[\s\S]*amin rolloutDelta backgroundDelta[\s\S]*theme\.rolloutColor[\s\S]*targetControl\.BackColor = inheritedColor/);
     assert.match(bootstrapSource, /fn styleLink linkControl = \([\s\S]*inheritParentBackColor linkControl fallbackColor: theme\.rolloutColor[\s\S]*LinkColor = theme\.linkColor[\s\S]*ActiveLinkColor = .*theme\.linkColor[\s\S]*VisitedLinkColor = theme\.linkColor[\s\S]*LinkBehavior"\)\.HoverUnderline[\s\S]*TabStop = true/);
+    assert.match(bootstrapSource, /footerPromotionIntervalSeconds = 30/);
+    assert.equal((bootstrapSource.match(/#\(".*?", "https:\/\//g) || []).length >= 16, true);
+    const footerPromotionBody = sourceSection(bootstrapSource, "fn showRandomFooterPromotion", "fn configureFooterPromotion", "rotating footer promotion");
+    assert.match(footerPromotionBody, /footerPromotionIndex < 1[\s\S]*random 1 footerPromotions\.count[\s\S]*random 1 \(footerPromotions\.count - 1\)[\s\S]*mod \(\(footerPromotionIndex - 1\) \+ randomOffset\)/);
+    assert.match(footerPromotionBody, /rtbPromotion\.Text = promotionData\[1\][\s\S]*SelectAll\(\)[\s\S]*SelectionColor = MaxUltraMcpTheme\.linkColor[\s\S]*SelectionFont = promotionFont[\s\S]*AddSeconds \(footerPromotionIntervalSeconds as double\)/);
+    const configureFooterPromotionBody = sourceSection(bootstrapSource, "fn configureFooterPromotion", "fn pollFooterPromotion", "footer RichTextBox styling");
+    assert.match(configureFooterPromotionBody, /ReadOnly = true[\s\S]*Multiline = false[\s\S]*WordWrap = false[\s\S]*DetectUrls = false[\s\S]*RichTextBoxScrollBars"\)\.None[\s\S]*BorderStyle"\)\.None[\s\S]*Cursors"\)\.Hand[\s\S]*TabStop = false[\s\S]*inheritParentBackColor supportDialog\.rtbPromotion fallbackColor: MaxUltraMcpTheme\.rolloutColor/);
+    const footerPromotionOpenBody = sourceSection(bootstrapSource, "fn openFooterPromotionLink", "fn clearFooterPromotionFocus", "footer promotion navigation");
+    assert.match(footerPromotionOpenBody, /shellLaunch footerPromotionUrl ""/);
+    const footerPromotionFocusBody = sourceSection(bootstrapSource, "fn clearFooterPromotionFocus", "fn handleFooterPromotionMouseDown", "caret-free footer promotion");
+    assert.match(footerPromotionFocusBody, /panelForm\.ActiveControl = undefined[\s\S]*rtbPromotion\.Select 0 0/);
     assert.match(bootstrapSource, /MaxUltraMcpUiKit\.styleButton supportDialog\.btnDonate baseColorValue: MaxUltraMcpTheme\.linkColor/);
+    assert.match(bootstrapSource, /configureFooterPromotion\(\)[\s\S]*supportDialog\.btnDonate\.Text = "  Donate"/);
     assert.match(bootstrapSource, /supportDialog\.btnDonate\.Text = "  Donate"[\s\S]*supportDialog\.btnDonate\.Image = donateIconImage[\s\S]*ImageAlign = \(dotNetClass "System\.Drawing\.ContentAlignment"\)\.MiddleCenter[\s\S]*TextAlign = \(dotNetClass "System\.Drawing\.ContentAlignment"\)\.MiddleCenter[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
     assert.match(bootstrapSource, /statusDialog\.btnHide\.Text = if \(hideIconImage == undefined\) then "Hide panel" else "  Hide panel"[\s\S]*statusDialog\.btnHide\.Image = hideIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
     assert.match(bootstrapSource, /activityDialog\.btnReconnect\.Text = if \(reconnectIconImage == undefined\) then "Reconnect" else "  Reconnect"[\s\S]*activityDialog\.btnReconnect\.Image = reconnectIconImage[\s\S]*TextImageRelation"\)\.ImageBeforeText/);
@@ -1157,6 +1168,9 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /secondSupportReminderMinutes = 10/);
     assert.match(bootstrapSource, /finalSupportReminderMinutes = 60/);
     assert.match(bootstrapSource, /maximumSupportReminders = 3/);
+    assert.match(bootstrapSource, /activityDonateLinkText = "Donate"/);
+    assert.match(bootstrapSource, /activityDonateLinkUrl = "https:\/\/store\.payproglobal\.com\/checkout\?products\[1\]\[id\]=137366"/);
+    assert.match(bootstrapSource, /activityDonateLinkRanges = #\(\)/);
     const supportArmBody = sourceSection(bootstrapSource, "fn armSupportReminders", "fn pollSupportReminder", "support reminder arming");
     assert.match(supportArmBody, /if \(supportReminderCount > 0 or supportReminderDueAt != undefined\) do return true/);
     assert.match(supportArmBody, /UtcNow\.AddMinutes \(firstSupportReminderMinutes as double\)/);
@@ -1189,7 +1203,9 @@ async function runSmokeTest() {
     assert.match(activityLogPaddingBody, /richEditMessageSetMargins = 0x00D3[\s\S]*bothHorizontalMargins = 0x0003[\s\S]*horizontalPadding = 6[\s\S]*packedMargins = horizontalPadding \+ \(horizontalPadding \* 65536\)[\s\S]*windows\.sendMessage logWindowHandle richEditMessageSetMargins bothHorizontalMargins packedMargins/);
     const activityBadgeFontBody = sourceSection(bootstrapSource, "fn ensureActivityBadgeFont", "fn configureActivityLog", "activity status monospace font");
     assert.match(activityBadgeFontBody, /FontFamily"\)\.GenericMonospace[\s\S]*dotNetObject "System\.Drawing\.Font" monospaceFamily baseFont\.SizeInPoints/);
-    assert.match(bootstrapSource, /activityDialog\.rtbActivity\.Font = MaxUltraMcpUiKit\.messageFont\(\)[\s\S]*ensureActivityBadgeFont\(\)[\s\S]*applyActivityLogPadding\(\)/);
+    const activityDonateLinkFontBody = sourceSection(bootstrapSource, "fn ensureActivityDonateLinkFont", "fn configureActivityLog", "activity Donate link font");
+    assert.match(activityDonateLinkFontBody, /dotNetObject "System\.Drawing\.Font" baseFont\.FontFamily baseFont\.SizeInPoints \(dotNetClass "System\.Drawing\.FontStyle"\)\.Underline/);
+    assert.match(bootstrapSource, /activityDialog\.rtbActivity\.Font = MaxUltraMcpUiKit\.messageFont\(\)[\s\S]*ensureActivityBadgeFont\(\)[\s\S]*ensureActivityDonateLinkFont\(\)[\s\S]*applyActivityLogPadding\(\)/);
     assert.match(bootstrapSource, /activityLogDirty = true/);
     const appendColoredActivityTextBody = sourceSection(bootstrapSource, "fn appendColoredActivityText", "fn refreshActivityText", "activity log category highlighting");
     assert.match(appendColoredActivityTextBody, /normalizedActivityEntry = activityDisplayEntryText activityEntry/);
@@ -1199,6 +1215,8 @@ async function runSmokeTest() {
     assert.match(appendColoredActivityTextBody, /prefixText = if \(hasStatusToken and badgeStart > 1\)[\s\S]*statusText = if \(hasStatusToken\) then \(substring normalizedActivityEntry badgeStart \(badgeEnd - badgeStart \+ 1\)\)[\s\S]*suffixText = if \(hasStatusToken and badgeEnd < normalizedActivityEntry\.count\)/);
     assert.match(appendColoredActivityTextBody, /badgeBackgroundColor = activityEntryBadgeBackgroundColor normalizedActivityEntry[\s\S]*badgeTextColor = activityEntryBadgeTextColor normalizedActivityEntry/);
     assert.match(appendColoredActivityTextBody, /SelectionBackColor = activityDialog\.rtbActivity\.BackColor[\s\S]*SelectionColor = entryColor[\s\S]*SelectionFont = activityDialog\.rtbActivity\.Font[\s\S]*AppendText prefixText[\s\S]*SelectionBackColor = badgeBackgroundColor[\s\S]*SelectionColor = badgeTextColor[\s\S]*SelectionFont = badgeFont[\s\S]*AppendText statusText[\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor[\s\S]*SelectionColor = entryColor[\s\S]*SelectionFont = activityDialog\.rtbActivity\.Font[\s\S]*AppendText suffixText[\s\S]*SelectionColor = activityDialog\.rtbActivity\.ForeColor/);
+    assert.match(appendColoredActivityTextBody, /isSupportReminder = \(findString normalizedActivityEntry " \[support"\)[\s\S]*findString suffixText supportReminderMessage/);
+    assert.match(appendColoredActivityTextBody, /Select donateCharacterIndex activityDonateLinkText\.count[\s\S]*SelectionColor = MaxUltraMcpTheme\.linkColor[\s\S]*SelectionFont = donateLinkFont[\s\S]*append activityDonateLinkRanges #\(donateCharacterIndex, activityDonateLinkText\.count\)/);
     assert.match(bootstrapSource, /FromArgb 255 125 125/);
     assert.match(bootstrapSource, /FromArgb 255 195 80/);
     assert.match(bootstrapSource, /FromArgb 120 225 150/);
@@ -1229,6 +1247,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /local expectedActivityCoreText = activityDisplayCoreText\(\)/);
     assert.match(bootstrapSource, /changedIncrementally/);
     assert.match(bootstrapSource, /local currentActivityCoreText = activityTextWithoutBottomPadding currentActivityText[\s\S]*Select currentActivityCoreText\.count bottomPaddingLength[\s\S]*appendColoredActivityText appendedActivityText[\s\S]*AppendText activityBottomPadding/);
+    assert.match(bootstrapSource, /shiftActivityDonateLinkRanges removedCharacterCount[\s\S]*appendColoredActivityText appendedActivityText/);
     assert.match(bootstrapSource, /for activityIndex in 1 to activityEntries\.count do \([\s\S]*appendColoredActivityText activityEntries\[activityIndex\][\s\S]*if \(activityEntries\.count > 0\) do activityDialog\.rtbActivity\.AppendText activityBottomPadding[\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor/);
     assert.match(bootstrapSource, /responseBody \+= ",\\"content\\":\\"" \+ jsonEscape\(activityText\(\)\)/);
     assert.doesNotMatch(bootstrapSource, /responseBody \+= ",\\"content\\":\\"" \+ jsonEscape\(activityDisplayCoreText\(\)\)/);
@@ -1236,6 +1255,15 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /on rtbActivity MouseEnter[\s\S]*enableAccelerators = false/);
     assert.match(bootstrapSource, /on rtbActivity MouseLeave[\s\S]*enableAccelerators = true/);
     assert.match(bootstrapSource, /on rtbActivity VScroll[\s\S]*handleActivityLogScrolled/);
+    assert.match(bootstrapSource, /on rtbActivity MouseMove[\s\S]*handleActivityLogMouseMove eventArgs\.Location/);
+    assert.match(bootstrapSource, /on rtbActivity MouseClick[\s\S]*handleActivityLogMouseClick eventArgs/);
+    assert.match(bootstrapSource, /on rtbActivity KeyDown[\s\S]*handleActivityLogKeyDown eventArgs/);
+    const activityDonateMouseBody = sourceSection(bootstrapSource, "fn handleActivityLogMouseMove", "fn openActivityDonateLink", "activity Donate mouse affordance");
+    assert.match(activityDonateMouseBody, /GetCharIndexFromPosition mousePosition[\s\S]*activityDonateLinkAtCharacter characterIndex[\s\S]*Cursors"\)\.Hand[\s\S]*Cursors"\)\.IBeam/);
+    const activityDonateOpenBody = sourceSection(bootstrapSource, "fn openActivityDonateLink", "fn handleActivityLogMouseClick", "activity Donate navigation");
+    assert.match(activityDonateOpenBody, /shellLaunch activityDonateLinkUrl ""/);
+    const activityDonateKeyboardBody = sourceSection(bootstrapSource, "fn handleActivityLogKeyDown", "fn activityTextStartsWith", "activity Donate keyboard navigation");
+    assert.match(activityDonateKeyboardBody, /Keys"[\s\S]*KeyCode != keysClass\.Enter[\s\S]*KeyCode != keysClass\.Space[\s\S]*activityDonateLinkAtCharacter activityDialog\.rtbActivity\.SelectionStart[\s\S]*SuppressKeyPress = true[\s\S]*openActivityDonateLink\(\)/);
     assert.match(bootstrapSource, /local shouldAutoScroll = activityAutoScroll and activityLogIsNearBottom\(\)/);
     assert.doesNotMatch(bootstrapSource, /btnStart\.enabled = isStopped\s+refreshActivityText\(\)/);
     const activityRefreshBody = bootstrapSource.slice(bootstrapSource.indexOf("fn refreshActivityText"), bootstrapSource.indexOf("fn defaultPanelPosition"));
@@ -1407,7 +1435,7 @@ async function runSmokeTest() {
     assert.doesNotMatch(bootstrapSource, /mod tickCount 20[^\n]*startTransport/);
     const timerBody = sourceSection(bootstrapSource, "fn handleTimerTick", "fn startBridge", "main UI timer");
     assert.match(timerBody, /isDisposed or pollTimer == undefined or timerSender != pollTimer/);
-    assert.match(timerBody, /runPendingAutomaticOnboardingCheck\(\)[\s\S]*pollIntegrationOperation\(\)[\s\S]*pollUpdateOperation\(\)[\s\S]*pollSupportReminder\(\)/);
+    assert.match(timerBody, /runPendingAutomaticOnboardingCheck\(\)[\s\S]*pollIntegrationOperation\(\)[\s\S]*pollUpdateOperation\(\)[\s\S]*pollSupportReminder\(\)[\s\S]*pollFooterPromotion\(\)/);
     assert.match(timerBody, /catch \([\s\S]*stopPollTimer\(\)[\s\S]*CancelAsync\(\)/);
     assert.match(timerBody, /pendingConnectOnly/);
     assert.doesNotMatch(timerBody, /workerLaunchServer/);
@@ -1443,13 +1471,18 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /if \(hasConnectedThisSession\) then/);
     assert.match(bootstrapSource, /else if \(connectionError == ""\) do/);
     assert.match(bootstrapSource, /Initial server connection ended before this Max registered/);
-    assert.match(bootstrapSource, /Server connection ended\. Run 01_START_MAX_ULTRA_MCP_FIRST\.ms to start it again\./);
+    assert.match(bootstrapSource, /connectionError = "Please restart the script\."/);
+    assert.doesNotMatch(bootstrapSource, /Run 01_START_MAX_ULTRA_MCP_FIRST\.ms to start it again\./);
     assert.doesNotMatch(bootstrapSource, /Connect-only retry requested/);
     assert.match(bootstrapSource, /Reconnect requested; a stopped server will not be launched/);
     assert.doesNotMatch(bootstrapSource, /restartServerOnNextConnect/);
-    assert.match(bridgeControlClientSource, /onDisconnect/);
-    assert.match(bridgeControlClientSource, /if \(!this\.closing && this\.onDisconnect\) this\.onDisconnect\(\)/);
-    assert.match(stdioHostSource, /new StdioHost\(\{ onBridgeDisconnect: shutdown \}\)/);
+    assert.match(bridgeControlClientSource, /this\.connectPromise = null/);
+    assert.match(bridgeControlClientSource, /if \(this\.socket !== socket\) return/);
+    assert.match(bridgeControlClientSource, /this\.buffer = ""/);
+    assert.match(stdioHostSource, /const DEFAULT_RECONNECT_GRACE_MS = 10000/);
+    assert.match(stdioHostSource, /this\.reconnectPromise/);
+    assert.match(stdioHostSource, /new StdioHost\(\)/);
+    assert.doesNotMatch(stdioHostSource, /onBridgeDisconnect: shutdown/);
     assert.match(stdioHostSource, /input\.on\("close", shutdown\)/);
     assert.match(bootstrapSource, /#preSystemShutdown/);
     assert.match(bootstrapSource, /workerFindFreeFallbackPort/);

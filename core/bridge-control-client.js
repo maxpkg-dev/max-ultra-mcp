@@ -25,45 +25,91 @@ class BridgeControlClient {
     this.host = options.host || process.env.MAX_ULTRA_MCP_HOST || "127.0.0.1";
     this.port = Number(options.port ?? process.env.MAX_ULTRA_MCP_PORT ?? 47635);
     this.timeoutMs = Number(options.timeoutMs ?? process.env.MAX_ULTRA_MCP_TIMEOUT_MS ?? 5000);
+    this.connectTimeoutMs = Number(options.connectTimeoutMs ?? 1000);
     this.controlToken = options.controlToken || readControlToken();
     this.reloadControlToken = options.controlToken === undefined;
     this.onDisconnect = typeof options.onDisconnect === "function" ? options.onDisconnect : null;
     this.closing = false;
     this.socket = null;
+    this.connectingSocket = null;
+    this.connectPromise = null;
     this.buffer = "";
     this.pendingRequests = new Map();
   }
 
-  connect() {
-    if (this.socket) return Promise.resolve();
+  connect(timeoutMs = this.connectTimeoutMs) {
+    if (this.socket && !this.socket.destroyed) return Promise.resolve(this.socket);
+    if (this.connectPromise) return this.connectPromise;
     this.closing = false;
-    return new Promise((resolve, reject) => {
+    const attempt = new Promise((resolve, reject) => {
       const socket = net.createConnection({ host: this.host, port: this.port });
+      this.connectingSocket = socket;
       socket.setEncoding("utf8");
       socket.setNoDelay(true);
-      socket.once("error", reject);
-      socket.once("connect", () => {
-        socket.off("error", reject);
+      let settled = false;
+      const connectionTimeout = setTimeout(() => {
+        fail(new Error(`Max Ultra MCP control connection timed out after ${timeoutMs} ms`));
+      }, timeoutMs);
+      const cleanupAttempt = () => {
+        clearTimeout(connectionTimeout);
+        socket.off("error", fail);
+        socket.off("close", closedBeforeConnect);
+        socket.off("connect", connected);
+        if (this.connectingSocket === socket) this.connectingSocket = null;
+      };
+      const fail = (error) => {
+        if (settled) return;
+        settled = true;
+        cleanupAttempt();
+        socket.destroy();
+        reject(error);
+      };
+      const closedBeforeConnect = () => fail(new Error("Max Ultra MCP control connection closed before it was established"));
+      const connected = () => {
+        if (settled) return;
+        if (this.closing) {
+          fail(new Error("Max Ultra MCP control client closed while connecting"));
+          return;
+        }
+        settled = true;
+        cleanupAttempt();
         this.socket = socket;
+        this.buffer = "";
         socket.on("data", (chunk) => this.readData(chunk));
-        socket.on("error", (error) => this.rejectAll(error));
+        socket.on("error", (error) => {
+          if (this.socket === socket) {
+            this.rejectAll(new Error(`Max Ultra MCP control connection failed while a request was in flight; its outcome may be unknown: ${error.message}`));
+          }
+        });
         socket.on("close", () => {
-          this.rejectAll(new Error("Max Ultra MCP control connection closed"));
+          if (this.socket !== socket) return;
+          this.rejectAll(new Error("Max Ultra MCP control connection closed while a request was in flight; its outcome may be unknown"));
+          this.buffer = "";
           this.socket = null;
           if (!this.closing && this.onDisconnect) this.onDisconnect();
         });
-        resolve();
-      });
+        resolve(socket);
+      };
+      socket.once("error", fail);
+      socket.once("close", closedBeforeConnect);
+      socket.once("connect", connected);
     });
+    const wrappedAttempt = attempt.finally(() => {
+      if (this.connectPromise === wrappedAttempt) this.connectPromise = null;
+    });
+    this.connectPromise = wrappedAttempt;
+    return wrappedAttempt;
   }
 
   close() {
     this.closing = true;
-    if (this.socket) this.socket.end();
+    if (this.connectingSocket) this.connectingSocket.destroy(new Error("Max Ultra MCP control client closed while connecting"));
+    this.connectingSocket = null;
+    if (this.socket) this.socket.destroy();
   }
 
-  probe() {
-    return this.request("probe");
+  probe(timeoutMs = this.timeoutMs) {
+    return this.request("probe", "", {}, timeoutMs);
   }
 
   shutdownServer() {
@@ -90,7 +136,7 @@ class BridgeControlClient {
     return this.request("call", toolName, toolArguments);
   }
 
-  request(operation, toolName = "", toolArguments = {}) {
+  request(operation, toolName = "", toolArguments = {}, timeoutMs = this.timeoutMs) {
     if (this.reloadControlToken) {
       const currentControlToken = readControlToken();
       if (currentControlToken) this.controlToken = currentControlToken;
@@ -100,13 +146,13 @@ class BridgeControlClient {
     return new Promise((resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(requestId);
-        reject(new Error(`Max Ultra MCP control request timed out after ${this.timeoutMs} ms`));
-      }, this.timeoutMs);
+        reject(new Error(`Max Ultra MCP control request timed out after ${timeoutMs} ms`));
+      }, timeoutMs);
       this.pendingRequests.set(requestId, { resolve, reject, timeoutHandle });
       const fields = ["CONTROL", "1", requestId, operation];
       if (operation === "call") fields.push(encodeField(toolName), encodeField(JSON.stringify(toolArguments)));
       else if (operation === "shutdown_owned" || operation === "shutdown_owned_when_idle") fields.push(encodeField(toolName));
-      fields.push(encodeField(this.controlToken));
+      if (operation === "call" || operation.startsWith("shutdown")) fields.push(encodeField(this.controlToken));
       this.socket.write(`${fields.join("\t")}\n`);
     });
   }
