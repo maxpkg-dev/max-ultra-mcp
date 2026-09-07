@@ -6,6 +6,16 @@ Reconstruct the top contour independently from the side profile. Track varying w
 
 Compare a closeup from the same side for contour, thickness, and highlight flow. A generic rounded box cannot stand in for an elongated armrest whose width and sections change along its length. Material contour errors must be fixed before detailing. Frame members likewise need their actual taper, bend, end radii, physical edge radii, contact, and joinery. Section and support-loop placement should describe those forms economically, with no pinching after one smoothing iteration.
 
+## Support loops for one-iteration TurboSmooth
+
+An unsupported edge can round over substantially under TurboSmooth. Support loops closer to the edge generally produce a narrower, firmer transition; wider spacing produces a broader, softer transition. The result also depends on neighboring topology and physical scale, so derive spacing from the reference's edge radius rather than a universal offset.
+
+Place deliberate support loops along the contour and near ends, corners, and joints of hard frame members. At a leg's lower end, support both the sidewall and the cap perimeter so the smoothed end retains its intended cross-section and physical bevel. Use clean connected cap topology with consistent winding, no degenerate faces, and no poles or n-gons that pinch the curved transition. Blend loop density gradually into the rest of the member. Extremely close loops are not a substitute for a designed radius: avoid nearly zero-width strips, pinching, and shading artifacts. For soft upholstery, retain broader transitions where the reference supports them instead of imposing a hard box-like rim.
+
+Cut, Swift Loop, and Connect are possible UI construction methods, not required tools. Through MCP, build equivalent topology with available semantic operations or reviewed vertex/face data; do not force UI interaction when the geometry can be created directly.
+
+Compare unsmoothed and one-iteration smoothed views at identical framing, including a closeup of the lower leg end. Verify the cross-section, end shape, bevel width, and highlight continuity without collapse or sharp creases. Correct loop placement and count, cap flow, or neighboring topology when the comparison fails; do not increase iterations to conceal the defect.
+
 ## Upholstery volume
 
 Separate the base, filling thickness, crown/curvature in both principal directions, sidewall, and transition into the seam. Reproduce contact/compression against the frame and between seat and back. Determine which fabric is taut and which is loose. A broad flat slab with rounded borders fails a volumetric reference, while uniform inflation of every panel fails taut, tailored upholstery. Check silhouette, sections, and highlights before folds.
