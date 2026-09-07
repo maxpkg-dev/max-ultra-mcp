@@ -2724,7 +2724,7 @@ global MaxUltraMcpActiveClient
             local resolvedPosition = normalizePanelPosition panelPosition
             try (
                 panelCloseInProgress = false
-                panelFloater = newRolloutFloater (productWindowTitle()) 720 640 lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off
+                panelFloater = newRolloutFloater (productWindowTitle()) 720 621 lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off
                 panelFloater.pos = resolvedPosition
                 addRollout statusDialog panelFloater rolledUp: false border: false
                 addRollout serverStatusDialog panelFloater rolledUp: false border: false
