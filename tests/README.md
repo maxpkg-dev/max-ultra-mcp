@@ -28,3 +28,10 @@ node .\tests\diagnostics-cli-test.js
 ```
 
 The JavaScript suites use mock Max clients only. They must never open, modify, render, or save a real user scene. The v1 suite covers common session-owned jobs, render compatibility wrappers, plan-token binding, tool schemas, actionable error hints, bounded material-diagnostic generation/parsing, and privacy-safe activity labels. The synthetic UI helper test is part of `run-smoke.ps1`; it launches no Autodesk software and touches no scene. It verifies direct HWND capture, bounded native diagnostics, evidence fields, and cleanup. Child/MAXScriptDialog, plugin WebBrowser, material-class, renderer-specific, and other real-Max behavior still requires an explicitly selected disposable 3ds Max fixture.
+
+
+## Windows helper launch regression
+
+windows-process-test.js exercises empty and unrelated PATH values, Windows and project paths with spaces, SystemRoot/windir fallback, Sysnative selection for a simulated 32-bit caller, missing executables, and directory-as-executable rejection. The real Windows fixture invokes a copied startup BAT and a synthetic PowerShell runner; it never launches a daemon or touches 3ds Max.
+
+Before claiming real-Max acceptance, test update checking, AI Setup, and automatic startup in isolated 2022 and 2027 profiles with a modified process PATH. Confirm that a missing package working directory reports PROCESS_WORKING_DIRECTORY_MISSING, and that a valid helper still launches with spaces in its package path. Static MaxScript checks do not prove these live behaviors.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-09-07
+
+- Fixed: Bootstrap, update, AI Setup, shutdown, uninstall, image/UI helpers, and batch launchers resolve Windows executables from checked system paths instead of relying on PATH. Missing system executables and unavailable package working directories have distinct diagnostics.
+
 ## 1.3.0 - 2026-09-07
 
 - Added: Read-only Max-owned UI diagnostics combine bounded UI Automation, native HWND trees, and WebBrowser layout, scroll, zoom, and DPI metrics.

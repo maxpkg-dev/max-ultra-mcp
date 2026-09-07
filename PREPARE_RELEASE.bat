@@ -7,7 +7,9 @@
 setlocal EnableExtensions
 set "MAX_ULTRA_RELEASE_ROOT=%~dp0"
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%MAX_ULTRA_RELEASE_ROOT%scripts\prepare-release.ps1" %*
+call "%~dp0scripts\resolve-windows-powershell.bat"
+if errorlevel 1 exit /b %ERRORLEVEL%
+"%MAX_ULTRA_POWERSHELL_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%MAX_ULTRA_RELEASE_ROOT%scripts\prepare-release.ps1" %*
 set "MAX_ULTRA_RELEASE_EXIT=%ERRORLEVEL%"
 
 echo.

@@ -3,6 +3,8 @@
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
 
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\windows-process-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\smoke-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\v1-smoke-test.js' @args
@@ -11,10 +13,10 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\diagnostics-cli-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\ui-automation-helper-test.ps1')
+& (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\ui-automation-helper-test.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& powershell.exe -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\activity-log-winforms-test.ps1')
+& (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\activity-log-winforms-test.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\release-workflow-test.ps1')
+& (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\release-workflow-test.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 exit 0

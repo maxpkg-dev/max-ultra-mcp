@@ -256,6 +256,8 @@ AGENTS.md                         repository contract for AI coding agents
 
 ## Troubleshooting
 
+- Starting with version 1.3.1, helper launchers resolve Windows PowerShell from Windows system directories without PATH lookup. A 32-bit process uses Sysnative when available. Missing executable and unavailable package working-directory diagnostics identify different failures; neither message alone proves an antivirus issue.
+
 - If several Max instances are connected, select one explicitly.
 - If the daemon was stopped, rerun `01_START_MAX_ULTRA_MCP_FIRST.ms`. Automatic launches are hidden by default; enable the visible server console in Settings when diagnosing startup.
 - Seeing one `node.exe --stdio` per connected ChatGPT, Codex, Claude Code, or other MCP session is expected. `node_repl.exe` processes belong to the AI client, not Max Ultra MCP. Close/reconnect the corresponding AI task to remove an idle client-owned host.

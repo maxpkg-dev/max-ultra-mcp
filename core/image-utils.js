@@ -1,13 +1,19 @@
+/* Resizes viewport images through the Windows PowerShell helper.
+ * Copyright (c) 2026 Lukianenko Vasyl
+ * Project website: https://3dground.net
+ * Developed by Lukianenko Vasyl
+ */
 "use strict";
 
 const { execFile } = require("node:child_process");
 const path = require("node:path");
+const { resolveWindowsPowerShell } = require("./windows-process");
 
 const resizeScript = path.resolve(__dirname, "..", "scripts", "resize-image.ps1");
 
 function resizePng(filePath, width, height) {
   return new Promise((resolve, reject) => {
-    execFile("powershell.exe", [
+    execFile(resolveWindowsPowerShell(), [
       "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
       "-File", resizeScript, "-InputPath", filePath,
       "-Width", String(width || 0), "-Height", String(height || 0),

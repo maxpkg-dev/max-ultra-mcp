@@ -6,5 +6,7 @@
 setlocal EnableExtensions
 set "BRIDGE_SCRIPT_DIR=%~dp0"
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BRIDGE_SCRIPT_DIR%stop-owned-server.ps1" %*
+call "%~dp0resolve-windows-powershell.bat"
+if errorlevel 1 exit /b %ERRORLEVEL%
+"%MAX_ULTRA_POWERSHELL_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%BRIDGE_SCRIPT_DIR%stop-owned-server.ps1" %*
 exit /b %ERRORLEVEL%

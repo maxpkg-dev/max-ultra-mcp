@@ -9,6 +9,7 @@
 
 const { execFile } = require("node:child_process");
 const path = require("node:path");
+const { resolveWindowsPowerShell } = require("./windows-process");
 
 const helperPath = path.resolve(__dirname, "..", "scripts", "max-ui-automation.ps1");
 
@@ -22,7 +23,7 @@ function runUiAutomation(processId, operation, payload = {}, timeoutMs = 15000) 
     "-PayloadBase64", encodedPayload,
   ];
   return new Promise((resolve, reject) => {
-    execFile("powershell.exe", args, {
+    execFile(resolveWindowsPowerShell(), args, {
       windowsHide: true,
       encoding: "utf8",
       timeout: Math.max(1000, timeoutMs),

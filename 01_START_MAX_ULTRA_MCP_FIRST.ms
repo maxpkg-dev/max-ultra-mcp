@@ -727,6 +727,32 @@ global MaxUltraMcpActiveClient
             return serverOwnershipDirectory + "max-ultra-mcp-owned-" + (portValue as string) + ".json"
         ),
 
+        -- Pure .NET helpers are also safe on the transport worker: no Max API calls.
+        fn resolveWindowsExecutable executableRelativePath = (
+            local environmentClass = dotNetClass "System.Environment"
+            local pathClass = dotNetClass "System.IO.Path"
+            local fileClass = dotNetClass "System.IO.File"
+            local systemDirectory = environmentClass.SystemDirectory
+            local candidateDirectories = #()
+            if (environmentClass.Is64BitOperatingSystem and not environmentClass.Is64BitProcess) do (
+                local windowsDirectory = pathClass.GetDirectoryName systemDirectory
+                append candidateDirectories (pathClass.Combine windowsDirectory "Sysnative")
+            )
+            append candidateDirectories systemDirectory
+            for candidateDirectory in candidateDirectories do (
+                local executablePath = pathClass.Combine candidateDirectory executableRelativePath
+                if (fileClass.Exists executablePath) do return executablePath
+            )
+            throw ("WINDOWS_EXECUTABLE_NOT_FOUND: " + executableRelativePath + " was not found in the Windows system directories. Check the Windows installation; PATH is not used.")
+        ),
+
+        fn validateProcessWorkingDirectory directoryPath = (
+            if (directoryPath == undefined or directoryPath == "") do throw "PROCESS_WORKING_DIRECTORY_MISSING: The package helper directory is empty."
+            local fullDirectoryPath = (dotNetClass "System.IO.Path").GetFullPath directoryPath
+            if (not ((dotNetClass "System.IO.Directory").Exists fullDirectoryPath)) do throw ("PROCESS_WORKING_DIRECTORY_MISSING: The package helper directory no longer exists or cannot be accessed: " + fullDirectoryPath)
+            return fullDirectoryPath
+        ),
+
         fn launchDetachedShutdownHelper = (
             if (shutdownHelperStarted) do return true
             shutdownHelperStarted = true
@@ -737,9 +763,9 @@ global MaxUltraMcpActiveClient
             try (
                 local ownershipFilePath = serverOwnershipFile hostPort
                 local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
-                startInfo.FileName = "cmd.exe"
+                startInfo.FileName = resolveWindowsExecutable "cmd.exe"
                 startInfo.Arguments = "/d /c \"\"" + serverShutdownHelperPath + "\" -OwnershipFile \"" + ownershipFilePath + "\" -Port " + (hostPort as string) + " -OwnerToken \"" + serverOwnerToken + "\" -ClosingMaxPid " + (processId as string) + "\""
-                startInfo.WorkingDirectory = serverWorkingDirectory
+                startInfo.WorkingDirectory = validateProcessWorkingDirectory serverWorkingDirectory
                 startInfo.UseShellExecute = false
                 startInfo.CreateNoWindow = true
                 startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
@@ -1860,9 +1886,9 @@ global MaxUltraMcpActiveClient
                 local projectRoot = ensureSlash (getFilenamePath bootstrapFilePath)
                 local argumentText = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + quoteProcessArgument helperPath + " -Action CheckAndStage -ProjectRoot " + quoteProcessArgument projectRoot + " -ResultFile " + quoteProcessArgument resultPath
                 local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
-                startInfo.FileName = "powershell.exe"
+                startInfo.FileName = resolveWindowsExecutable @"WindowsPowerShell\v1.0\powershell.exe"
                 startInfo.Arguments = argumentText
-                startInfo.WorkingDirectory = projectRoot
+                startInfo.WorkingDirectory = validateProcessWorkingDirectory projectRoot
                 startInfo.UseShellExecute = false
                 startInfo.CreateNoWindow = true
                 startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
@@ -2348,9 +2374,9 @@ global MaxUltraMcpActiveClient
                 if (installOpenAI) do argumentText += " -InstallOpenAI"
                 if (installClaudeCode) do argumentText += " -InstallClaudeCode"
                 local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
-                startInfo.FileName = "powershell.exe"
+                startInfo.FileName = resolveWindowsExecutable @"WindowsPowerShell\v1.0\powershell.exe"
                 startInfo.Arguments = argumentText
-                startInfo.WorkingDirectory = getFilenamePath helperPath
+                startInfo.WorkingDirectory = validateProcessWorkingDirectory (getFilenamePath helperPath)
                 startInfo.UseShellExecute = false
                 startInfo.CreateNoWindow = true
                 startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
@@ -3799,9 +3825,9 @@ global MaxUltraMcpActiveClient
             if (workerLauncherPath == undefined or workerLauncherPath == "") do throw "scripts\\start-server.bat was not found below the project root; set MAX_ULTRA_MCP_ROOT if the first-step script was copied"
             local ownershipFilePath = workerOwnershipDirectory + "max-ultra-mcp-owned-" + (workerPort as string) + ".json"
             local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
-            startInfo.FileName = "cmd.exe"
+            startInfo.FileName = resolveWindowsExecutable "cmd.exe"
             startInfo.Arguments = "/d /c \"\"" + workerLauncherPath + "\" --no-pause --port " + (workerPort as string) + " --owner-file \"" + ownershipFilePath + "\" --owner-token \"" + workerOwnerToken + "\" --owner-max-pid " + (workerMaxPid as string) + "\""
-            startInfo.WorkingDirectory = workerWorkingDirectory
+            startInfo.WorkingDirectory = validateProcessWorkingDirectory workerWorkingDirectory
             if (workerServerConsoleVisible) then (
                 startInfo.UseShellExecute = true
                 startInfo.CreateNoWindow = false

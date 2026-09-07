@@ -65,7 +65,7 @@ try {
         assets = @()
     } | ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText($releaseMetadataPath, $releaseMetadata, (New-Object Text.UTF8Encoding($false)))
-    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\update-manager.ps1') -Action CheckAndStage -ProjectRoot $projectRoot -ResultFile $updateResultPath -ReleaseMetadataFile $releaseMetadataPath
+    & (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\update-manager.ps1') -Action CheckAndStage -ProjectRoot $projectRoot -ResultFile $updateResultPath -ReleaseMetadataFile $releaseMetadataPath
     Assert-ReleaseTest ($LASTEXITCODE -eq 0) 'The offline current-version update check failed.'
     $updateResultContent = [IO.File]::ReadAllText($updateResultPath)
     Assert-ReleaseTest ($updateResultContent -match '(?m)^state=current\s*$') 'The offline updater did not report the current state.'

@@ -12,7 +12,7 @@ function Assert-True([bool]$Condition, [string]$Message) {
 function Invoke-UiHelper([int]$ProcessId, [string]$Operation, $Payload, [string]$HelperPath) {
     $payloadJson = $Payload | ConvertTo-Json -Depth 8 -Compress
     $payloadBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payloadJson))
-    $helperOutput = & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $HelperPath -TargetProcessId $ProcessId -Operation $Operation -PayloadBase64 $payloadBase64 2>&1
+    $helperOutput = & (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $HelperPath -TargetProcessId $ProcessId -Operation $Operation -PayloadBase64 $payloadBase64 2>&1
     if ($LASTEXITCODE -ne 0) { throw "UI helper $Operation failed: $($helperOutput -join [Environment]::NewLine)" }
     return ($helperOutput | Select-Object -Last 1) | ConvertFrom-Json
 }
@@ -96,8 +96,12 @@ public static class FixtureProgram {
 } finally {
     if ($null -ne $fixtureProcess -and -not $fixtureProcess.HasExited) {
         [void]$fixtureProcess.CloseMainWindow()
-        if (-not $fixtureProcess.WaitForExit(2000)) { Stop-Process -Id $fixtureProcess.Id -Force -ErrorAction SilentlyContinue }
+        if (-not $fixtureProcess.WaitForExit(2000)) {
+            $fixtureProcess.Kill()
+            if (-not $fixtureProcess.WaitForExit(5000)) { throw 'Synthetic UI fixture did not exit.' }
+        }
     }
+    if ($null -ne $fixtureProcess) { $fixtureProcess.Dispose() }
     $resolvedTestRoot = [IO.Path]::GetFullPath($testRoot)
     $resolvedTempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
     if ($resolvedTestRoot.StartsWith($resolvedTempRoot, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $resolvedTestRoot)) {

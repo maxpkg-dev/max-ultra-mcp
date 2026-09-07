@@ -67,6 +67,7 @@ core/stdio-host.js
 core/tool-catalog.js
 core/tool-runtime.js
 core/windows-ui.js
+core/windows-process.js
 skills/max-ultra-mcp/SKILL.md
 skills/max-ultra-mcp/references/code-rules.md
 skills/max-ultra-mcp/references/polygon-modeling.md
@@ -100,6 +101,7 @@ scripts/max-ui-automation.ps1
 scripts/maxpkg-uninstall.ps1
 scripts/resize-image.ps1
 scripts/run-node-script.ps1
+scripts/resolve-windows-powershell.bat
 scripts/start-server.bat
 scripts/start-server.ps1
 scripts/stop-owned-server.bat

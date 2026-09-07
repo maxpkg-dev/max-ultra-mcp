@@ -23,6 +23,32 @@
         return quoteCharacter + argumentContent + quoteCharacter
     )
 
+    -- Resolve the system host independently of the launching process PATH.
+    fn maxUltraMcpResolveWindowsExecutable executableRelativePath = (
+        local environmentClass = dotNetClass "System.Environment"
+        local pathClass = dotNetClass "System.IO.Path"
+        local fileClass = dotNetClass "System.IO.File"
+        local systemDirectory = environmentClass.SystemDirectory
+        local candidateDirectories = #()
+        if (environmentClass.Is64BitOperatingSystem and not environmentClass.Is64BitProcess) do (
+            local windowsDirectory = pathClass.GetDirectoryName systemDirectory
+            append candidateDirectories (pathClass.Combine windowsDirectory "Sysnative")
+        )
+        append candidateDirectories systemDirectory
+        for candidateDirectory in candidateDirectories do (
+            local executablePath = pathClass.Combine candidateDirectory executableRelativePath
+            if (fileClass.Exists executablePath) do return executablePath
+        )
+        throw ("WINDOWS_EXECUTABLE_NOT_FOUND: " + executableRelativePath + " was not found in the Windows system directories. Check the Windows installation; PATH is not used.")
+    )
+
+    fn maxUltraMcpValidateWorkingDirectory directoryPath = (
+        if (directoryPath == undefined or directoryPath == "") do throw "PROCESS_WORKING_DIRECTORY_MISSING: The package helper directory is empty."
+        local fullDirectoryPath = (dotNetClass "System.IO.Path").GetFullPath directoryPath
+        if (not ((dotNetClass "System.IO.Directory").Exists fullDirectoryPath)) do throw ("PROCESS_WORKING_DIRECTORY_MISSING: The package helper directory no longer exists or cannot be accessed: " + fullDirectoryPath)
+        return fullDirectoryPath
+    )
+
     local hookFilePath = getThisScriptFileName()
     local hookDirectory = getFilenamePath hookFilePath
     local cleanupScriptPath = hookDirectory + "maxpkg-uninstall.ps1"
@@ -30,9 +56,9 @@
 
     local packageRoot = (dotNetClass "System.IO.Path").GetFullPath (hookDirectory + "..\\")
     local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
-    startInfo.FileName = "powershell.exe"
+    startInfo.FileName = maxUltraMcpResolveWindowsExecutable @"WindowsPowerShell\v1.0\powershell.exe"
     startInfo.Arguments = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + (maxUltraMcpQuoteUninstallArgument cleanupScriptPath) + " -PackageRoot " + (maxUltraMcpQuoteUninstallArgument packageRoot)
-    startInfo.WorkingDirectory = hookDirectory
+    startInfo.WorkingDirectory = maxUltraMcpValidateWorkingDirectory hookDirectory
     startInfo.UseShellExecute = false
     startInfo.CreateNoWindow = true
     startInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden

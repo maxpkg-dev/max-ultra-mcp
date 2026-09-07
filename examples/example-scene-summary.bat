@@ -15,7 +15,9 @@ echo.
 echo   Reads scene statistics and never saves or modifies the scene.
 echo.
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-scene-summary\example-scene-summary.js"
+call "%~dp0..\scripts\resolve-windows-powershell.bat"
+if errorlevel 1 exit /b %ERRORLEVEL%
+"%MAX_ULTRA_POWERSHELL_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-scene-summary\example-scene-summary.js"
 set "EXAMPLE_EXIT_CODE=%ERRORLEVEL%"
 
 echo.

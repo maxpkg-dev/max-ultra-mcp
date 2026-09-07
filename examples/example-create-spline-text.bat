@@ -17,7 +17,9 @@ echo   Selects and frames it in the active viewport. Never saves the scene.
 echo   Refuses to overwrite an existing MaxUltraMCP_Title object.
 echo.
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-create-spline-text\example-create-spline-text.js"
+call "%~dp0..\scripts\resolve-windows-powershell.bat"
+if errorlevel 1 exit /b %ERRORLEVEL%
+"%MAX_ULTRA_POWERSHELL_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0..\scripts\run-node-script.ps1" "examples\example-create-spline-text\example-create-spline-text.js"
 set "EXAMPLE_EXIT_CODE=%ERRORLEVEL%"
 
 echo.
