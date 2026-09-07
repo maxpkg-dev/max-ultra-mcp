@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed: Rolling Activity-log trimming now uses an empty RTF stream instead of the read-only-rejected `WM_CLEAR` path, keeping the display at 30 entries without attempting a forbidden user deletion. Retained badge/link formatting and read-only protection are preserved.
 - Fixed: 3ds Max 2027 no longer enters the unstable .NET 10 `Label.WndProc` tooltip-notification path when server status text refreshes; full diagnostics remain available in Activity and accessibility descriptions.
 - Fixed: Activity entries no longer include three display-only blank lines, and automatic end scrolling no longer moves the read-only caret.
 - Fixed: The rotating footer promotion no longer receives persistent input focus or displays a text caret.

@@ -1249,6 +1249,8 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /local expectedActivityCoreText = normalizeActivityLineEndings \(activityDisplayCoreText\(\)\)[\s\S]*local expectedActivityText = normalizeActivityLineEndings \(activityDisplayText\(\)\)[\s\S]*local currentActivityText = normalizeActivityLineEndings \(activityDialog\.rtbActivity\.Text as string\)/);
     assert.match(bootstrapSource, /local appendPrefix = currentActivityCoreText \+ "\\n"[\s\S]*findString currentActivityCoreText "\\n"[\s\S]*remainingActivityText = substring currentActivityCoreText \(firstLineBreak \+ 1\)[\s\S]*removedCharacterCount = firstLineBreak/);
     assert.match(bootstrapSource, /changedIncrementally/);
+    assert.match(bootstrapSource, /Select 0 removedCharacterCount[\s\S]*?activityDialog\.rtbActivity\.SelectedRtf = "\{\\\\rtf1\\\\ansi\}"/);
+    assert.doesNotMatch(bootstrapSource, /rtbActivity\.SelectedText\s*=\s*""/);
     assert.match(bootstrapSource, /local currentActivityCoreText = currentActivityText[\s\S]*appendColoredActivityText appendedActivityText/);
     assert.match(bootstrapSource, /shiftActivityDonateLinkRanges removedCharacterCount[\s\S]*appendColoredActivityText appendedActivityText/);
     assert.match(bootstrapSource, /for activityIndex in 1 to activityEntries\.count do \([\s\S]*appendColoredActivityText activityEntries\[activityIndex\][\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor/);

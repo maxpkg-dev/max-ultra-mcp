@@ -1210,7 +1210,9 @@ global MaxUltraMcpActiveClient
                 if (changedIncrementally) then (
                     if (removedCharacterCount > 0) do (
                         activityDialog.rtbActivity.Select 0 removedCharacterCount
-                        activityDialog.rtbActivity.SelectedText = ""
+                        -- Empty SelectedText sends WM_CLEAR, a rejected user edit on a read-only RichEdit.
+                        -- Stream an empty RTF document to delete only this range without changing ReadOnly.
+                        activityDialog.rtbActivity.SelectedRtf = "{\\rtf1\\ansi}"
                     )
                     shiftActivityDonateLinkRanges removedCharacterCount
                     appendColoredActivityText appendedActivityText
