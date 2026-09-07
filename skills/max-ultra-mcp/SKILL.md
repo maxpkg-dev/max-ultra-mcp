@@ -9,7 +9,7 @@ Use `max-ultra-renderer-settings` for renderer configuration based on runtime pr
 
 Use the semantic MCP surface to produce a verified result in the selected 3ds Max process. Keep raw MaxScript and UI automation as explicit fallbacks, not the default implementation path.
 
-For reference-driven character, creature, product, or prop subdivision modeling, use `max-ultra-character-object-modeling`. For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. For dimensional architectural floor plans, use `max-ultra-floor-plan` so its stricter wall-source preservation workflow is loaded.
+For reference-driven chairs and armchairs, use `max-ultra-armchair-modeling` as the specialized modeling workflow. For other reference-driven characters, creatures, products, or props, use `max-ultra-character-object-modeling`. For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. For dimensional architectural floor plans, use `max-ultra-floor-plan` so its stricter wall-source preservation workflow is loaded.
 
 ## Operating workflow
 

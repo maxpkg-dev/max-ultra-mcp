@@ -28,7 +28,7 @@ The canonical behavior is in `skills/max-ultra-mcp/SKILL.md`. Repository adapter
 ## Load skills on demand
 
 - Use `max-ultra-mcp` for ordinary scene, viewport, script, file, and Max-owned UI work.
-- Load the focused camera, character/object modeling, floor-plan, MaxPkg, renderer-settings, or spline skill only when its description matches the request.
+- Load the focused camera, armchair modeling, character/object modeling, floor-plan, MaxPkg, renderer-settings, or spline skill only when its description matches the request.
 - Treat skill references as conditional detail. Read only the reference named for the active workflow, except where a skill explicitly requires a complete rules reference before authoring persistent MaxScript.
 - Keep the live MCP tool list and `max_capabilities` authoritative. A skill never proves that a backlog tool exists.
 

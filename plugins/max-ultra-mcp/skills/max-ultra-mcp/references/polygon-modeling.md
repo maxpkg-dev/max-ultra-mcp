@@ -2,7 +2,7 @@
 
 Use the semantic polygon tools when a requested object cannot be represented accurately by a primitive or the floor-plan builder.
 
-For a reference-driven character, creature, product, or prop that requires professional subdivision topology and a live TurboSmooth cage, use `max-ultra-character-object-modeling` instead of this general reference.
+For reference-driven chair or armchair reconstruction, use `max-ultra-armchair-modeling` instead of this general reference. For other reference-driven characters, creatures, products, or props requiring subdivision topology and a live TurboSmooth cage, use `max-ultra-character-object-modeling`.
 
 ## Preferred workflow
 

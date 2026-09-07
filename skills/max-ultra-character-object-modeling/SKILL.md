@@ -1,6 +1,6 @@
 ---
 name: max-ultra-character-object-modeling
-description: Build a character, creature, product, prop, or other reference-driven subject as one professional subdivision-ready Editable Poly through Max Ultra MCP. Use when likeness, silhouette, quad topology, deformation flow, and a non-collapsed one-iteration TurboSmooth result matter. Do not use for architectural floor plans, spline-only work, or requests that are accurately represented by a true primitive.
+description: Build a character, creature, product, prop, or other reference-driven subject as one professional subdivision-ready Editable Poly through Max Ultra MCP. Use when likeness, silhouette, quad topology, deformation flow, and a non-collapsed one-iteration TurboSmooth result matter. Use max-ultra-armchair-modeling instead for chairs and armchairs. Do not use for architectural floor plans, spline-only work, or requests that are accurately represented by a true primitive.
 ---
 
 # Max Ultra Character and Object Modeling

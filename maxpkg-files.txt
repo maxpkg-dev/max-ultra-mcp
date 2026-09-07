@@ -19,6 +19,10 @@ CLAUDE.md
 .agents/plugins/marketplace.json
 plugins/max-ultra-mcp/.codex-plugin/plugin.json
 plugins/max-ultra-mcp/skills/max-ultra-camera-composition/references/composition-workflow.md
+plugins/max-ultra-mcp/skills/max-ultra-armchair-modeling/SKILL.md
+plugins/max-ultra-mcp/skills/max-ultra-armchair-modeling/references/component-form.md
+plugins/max-ultra-mcp/skills/max-ultra-armchair-modeling/references/reference-and-acceptance.md
+plugins/max-ultra-mcp/skills/max-ultra-armchair-modeling/references/stock-delivery.md
 plugins/max-ultra-mcp/skills/max-ultra-camera-composition/SKILL.md
 plugins/max-ultra-mcp/skills/max-ultra-character-object-modeling/references/subdivision-topology.md
 plugins/max-ultra-mcp/skills/max-ultra-character-object-modeling/SKILL.md
@@ -72,6 +76,10 @@ skills/max-ultra-mcp/references/workflows.md
 skills/max-ultra-mcp/references/capabilities-and-boundaries.md
 skills/max-ultra-floor-plan/SKILL.md
 skills/max-ultra-floor-plan/references/plan-schema.md
+skills/max-ultra-armchair-modeling/SKILL.md
+skills/max-ultra-armchair-modeling/references/component-form.md
+skills/max-ultra-armchair-modeling/references/reference-and-acceptance.md
+skills/max-ultra-armchair-modeling/references/stock-delivery.md
 skills/max-ultra-camera-composition/SKILL.md
 skills/max-ultra-camera-composition/references/composition-workflow.md
 skills/max-ultra-character-object-modeling/SKILL.md
