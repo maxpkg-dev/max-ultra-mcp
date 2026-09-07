@@ -784,7 +784,7 @@ async function runSmokeTest() {
     assert.match(aiStatusRefreshBody, /btnAiStatus\.AccessibleDescription = combinedStatusDescription[\s\S]*SetToolTip statusDialog\.btnAiStatus combinedStatusDescription/);
     assert.match(bootstrapSource, /on btnDonate Click[\s\S]*shellLaunch "https:\/\/store\.payproglobal\.com\/checkout\?products\[1\]\[id\]=137366"/);
     const createPanelBody = sourceSection(bootstrapSource, "fn createPanelFloater", "fn restoreHiddenPanel", "main rollout floater creation");
-    assert.match(createPanelBody, /newRolloutFloater \(productWindowTitle\(\)\) 720 640 lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off/);
+    assert.match(createPanelBody, /newRolloutFloater \(productWindowTitle\(\)\) 720 621 lockWidth: true lockHeight: true autoLayoutOnResize: false scrollBar: #off/);
     assert.equal((createPanelBody.match(/configureMainPanelControls\(\)/g) || []).length, 1);
     const showPanelConfigureBody = sourceSection(bootstrapSource, "fn showPanel", "fn hidePanel", "main panel display configuration");
     assert.doesNotMatch(showPanelConfigureBody, /configureMainPanelControls\(\)/);
@@ -1005,6 +1005,15 @@ async function runSmokeTest() {
       assert.equal(iconPng.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
       assert.equal(iconPng.readUInt32BE(16), 16);
       assert.equal(iconPng.readUInt32BE(20), 16);
+    }
+    const productionPaths = maxPkgFilesSource.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+    assert.equal(new Set(productionPaths).size, productionPaths.length, "Production paths must be unique");
+    for (const productionPath of productionPaths) {
+      assert.doesNotMatch(productionPath, /^(?:tests|diagnostics|dist)\//, "Development artifacts must stay out of the package");
+      assert.doesNotMatch(productionPath, /(?:^|\/)(?:maxpkg-packager\.ini|runtime\/state)(?:\/|$)/);
+    }
+    for (const coreFile of fs.readdirSync(path.join(PROJECT_ROOT, "core"))) {
+      if (/\.(?:js|json)$/.test(coreFile)) assert.ok(productionPaths.includes("core/" + coreFile), "Missing runtime file: " + coreFile);
     }
     assert.match(maxPkgFilesSource, /scripts\/update-manager\.ps1/);
     assert.match(maxPkgFilesSource, /scripts\/project-version\.ps1/);

@@ -114,5 +114,3 @@ examples/house-plan-from-image/expected-result.png
 examples/house-plan-from-image/expected-plan.json
 examples/house-plan-from-image/PROMPT.md
 examples/house-plan-from-image/README.md
-tests/fixtures/ui-automation-rollout/test-ui-rollout.ms
-tests/fixtures/ui-automation-rollout/README.md

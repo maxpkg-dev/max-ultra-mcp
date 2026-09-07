@@ -2,52 +2,25 @@
 
 ## Unreleased
 
-- Fixed: Rolling Activity-log trimming now uses an empty RTF stream instead of the read-only-rejected `WM_CLEAR` path, keeping the display at 30 entries without attempting a forbidden user deletion. Retained badge/link formatting and read-only protection are preserved.
-- Fixed: 3ds Max 2027 no longer enters the unstable .NET 10 `Label.WndProc` tooltip-notification path when server status text refreshes; full diagnostics remain available in Activity and accessibility descriptions.
-- Fixed: Activity entries no longer include three display-only blank lines, and automatic end scrolling no longer moves the read-only caret.
-- Fixed: The rotating footer promotion no longer receives persistent input focus or displays a text caret.
-- Improved: The support footer now shows a borderless, rollout-matched RichTextBox with sixteen linked project and donation promotions, selecting a different random message every 30 seconds while keeping the dedicated Donate button.
-- Improved: The disconnected Activity message now simply asks users to restart the script without exposing the package entry filename.
-- Improved: The underlined Donate word in Activity support reminders now opens the secure donation checkout by mouse click or keyboard activation.
-- Fixed: AI-client STDIO hosts now survive daemon replacement and use one verified, bounded reconnect attempt on the next tool call, preventing an existing Codex or Claude Code session from receiving a terminal transport close during an ordinary same-port bridge restart.
-- Changed: Interrupted tool calls are never replayed automatically and return `BRIDGE_DOWN` with an unknown-outcome warning; daemon-owned selection and jobs reset after reconnect.
-- Changed: Scene revisions now start from a new opaque nonzero epoch for every daemon process so NodeRefs from a previous daemon are rejected as stale.
-- Changed: Removed the obsolete adaptive main-panel layout path. The 720×640 floater, four rollout heights, and all control coordinates are now declared directly; only position and Hide state persist.
-- Changed: Support reminders now appear one minute after the first successful connection, ten minutes after the first reminder, and 60 minutes after the second reminder.
-- Changed: Settings About now uses a centered vertical layout with native MAXScript labels and hyperlinks for the product, version, author, project site, and package manager, followed by the themed Donate action.
-- Fixed: The restore mini-panel can again be dragged down near the Windows taskbar; only its 24 px title strip is kept reachable instead of clamping the entire 64 px panel above the taskbar.
-- Changed: Activity log category badges now have a two-space unfilled gap after timestamps, include filled outer spaces, and render padded seven-character statuses in a monospaced font, giving every colored block the same pixel width. An unfilled ` > ` separator aligns message starts without changing MCP activity responses. Badge text uses a darker, more saturated shade derived from its category-colored background; light themes use a lighter badge surface for contrast. Timestamps and messages keep their previous foreground colors, while separators remain unfilled.
-- Improved: Donate keeps a readable gap between its label and an optically centered 16 px Lucide heart.
-- Improved: All main-panel button icons now use the same 16×16 canvas.
-- Changed: Donate now uses the exact orange link theme color. Donate, Refresh, Hide panel, Reconnect, Stop / Exit, and Settings load packaged, ready-to-use white PNG renditions of their official Lucide icons through native WinForms. Reconnect uses the distinct `plug-zap` symbol instead of duplicating Refresh. No runtime recoloring or SVG renderer is used.
-- Fixed: Footer links and Donate now move through the MaxScript rollout `.pos` property. Applying WinForms `.Location` had offset each child inside its own host, clipping the first link and hiding the remaining controls.
-- Changed: The bridge row uses lighter green and red foreground colors. Error text is now the stable short message `Please restart the script`; full diagnostics remain in the Activity log and accessibility description.
-- Changed: WinForms links now use the dedicated orange theme color `[255, 127, 0]` for normal and visited states.
-- Fixed: 3ds Max 2022 no longer routes server labels or mini-panel buttons through the fragile compatible GDI+ `MeasureString` path. Bold controls now own independent rooted fonts, preventing the `Parameter is not valid` paint exception after reload or garbage collection.
-- Improved: The main panel now uses four fixed borderless rollout zones with a shared ColorMan-aware WinForms style, a dedicated AI readiness strip, concise server context, full-width Activity area, and an accented support footer.
-- Improved: The main floater now uses compact fixed toolbox chrome with mouse resizing disabled, no icon, Minimize, or Maximize buttons, and only the close action visible; programmatic minimize/restore remains supported.
-- Changed: Legacy saved panel dimensions are ignored and no longer read or written; position and Hide state remain persistent.
-- Improved: The main AI strip now uses one aggregate status button that names ready clients and does not present an unused optional client as a separate red requirement.
-- Improved: The separate main-panel **AI setup** button was removed; the fixed-width aggregate status now opens Setup directly and displays **Click to set up AI agent** when no client is ready.
-- Fixed: Exact fixed rollout and control coordinates keep the Activity log's five-pixel top inset and the 44 px footer visible without measuring live client width or native window chrome; transparent Server/footer controls inherit their rollout background without obscuring sibling controls.
-- Fixed: Server labels and footer links now use the actual opaque background exposed by their rollout parent chain, falling back to the ColorMan rollout color only when the host exposes no usable value.
-- Fixed: Custom bold UI font lifetime is retained by the bridge; labels are reset to the system font before the reference is released, and the shared Font is never manually disposed while Max can still paint a rollout control.
-- Fixed: Repeated panel configuration no longer disposes and recreates live GDI+ icon bitmaps, preventing the WinForms `Parameter is not valid` paint exception.
-- Fixed: Initial panel display no longer runs the complete WinForms configuration a second time after floater creation.
-- Fixed: Rollout labels reject unrelated system-white `Parent.BackColor` values and use the ColorMan rollout fallback unless a parent color is consistent with the active Max theme.
-- Changed: The redundant Connect only action was removed; Reconnect remains the explicit retry for an already-running daemon.
-- Improved: ChatGPT Desktop/Codex and Claude Code registration readiness is checked once two seconds after startup with a 30-second timeout, while a centered dependency-free Lucide `refresh-cw` vector icon starts an immediate check, inconclusive failures stay visible without opening setup, and onboarding dismissal suppresses only automatic setup opening.
-- Improved: Hide preserves position and makes the live rollout floater invisible without stopping the bridge; Expand reuses that floater and recreates it at the saved position only when necessary.
-- Improved: The restore mini-panel now uses bold system text and a high-contrast connection-colored action background; the main Server endpoint/problem text is bold as well.
-- Added: The Activity log can show up to three highlighted support reminders per bridge session: one minute after the first successful connection, ten minutes after the first reminder, and 60 minutes after the second. Hide and Reconnect do not reset the absolute deadlines.
-- Improved: The Activity RichTextBox now uses six-pixel native RichEdit margins on both horizontal sides instead of relying on the ineffective WinForms `Padding` property.
-- Added: A local ChatGPT and Codex plugin packages all Max Ultra workflow skills so natural 3ds Max requests route to the registered MCP tools.
-- Fixed: The natural workflow skill now uses readable examples and explicitly applies to requests in any user language.
-- Added: A client-neutral read-only diagnostics CLI discovers packaged skills, checks live health and capabilities, audits Codex and Claude Code registration, and prints setup commands without changing client configuration or 3ds Max scenes.
-- Fixed: Window capture now targets a supplied Max-owned HWND directly after native process-ownership validation, including child and MAXScriptDialog windows, without depending on top-level UI Automation rediscovery.
-- Added: Read-only diagnostics return bounded UI Automation and native WinForms trees plus compact MSHTML WebBrowser sizing, layout, scroll, zoom, and DPI metrics without raw DOM or page source.
-- Improved: MCP errors now include predictable UI recovery hints, and the natural 3D workflow lists and safely selects a Max instance before taking action.
-- Added: Canonical cross-agent project policy with thin Codex and Claude skill adapters; deterministic hooks remain limited to repository hygiene rather than scene or UI decisions.
+## 1.3.0 - 2026-09-07
+
+- Added: Read-only Max-owned UI diagnostics combine bounded UI Automation, native HWND trees, and WebBrowser layout, scroll, zoom, and DPI metrics.
+- Added: A client-neutral diagnostics CLI discovers packaged skills, checks live health and capabilities, audits client registration, and prints setup commands without changing client configuration or scenes.
+- Added: A ChatGPT and Codex plugin packages all eight workflow skills and routes natural 3ds Max requests in any language to the registered MCP tools.
+- Added: A dedicated armchair workflow covers reference proportions, upholstery, seams, curvature-following subdivision topology, simple rails, clean contact joints, and stock-delivery checks.
+- Improved: Direct native HWND capture supports Max-owned child and MAXScriptDialog windows, with ownership validation and actionable recovery hints.
+- Fixed: AI-client STDIO hosts survive same-port daemon replacement and reconnect through one bounded, verified attempt on the next tool call.
+- Changed: Interrupted calls are never replayed automatically; they report BRIDGE_DOWN with an unknown-outcome warning. Selection and jobs reset after reconnect, and a new scene-revision epoch rejects stale NodeRefs.
+- Improved: The fixed 720-by-621 main panel has compact toolbox chrome, four borderless zones, aggregate AI readiness, concise server context, and packaged 16-pixel Lucide icons.
+- Improved: Client readiness is checked once after startup and on manual refresh; inconclusive failures remain visible, and dismissing Setup suppresses only its automatic opening.
+- Improved: Hide and Expand preserve the live panel, position, connection, and reminder schedule; the compact restore panel keeps a reachable title strip near the taskbar.
+- Improved: Activity entries use aligned colored badges, six-pixel margins, compact spacing, and automatic scrolling that preserves the read-only caret and review position.
+- Fixed: Rolling Activity-log trimming retains 30 entries through an empty RTF stream while preserving badge and link formatting and read-only protection.
+- Fixed: Rooted fonts, reused icons, and theme-aware label backgrounds avoid invalid GDI+ painting in 3ds Max 2022; server labels avoid the unstable tooltip-notification path in 3ds Max 2027.
+- Improved: The footer rotates linked project promotions without retaining text-input focus. Clickable Donate reminders appear at bounded intervals, and Settings About uses a centered native layout.
+- Changed: Removed adaptive panel sizing, saved dimensions, the separate AI setup button, and the redundant Connect only action.
+- Improved: Release preparation synchronizes product and plugin versions, preserves the reviewed Donate metadata, and generates the complete production file list from the canonical allowlist.
+- Fixed: Machine-local Packager INIs stay out of version control, and UI test fixtures stay out of production archives.
 
 ## 1.2.5 - 2026-08-27
 
