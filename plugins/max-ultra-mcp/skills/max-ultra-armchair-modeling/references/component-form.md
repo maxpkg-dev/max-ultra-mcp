@@ -6,6 +6,14 @@ Reconstruct the top contour independently from the side profile. Track varying w
 
 Compare a closeup from the same side for contour, thickness, and highlight flow. A generic rounded box cannot stand in for an elongated armrest whose width and sections change along its length. Material contour errors must be fixed before detailing. Frame members likewise need their actual taper, bend, end radii, physical edge radii, contact, and joinery. Section and support-loop placement should describe those forms economically, with no pinching after one smoothing iteration.
 
+### Truly rectangular rails and boards
+
+Use the simplest construction that matches the real part. A straight rectangular rail or board of constant section may start as a Box, converted to an editable cage with the necessary small bevels and support loops for one-iteration TurboSmooth. An equivalent simple polygon mesh is equally valid; no particular UI tool is required. This exception does not justify replacing a changing-section armrest or volumetric cushion with a generic box.
+
+Preserve flat sides, straight edges, constant section, and clean ends in the part's local geometry. Set its overall angle and placement with a rigid object transform, not independent vertex dragging, warping, or projection onto another surface. Derive dimensions, bevel radius, and angle from the reference; no fixed example angle is a default. Verify the transformed part's section and end shape before and after smoothing. During final attachment, preserve the rigid placement and keep the part as an intentional Element in the one Editable Poly cage with live TurboSmooth.
+
+For ordinary archviz joints, use a plausible end-to-side or end-to-support fit with readable part boundaries and small physical bevels on the appropriate exposed hard edges, not the same chamfer on every surface. Require real contact or a small construction gap supported by the reference; do not separate all parts with floating gaps or let them visibly penetrate deeply. Hidden overlap is not an excuse for visible intersections. Build complex interlocking joinery, mortise-and-tenon details, or concealed fasteners only when visible in the reference or explicitly requested; Boolean continuity is unnecessary for a simple contact joint. Check the fit after one TurboSmooth iteration for floating, clipping, coplanar duplicates, and z-fighting. Keep physically separate parts as separate Elements in the final Editable Poly; do not force-weld them together.
+
 ## Loops must define the form
 
 Keep genuinely flat, unchanging regions economical; extra edges add no shape there. Preserve the connectivity and topology needed for stable subdivision. Increase density where silhouette, curvature, seams, folds, or transitions require it, not only at sharp edges. Distinguish shape-defining loops that describe broad soft curvature from tightly spaced support loops that hold a narrow transition.
