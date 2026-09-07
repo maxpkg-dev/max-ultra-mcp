@@ -6,6 +6,12 @@ Reconstruct the top contour independently from the side profile. Track varying w
 
 Compare a closeup from the same side for contour, thickness, and highlight flow. A generic rounded box cannot stand in for an elongated armrest whose width and sections change along its length. Material contour errors must be fixed before detailing. Frame members likewise need their actual taper, bend, end radii, physical edge radii, contact, and joinery. Section and support-loop placement should describe those forms economically, with no pinching after one smoothing iteration.
 
+## Loops must define the form
+
+Keep genuinely flat, unchanging regions economical; extra edges add no shape there. Preserve the connectivity and topology needed for stable subdivision. Increase density where silhouette, curvature, seams, folds, or transitions require it, not only at sharp edges. Distinguish shape-defining loops that describe broad soft curvature from tightly spaced support loops that hold a narrow transition.
+
+At a rounded corner or changing section, inserting cuts alone does not reconstruct the form. Position the new vertices on the reference-derived volumetric profile in local profile/surface directions, not only global Z. Leaving them coplanar on the old flat face can retain flat patches and faceted corners despite a high polygon count. Vary loop spacing and edge flow gradually; keep edge concentrations and poles away from highlight-critical soft corners. Compare the cage profile and its intended tangent progression with the one-iteration surface, checking smooth highlights and preserved volume. Correct vertex positions and flow instead of masking defects with more iterations.
+
 ## Support loops for one-iteration TurboSmooth
 
 An unsupported edge can round over substantially under TurboSmooth. Support loops closer to the edge generally produce a narrower, firmer transition; wider spacing produces a broader, softer transition. The result also depends on neighboring topology and physical scale, so derive spacing from the reference's edge radius rather than a universal offset.
@@ -20,7 +26,7 @@ Compare unsmoothed and one-iteration smoothed views at identical framing, includ
 
 Separate the base, filling thickness, crown/curvature in both principal directions, sidewall, and transition into the seam. Reproduce contact/compression against the frame and between seat and back. Determine which fabric is taut and which is loose. A broad flat slab with rounded borders fails a volumetric reference, while uniform inflation of every panel fails taut, tailored upholstery. Check silhouette, sections, and highlights before folds.
 
-On broad soft surfaces, distribute edges relatively evenly with gradual spacing changes that follow curvature; do not demand a strictly uniform grid everywhere. Add local density only for observed seams, folds, or form changes, then blend it into the surrounding surface. Do not transfer the tight support-loop pattern of hard legs automatically to upholstery: closely paired loops can create an unintended cinch or hard bevel. After one TurboSmooth iteration, inspect a broad, smoothly flowing highlight and preserved cushion volume, with no pinching or artificial chamfer band around the cushion.
+On broad soft surfaces, distribute edges relatively evenly with gradual spacing changes that follow curvature; do not demand a strictly uniform grid everywhere. Add local density where the observed silhouette, curvature, seams, folds, or transitions require it, then blend it into the surrounding surface. Do not transfer the tight support-loop pattern of hard legs automatically to upholstery: several tight parallel strips or an edge concentration at a soft corner can create an unintended cinch or hard bevel. Redistribute unnecessary support into the surrounding curvature while preserving the real seam. After one TurboSmooth iteration, inspect a broad, smoothly flowing highlight and preserved cushion volume, with no pinching or artificial chamfer band around the cushion.
 
 ## Subtle folds after primary form passes
 
