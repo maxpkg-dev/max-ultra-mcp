@@ -20,6 +20,8 @@ Compare unsmoothed and one-iteration smoothed views at identical framing, includ
 
 Separate the base, filling thickness, crown/curvature in both principal directions, sidewall, and transition into the seam. Reproduce contact/compression against the frame and between seat and back. Determine which fabric is taut and which is loose. A broad flat slab with rounded borders fails a volumetric reference, while uniform inflation of every panel fails taut, tailored upholstery. Check silhouette, sections, and highlights before folds.
 
+On broad soft surfaces, distribute edges relatively evenly with gradual spacing changes that follow curvature; do not demand a strictly uniform grid everywhere. Add local density only for observed seams, folds, or form changes, then blend it into the surrounding surface. Do not transfer the tight support-loop pattern of hard legs automatically to upholstery: closely paired loops can create an unintended cinch or hard bevel. After one TurboSmooth iteration, inspect a broad, smoothly flowing highlight and preserved cushion volume, with no pinching or artificial chamfer band around the cushion.
+
 ## Subtle folds after primary form passes
 
 Use intentional local edge/quad strips along plausible tension or compression near seams, corners, and supports. Shape each fold across its width as a shallow trough with a soft adjacent shoulder; neighboring rows should carry a smooth transition into the original surface. Displace along the local surface direction/normal, not global Z. Taper width and depth smoothly to zero at the ends.
@@ -28,10 +30,11 @@ Vary length, amplitude, and spacing according to the observed fabric. Avoid regu
 
 ## Seam, piping, and stitching
 
-Identify each treatment from a closeup: recessed panel join, pinch, corded piping, or visible stitching. Follow the actual panel cutting pattern, corners, ends, and concealed continuation; do not automatically repeat one contour on every cushion side.
+First determine from a closeup whether the seam stands proud of the surface or recedes into it, and distinguish an integrated raised seam, recessed panel join, pinch, separate corded piping, and visible stitching. Follow the actual panel cutting pattern, corners, ends, and concealed continuation; do not automatically repeat one contour on every cushion side.
 
-- Recessed seams need integrated surface transitions and controlled width/depth that survive subdivision.
-- Piping needs its observed section, clearance, and attachment, as an intentional Element where physically separate. Do not replace every seam with a tube.
+- For an integrated raised seam, build a finite-width strip along the seam loop and shape its cross-section outward along the local surface normal, with reference-derived width and height. Give the profile shoulders a physical bevel or support appropriate to its scale. It may be rounded-rectangular or another observed section; a square seam is not universal. Keep it connected to the surrounding surface without accidental overlaps; welding adjacent panels into a flat line does not create the raised profile. Edge-loop/extrude/chamfer describes one construction approach, but equivalent strip/profile vertex-and-face topology is sufficient through MCP. Do not extrude a bare edge into a zero-width or non-manifold strip.
+- For a recessed seam, form a local groove inward relative to the surface with smooth fabric-tension transitions into neighboring rows. Check its width and depth after one TurboSmooth iteration so it neither disappears nor becomes a sharp cut.
+- Physically separate piping may be an intentional Element with its observed section, real contact, clearance, and attachment to the fabric. Do not arbitrarily attach a universal tube in place of the reference seam.
 - Stitching uses threads or a surface map according to requested scope and viewing distance, at a small physical scale and in contact with the fabric. Do not invent decorative stitches.
 
 Inspect a straight section, corner, and ending at close range. A dark Material ID line alone is not a completed recessed seam. Keep the geometry-only boundary when a surface-map finish was not requested.
