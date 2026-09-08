@@ -6,3 +6,4 @@ runtime/win-x64/
 maxpkg-packager.ini
 maxpkg-changelog.ini
 dist/
+/temp
