@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.2 - 2026-09-08
+
 - Added: A small-house detailing skill adapts architectural guidance supplied by Yuriy Bobak for editable roofs, timber UVs, fitted furniture, import verification, and delivery checks while preserving the focused floor-plan workflow.
 - Improved: Camera composition guidance checks transform handedness before correcting an apparently mirrored architectural view.
 
