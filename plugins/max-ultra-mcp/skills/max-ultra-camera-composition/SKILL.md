@@ -20,6 +20,8 @@ Compose against the final render frame, not the arbitrary viewport rectangle. Ac
 9. Inspect only the rendered live area inside the outer Safe Frame. Apply one small camera or lens correction at a time, reactivate the camera if needed, redraw, and capture again.
 10. Stop when the requested constraints are met and successive changes no longer improve the image. Return the camera NodeRef, transform, lens or FOV, render size and aspect, Safe Frame state, decisions, and final image evidence.
 
+Before correcting an apparently mirrored plan or interior, check camera handedness using [Camera basis and mirrored views](references/composition-workflow.md#camera-basis-and-mirrored-views). Verify the basis after constructing a camera transform directly.
+
 ## Composition rules
 
 - When the task has one newly created or explicitly isolated object, use single-object framing by default: aim at the center of its world bounding box, center it in the Safe Frame, keep the complete object visible on every side, and use an even margin. Do not offset it to a thirds intersection unless the user requests a stylized composition or reserved negative space.

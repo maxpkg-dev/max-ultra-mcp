@@ -7,6 +7,8 @@ description: Build dimensional 3D architectural floor plans in an already-open A
 
 Create the plan through the structured floor-plan tools and preserve a reversible modeling lineage. The source image stays in the conversation; send only reviewed dimensions and topology to Max Ultra MCP.
 
+For roofs, cladding, architectural assemblies, and fitted furnishings beyond the plan, continue with [max-ultra-small-house-detailing](../max-ultra-small-house-detailing/SKILL.md). Preserve this skill's dimensional and source-spline contract when doing so.
+
 ## Required modeling lineage
 
 The wall model must follow this order:

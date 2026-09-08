@@ -550,7 +550,7 @@ async function runSmokeTest() {
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
       .map((entry) => entry.name)
       .sort();
-    assert.deepEqual(skillNames, ["max-ultra-armchair-modeling", "max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-maxpkg-packaging", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-spline-modeling"]);
+    assert.deepEqual(skillNames, ["max-ultra-armchair-modeling", "max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-maxpkg-packaging", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-small-house-detailing", "max-ultra-spline-modeling"]);
     assert.equal(pluginManifest.name, "max-ultra-mcp");
     assert.equal(pluginManifest.version, versionIniSource.match(/^Version=(.+)$/m)[1].trim());
     assert.equal(pluginManifest.skills, "./skills/");

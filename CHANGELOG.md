@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added: A small-house detailing skill adapts architectural guidance supplied by Yuriy Bobak for editable roofs, timber UVs, fitted furniture, import verification, and delivery checks while preserving the focused floor-plan workflow.
+- Improved: Camera composition guidance checks transform handedness before correcting an apparently mirrored architectural view.
+
 ## 1.3.1 - 2026-09-07
 
 - Fixed: Bootstrap, update, AI Setup, shutdown, uninstall, image/UI helpers, and batch launchers resolve Windows executables from checked system paths instead of relying on PATH. Missing system executables and unavailable package working directories have distinct diagnostics.

@@ -107,11 +107,12 @@ async function run() {
     assert.ok(setup.claudeCode.command.includes("user"));
 
     const skillsWithoutMax = await parseCliJson(["skills"], environment);
-    assert.ok(skillsWithoutMax.count >= 8);
+    assert.ok(skillsWithoutMax.count >= 9);
     const skillNames = new Set(skillsWithoutMax.skills.map((skill) => skill.name));
     for (const requiredSkill of [
       "max-ultra-mcp",
       "max-ultra-floor-plan",
+      "max-ultra-small-house-detailing",
       "max-ultra-camera-composition",
       "max-ultra-character-object-modeling",
       "max-ultra-armchair-modeling",

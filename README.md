@@ -184,9 +184,17 @@ The source image is interpreted by the model. Raw image bytes are not passed to 
 
 Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
+## Acknowledgments
+
+Thank you to the contributors who share skills, workflows, and practical experience to improve Max Ultra MCP.
+
+- **Yuriy Bobak**: Provided the architectural skills adapted into the small-house workflow and camera-basis checks.
+
 ## Optional agent skills
 
-The release includes eight portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control, [`max-ultra-camera-composition`](skills/max-ultra-camera-composition/SKILL.md) for Safe Frame-aware camera placement, [`max-ultra-character-object-modeling`](skills/max-ultra-character-object-modeling/SKILL.md) for reference-driven single-mesh subdivision modeling of other subjects, [`max-ultra-armchair-modeling`](skills/max-ultra-armchair-modeling/SKILL.md) for chair and armchair reconstruction with component likeness checks, [`max-ultra-renderer-settings`](skills/max-ultra-renderer-settings/SKILL.md) for runtime-inspected renderer configuration, [`max-ultra-spline-modeling`](skills/max-ultra-spline-modeling/SKILL.md) for paths/profiles and non-destructive modifier sources, [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved wall spline, and [`max-ultra-maxpkg-packaging`](skills/max-ultra-maxpkg-packaging/SKILL.md) for adapting new or existing 3ds Max scripts to the official MaxPkg workflow.
+The release includes nine portable file-based skills: [`max-ultra-mcp`](skills/max-ultra-mcp/SKILL.md) for general 3ds Max control, [`max-ultra-camera-composition`](skills/max-ultra-camera-composition/SKILL.md) for Safe Frame-aware camera placement, [`max-ultra-character-object-modeling`](skills/max-ultra-character-object-modeling/SKILL.md) for reference-driven single-mesh subdivision modeling of other subjects, [`max-ultra-armchair-modeling`](skills/max-ultra-armchair-modeling/SKILL.md) for chair and armchair reconstruction with component likeness checks, [`max-ultra-renderer-settings`](skills/max-ultra-renderer-settings/SKILL.md) for runtime-inspected renderer configuration, [`max-ultra-spline-modeling`](skills/max-ultra-spline-modeling/SKILL.md) for paths/profiles and non-destructive modifier sources, [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) for dimensional image/drawing-to-model workflows with a preserved wall spline, [`max-ultra-small-house-detailing`](skills/max-ultra-small-house-detailing/SKILL.md) for small-house scenes from plans through roofs, cladding, and fitted furnishings, and [`max-ultra-maxpkg-packaging`](skills/max-ultra-maxpkg-packaging/SKILL.md) for adapting new or existing 3ds Max scripts to the official MaxPkg workflow.
+
+The [small-house detailing skill](skills/max-ultra-small-house-detailing/SKILL.md) covers a small-house architectural 3D scene from plans, dimensions, and references through the floor-plan shell, editable roofs, timber cladding, requested furnishings, and verified delivery. It also supports detailing an existing house; it does not produce construction documentation. It reuses the focused floor-plan, camera, and renderer skills and does not add new MCP tools.
 
 The MaxPkg skill resolves the current official repository commit at execution time, reads its prompts and automation API documentation directly from GitHub, and prepares every adapted project with the matching original `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms`. Both standard hooks are mandatory in the stricter Max Ultra workflow.
 
@@ -194,7 +202,7 @@ The general skill loads its packaged MaxScript code rules before creating or edi
 
 The MCP server remains fully usable without these skills. Skill installation is client-specific and is not required for bridge startup or onboarding registration. The installer does not modify an agent's skill directory automatically.
 
-For ChatGPT Desktop and Codex, the repo-local `plugins/max-ultra-mcp` plugin packages the same eight skills and exposes them through the `3dground-max-ultra-mcp` marketplace. The plugin supplies workflow routing; the separately registered local MCP server remains the authoritative tool transport.
+For ChatGPT Desktop and Codex, the repo-local `plugins/max-ultra-mcp` plugin packages the same nine skills and exposes them through the `3dground-max-ultra-mcp` marketplace. The plugin supplies workflow routing; the separately registered local MCP server remains the authoritative tool transport.
 
 ## Security model
 
@@ -236,6 +244,7 @@ Before a production release, also test real 3ds Max versions and installed Coron
 - [Optional Max Ultra renderer-settings agent skill](skills/max-ultra-renderer-settings/SKILL.md)
 - [Optional Max Ultra spline-modeling agent skill](skills/max-ultra-spline-modeling/SKILL.md)
 - [Optional Max Ultra floor-plan agent skill](skills/max-ultra-floor-plan/SKILL.md)
+- [Optional Max Ultra small-house detailing agent skill](skills/max-ultra-small-house-detailing/SKILL.md)
 - [Optional Max Ultra MaxPkg-packaging agent skill](skills/max-ultra-maxpkg-packaging/SKILL.md)
 
 ## Repository layout

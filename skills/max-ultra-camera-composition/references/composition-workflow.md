@@ -76,6 +76,14 @@ Create a free camera with `max_create_primitive` and retain its NodeRef. Use `ma
 
 Never paste raw user prose into MaxScript or guess renderer-specific properties. If exact lens, FOV, shift, or clipping behavior cannot be verified through capability or property introspection, report it as unsupported instead of claiming success.
 
+## Camera basis and mirrored views
+
+For transform rows right `r`, up `u`, and back `b`, inspect row lengths, orthogonality, and `dot(cross(r,u),b)`. An unscaled orthonormal right-handed frame has determinant near +1; a negative determinant indicates reflection. A positive determinant alone does not prove unit scale or absence of shear. For the conventional camera frame, the look direction is `-b`.
+
+If the view appears mirrored, inspect the camera and inherited transforms before moving architecture or furniture. Repair only the responsible basis/scale, preserving position, target intent, lens, exposure, and unrelated overrides. Verify the repaired frame and compare a known asymmetric doorway or furnishing against the plan in Safe Frame. Control camera icon size through supported display properties, not camera-transform scaling.
+
+This diagnostic was contributed through Yuriy Bobak's architectural workflow; its original scene transform is not a reusable camera preset.
+
 ## Evidence and handoff
 
 The accepted result should include:

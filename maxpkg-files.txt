@@ -116,3 +116,9 @@ examples/house-plan-from-image/expected-result.png
 examples/house-plan-from-image/expected-plan.json
 examples/house-plan-from-image/PROMPT.md
 examples/house-plan-from-image/README.md
+skills/max-ultra-small-house-detailing/SKILL.md
+skills/max-ultra-small-house-detailing/references/materials-and-review.md
+skills/max-ultra-small-house-detailing/references/assets-and-delivery.md
+plugins/max-ultra-mcp/skills/max-ultra-small-house-detailing/SKILL.md
+plugins/max-ultra-mcp/skills/max-ultra-small-house-detailing/references/materials-and-review.md
+plugins/max-ultra-mcp/skills/max-ultra-small-house-detailing/references/assets-and-delivery.md
