@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.3.3 - 2026-09-09
+
+- Improved: README and website setup guidance explain the required Codex mode in ChatGPT Desktop and clarify that automatic Claude registration targets Claude Code.
+
 ## 1.3.2 - 2026-09-08
 
 - Added: A small-house detailing skill adapts architectural guidance supplied by Yuriy Bobak for editable roofs, timber UVs, fitted furniture, import verification, and delivery checks while preserving the focused floor-plan workflow.

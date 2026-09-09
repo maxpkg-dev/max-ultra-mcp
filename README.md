@@ -38,6 +38,10 @@ The Settings window enables automatic update checks by default. Version metadata
 
 ## Installation for release users
 
+> **ChatGPT Desktop users: switch to Codex mode before using Max Ultra MCP.** Run the connection test and all 3ds Max requests in Codex mode. Ordinary ChatGPT mode does not expose this local MCP connection. A green **MCP ready** status confirms registration, not the mode or tool access of the current conversation. This mode requirement does not apply to Claude Code or other compatible MCP clients.
+
+**Claude users:** use **Claude Code** and configure its MCP connection through **AI Client Setup**. The automatic Claude integration targets Claude Code; it does not configure Claude Desktop or the Claude website. Restart or reconnect Claude Code after setup, then run the **Test prompt**. No Codex mode switch is needed in Claude Code.
+
 MaxPkg release packages bundle a portable Node.js runtime. Users do not install Node.js, change `PATH`, require administrator rights, or download dependencies at runtime.
 
 1. Install the Max Ultra MCP `.mzp` through MaxPkg.
@@ -48,7 +52,7 @@ MaxPkg release packages bundle a portable Node.js runtime. Users do not install 
    ```
 
 3. Two seconds after startup, the first-start script checks AI registration readiness once. When both client results are conclusive and no supported AI client is configured, it opens **AI Client Setup** automatically unless that automatic opening was dismissed; a failed check stays visible as **Check failed** without opening setup. On **1. Setup**, select **ChatGPT Desktop / Codex** and/or **Claude Code**, then choose **Install selected**. After reconnecting the client, use **2. Test prompt** to copy a safe, read-only connection test.
-4. Restart or reconnect each newly configured AI client.
+4. Restart or reconnect each newly configured AI client. In ChatGPT Desktop, **switch to Codex mode**, then paste the **Test prompt** into a new Codex task.
 5. For natural-language routing in ChatGPT Desktop and Codex, install the packaged plugin once from the installation root:
 
    ```powershell
@@ -184,7 +188,7 @@ The source image is interpreted by the model. Raw image bytes are not passed to 
 
 Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 
-## Acknowledgments
+## Thanks List:
 
 Thank you to the contributors who share skills, workflows, and practical experience to improve Max Ultra MCP.
 
@@ -264,6 +268,8 @@ AGENTS.md                         repository contract for AI coding agents
 ```
 
 ## Troubleshooting
+
+- If ChatGPT says Max Ultra tools are unavailable while the bridge shows **MCP ready**, first **switch to Codex mode** and run the connection test there. The `archviz` profile already includes `max_list_instances`, `max_health`, `max_scene_summary`, and `max_capture_viewport`.
 
 - Starting with version 1.3.1, helper launchers resolve Windows PowerShell from Windows system directories without PATH lookup. A 32-bit process uses Sysnative when available. Missing executable and unavailable package working-directory diagnostics identify different failures; neither message alone proves an antivirus issue.
 
