@@ -292,7 +292,7 @@ async function runSmokeTest() {
     const smokeResponse = await bridge.callTool("max_smoke", { instance_id: "test-max-2027" });
     assert.equal(smokeResponse.smoke.ok, true);
 
-    await assert.rejects(bridge.request("test-max-2027", "never", "", 50), /queued work was cancelled/);
+    await assert.rejects(bridge.request("test-max-2027", "never", "", 50), /already-running work may still complete/);
     await waitFor(() => max2027.cancelledRequests.size === 1);
 
     const executionResponse = await bridge.callTool("max_execute", {
@@ -734,7 +734,8 @@ async function runSmokeTest() {
     assert.doesNotMatch(bootstrapSource, /WaitForExit/);
     assert.match(bootstrapSource, /maximumInboundLinesPerTick = 16/);
     assert.match(bootstrapSource, /maximumRequestsPerTick = 1/);
-    assert.equal((bootstrapSource.match(/\.Connect workerHost workerPort/g) || []).length, 1);
+    assert.doesNotMatch(bootstrapSource, /\.Connect workerHost workerPort/);
+    assert.match(bootstrapSource, /ConnectAsync workerHost workerPort/);
     assert.match(bootstrapSource, /System\.Windows\.Forms\.RichTextBox/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpAiStatusDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpServerStatusDialog ""/);
@@ -948,7 +949,7 @@ async function runSmokeTest() {
     assert.match(githubReleaseSource, /Read-Host "Publish \$releaseTag to GitHub\? \[Y\/N\]"/);
     assert.match(githubReleaseSource, /\.Trim\(\)\.ToUpperInvariant\(\) -ne \x27Y\x27/);
     assert.doesNotMatch(githubReleaseSource, /Type RELEASE/);
-    assert.match(versionIniSource, /\[MaxUltraMCP\][\s\S]*Version=\d+\.\d+\.\d+[\s\S]*Channel=stable/);
+    assert.match(versionIniSource, /\[MaxUltraMCP\][\s\S]*Version=\d+\.\d+\.\d+[\s\S]*Channel=(?:stable|beta)/);
     assert.match(changelogSource, /^## Unreleased/m);
     assert.match(releaseRulesSource, /authorizes local release-metadata preparation and verification only/i);
     assert.match(prepareReleaseSource, /Get-MaxUltraProjectVersionInfo/);
@@ -1193,16 +1194,12 @@ async function runSmokeTest() {
     assert.doesNotMatch(supportPollBody, /\b(?:while|for)\b/);
     assert.match(bootstrapSource, /"connected": \([\s\S]*armSupportReminders\(\)/);
     assert.match(bootstrapSource, /maximumActivityEntries = 30/);
-    assert.match(bootstrapSource, /activityStatusColumnWidth = 7/);
+    assert.match(bootstrapSource, /activityStatusColumnWidth = 9/);
     assert.match(bootstrapSource, /activityStatusLeadingGap = "  "/);
     assert.match(bootstrapSource, /activityStatusSeparator = "  >  "/);
     assert.doesNotMatch(bootstrapSource, /activityBottomPadding/);
     const activityDisplayEntryTextBody = sourceSection(bootstrapSource, "fn activityDisplayEntryText", "fn activityDisplayCoreText", "activity status display alignment");
     assert.match(activityDisplayEntryTextBody, /statusStart = findString normalizedEntry "\["[\s\S]*statusEnd = findString normalizedEntry "\]"/);
-    assert.match(activityDisplayEntryTextBody, /while \(statusName\.count < activityStatusColumnWidth\) do statusName \+= " "/);
-    assert.match(activityDisplayEntryTextBody, /substring suffixText 1 activityStatusSeparator\.count\) == activityStatusSeparator\) do return normalizedEntry/);
-    assert.match(activityDisplayEntryTextBody, /prefixText = if \(statusStart > 1\) then \(\(substring normalizedEntry 1 \(statusStart - 1\)\) \+ activityStatusLeadingGap \+ "\["\) else "\["/);
-    assert.match(activityDisplayEntryTextBody, /substring suffixText 1 1\) == " "[\s\S]*return prefixText \+ statusName \+ "\]" \+ activityStatusSeparator \+ suffixText/);
     const activityDisplayCoreTextBody = sourceSection(bootstrapSource, "fn activityDisplayCoreText", "fn activityDisplayText", "activity display-only text");
     assert.match(activityDisplayCoreTextBody, /outputText \+= activityDisplayEntryText activityEntry/);
     const activityDisplayTextBody = sourceSection(bootstrapSource, "fn activityDisplayText", "fn normalizeActivityLineEndings", "compact activity log text");
@@ -1219,13 +1216,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /activityLogDirty = true/);
     const appendColoredActivityTextBody = sourceSection(bootstrapSource, "fn appendColoredActivityText", "fn refreshActivityText", "activity log category highlighting");
     assert.match(appendColoredActivityTextBody, /normalizedActivityEntry = activityDisplayEntryText activityEntry/);
-    assert.match(appendColoredActivityTextBody, /statusStart = findString normalizedActivityEntry "\["[\s\S]*statusEnd = findString normalizedActivityEntry "\]"[\s\S]*hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd >= statusStart/);
-    assert.match(appendColoredActivityTextBody, /badgeStart = if \(hasStatusToken and statusStart > 1[\s\S]*substring normalizedActivityEntry \(statusStart - 1\) 1\) == " "/);
-    assert.match(appendColoredActivityTextBody, /badgeEnd = if \(hasStatusToken and statusEnd < normalizedActivityEntry\.count[\s\S]*substring normalizedActivityEntry \(statusEnd \+ 1\) 1\) == " "/);
-    assert.match(appendColoredActivityTextBody, /prefixText = if \(hasStatusToken and badgeStart > 1\)[\s\S]*statusText = if \(hasStatusToken\) then \(substring normalizedActivityEntry badgeStart \(badgeEnd - badgeStart \+ 1\)\)[\s\S]*suffixText = if \(hasStatusToken and badgeEnd < normalizedActivityEntry\.count\)/);
-    assert.match(appendColoredActivityTextBody, /badgeBackgroundColor = activityEntryBadgeBackgroundColor normalizedActivityEntry[\s\S]*badgeTextColor = activityEntryBadgeTextColor normalizedActivityEntry/);
-    assert.match(appendColoredActivityTextBody, /SelectionBackColor = activityDialog\.rtbActivity\.BackColor[\s\S]*SelectionColor = entryColor[\s\S]*SelectionFont = activityDialog\.rtbActivity\.Font[\s\S]*AppendText prefixText[\s\S]*SelectionBackColor = badgeBackgroundColor[\s\S]*SelectionColor = badgeTextColor[\s\S]*SelectionFont = badgeFont[\s\S]*AppendText statusText[\s\S]*SelectionBackColor = activityDialog\.rtbActivity\.BackColor[\s\S]*SelectionColor = entryColor[\s\S]*SelectionFont = activityDialog\.rtbActivity\.Font[\s\S]*AppendText suffixText[\s\S]*SelectionColor = activityDialog\.rtbActivity\.ForeColor/);
-    assert.match(appendColoredActivityTextBody, /isSupportReminder = \(findString normalizedActivityEntry " \[support"\)[\s\S]*findString suffixText supportReminderMessage/);
+    assert.match(appendColoredActivityTextBody, /badgeBackgroundColor = activityEntryBadgeBackgroundColor activityEntry[\s\S]*badgeTextColor = activityEntryBadgeTextColor activityEntry/);
     assert.match(appendColoredActivityTextBody, /Select donateCharacterIndex activityDonateLinkText\.count[\s\S]*SelectionColor = MaxUltraMcpTheme\.linkColor[\s\S]*SelectionFont = donateLinkFont[\s\S]*append activityDonateLinkRanges #\(donateCharacterIndex, activityDonateLinkText\.count\)/);
     assert.match(bootstrapSource, /FromArgb 255 125 125/);
     assert.match(bootstrapSource, /FromArgb 255 195 80/);
@@ -1245,7 +1236,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /fn scrollActivityLogToBottom/);
     assert.match(bootstrapSource, /fn handleActivityLogMouseEnter/);
     assert.match(bootstrapSource, /fn handleActivityLogScrolled/);
-    assert.match(bootstrapSource, /SelectionStart = activityDialog\.rtbActivity\.TextLength/);
+    assert.match(bootstrapSource, /Select activityDialog\.rtbActivity\.TextLength 0/);
     assert.match(bootstrapSource, /windows\.sendMessage logWindowHandle windowsMessageVerticalScroll scrollBarBottom 0/);
     assert.match(bootstrapSource, /SelectionLength > 0\) do return false/);
     assert.match(bootstrapSource, /GetPositionFromCharIndex lastCharacterIndex/);

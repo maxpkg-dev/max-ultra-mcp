@@ -54,8 +54,25 @@ try {
 
     $projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath (Join-Path $projectRoot 'version.ini')
     Assert-ReleaseTest ($projectVersion.Version -match '^\d+\.\d+\.\d+$') 'version.ini project metadata was not parsed.'
-    Assert-ReleaseTest ($projectVersion.Channel -eq 'stable') 'Only the stable project channel should be accepted.'
+    Assert-ReleaseTest ($projectVersion.Channel -in @('stable', 'beta')) 'Supported project channel was not accepted.'
 
+    $channelFixturePath = Join-Path $temporaryRoot 'version.ini'
+    foreach ($validChannel in @('stable', 'beta')) {
+        [IO.File]::WriteAllText($channelFixturePath, "[MaxUltraMCP]`nVersion=1.3.4`nChannel=$validChannel`n")
+        $channelInfo = Get-MaxUltraProjectVersionInfo -VersionIniPath $channelFixturePath
+        Assert-ReleaseTest ($channelInfo.Channel -eq $validChannel) 'Channel fixture failed to round-trip.'
+    }
+    [IO.File]::WriteAllText($channelFixturePath, "[MaxUltraMCP]`nVersion=1.3.4`nChannel=unknown`n")
+    $invalidChannelRejected = $false
+    try { Get-MaxUltraProjectVersionInfo -VersionIniPath $channelFixturePath | Out-Null } catch { $invalidChannelRejected = $true }
+    Assert-ReleaseTest $invalidChannelRejected 'Unknown channels must be rejected.'
+    if ($projectVersion.Channel -eq 'beta') {
+        $betaPublishRejected = $false
+        try { & (Join-Path $projectRoot 'scripts\publish-github-release.ps1') -CheckOnly } catch {
+            $betaPublishRejected = $_.Exception.Message -eq 'Private beta packages cannot be published by the stable release workflow.'
+        }
+        Assert-ReleaseTest $betaPublishRejected 'Beta must be rejected before publication or network checks.'
+    }
     $releaseMetadataPath = Join-Path $temporaryRoot 'release.json'
     $updateResultPath = Join-Path $temporaryRoot 'update-result.ini'
     $releaseMetadata = @{

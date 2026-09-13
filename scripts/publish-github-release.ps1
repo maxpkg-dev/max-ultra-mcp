@@ -109,6 +109,7 @@ function Assert-MzpArchive {
 
 if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf)) { throw 'core\package.json is missing.' }
 $projectVersionInfo = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath
+if ($projectVersionInfo.Channel -ne 'stable') { throw 'Private beta packages cannot be published by the stable release workflow.' }
 $packageData = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $projectVersion = $projectVersionInfo.Version
 if ([string]$packageData.version -ne $projectVersion) {

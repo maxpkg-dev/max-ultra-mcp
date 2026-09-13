@@ -7,7 +7,7 @@
 param(
     [string]$Version,
 
-    [ValidateSet('stable')]
+    [ValidateSet('stable', 'beta')]
     [string]$Channel = 'stable',
 
 

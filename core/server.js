@@ -202,16 +202,19 @@ class MaxBridge {
 
   readConnectionData(connectionInfo, chunk) {
     connectionInfo.buffer += chunk;
-    if (Buffer.byteLength(connectionInfo.buffer, "utf8") > MAX_LINE_BYTES) {
-      connectionInfo.socket.destroy(new Error("Protocol line exceeded the 4 MiB limit"));
-      return;
-    }
     let newlineIndex = connectionInfo.buffer.indexOf("\n");
     while (newlineIndex !== -1) {
       const wireLine = connectionInfo.buffer.slice(0, newlineIndex).replace(/\r$/, "");
+      if (Buffer.byteLength(wireLine, "utf8") > MAX_LINE_BYTES) {
+        connectionInfo.socket.destroy(new Error("Protocol line exceeded the 4 MiB limit"));
+        return;
+      }
       connectionInfo.buffer = connectionInfo.buffer.slice(newlineIndex + 1);
       if (wireLine) this.handleWireLine(connectionInfo, wireLine);
       newlineIndex = connectionInfo.buffer.indexOf("\n");
+    }
+    if (Buffer.byteLength(connectionInfo.buffer, "utf8") > MAX_LINE_BYTES) {
+      connectionInfo.socket.destroy(new Error("Protocol line exceeded the 4 MiB limit"));
     }
   }
 
@@ -444,16 +447,28 @@ class MaxBridge {
   request(instanceId, actionName, actionPayload = "", timeoutMs = this.requestTimeoutMs, activityLabel = "") {
     const instanceInfo = this.selectInstance(instanceId);
     const requestId = randomUUID();
+    const wirePayload = encodeField(actionPayload);
+    const wireActivityLabel = encodeField(String(activityLabel || "").slice(0, 120));
+    const wireLine = `REQUEST\t${requestId}\t${actionName}\t${wirePayload}\t${wireActivityLabel}\t${Date.now() + timeoutMs}\n`;
+    const wireBytes = Buffer.byteLength(wireLine);
+    const instancePending = [...this.pendingRequests.values()].filter((entry) => entry.instanceId === instanceInfo.instanceId);
+    if (wireBytes > MAX_LINE_BYTES) return Promise.reject(new Error("REQUEST_TOO_LARGE: bridge frame exceeds 4 MiB"));
+    if (this.pendingRequests.size >= 256 || instancePending.length >= 64 ||
+        instancePending.reduce((total, entry) => total + (entry.wireBytes || 0), wireBytes) > 8 * 1024 * 1024 ||
+        instanceInfo.socket.writableLength + wireBytes > 8 * 1024 * 1024) {
+      return Promise.reject(new Error("BRIDGE_BUSY: request admission limit reached; request was not sent"));
+    }
     return new Promise((resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(requestId);
-        if (!instanceInfo.socket.destroyed) instanceInfo.socket.write(`CANCEL\t${requestId}\n`);
-        reject(new Error(`3ds Max ${instanceInfo.instanceId} did not answer '${actionName}' within ${timeoutMs} ms; queued work was cancelled if it had not started`));
+        if (!instanceInfo.socket.destroyed) {
+          if (instanceInfo.socket.writableLength > 8 * 1024 * 1024) instanceInfo.socket.destroy();
+          else instanceInfo.socket.write(`CANCEL\t${requestId}\n`);
+        }
+        reject(new Error(`3ds Max ${instanceInfo.instanceId} did not answer '${actionName}' within ${timeoutMs} ms; cancellation requested for queued work; already-running work may still complete and must not be replayed automatically`));
       }, timeoutMs);
-      this.pendingRequests.set(requestId, { resolve, reject, timeoutHandle, instanceId: instanceInfo.instanceId });
-      const wirePayload = encodeField(actionPayload);
-      const wireActivityLabel = encodeField(String(activityLabel || "").slice(0, 120));
-      instanceInfo.socket.write(`REQUEST\t${requestId}\t${actionName}\t${wirePayload}\t${wireActivityLabel}\n`, (error) => {
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutHandle, instanceId: instanceInfo.instanceId, wireBytes });
+      instanceInfo.socket.write(wireLine, (error) => {
         if (!error) return;
         const pendingRequest = this.pendingRequests.get(requestId);
         if (!pendingRequest) return;

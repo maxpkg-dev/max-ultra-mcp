@@ -8,6 +8,16 @@ global MaxUltraMcpActiveClient
 
 (
     local bridgeClient
+    local previousLaunchCount = if (MaxUltraMcpActiveClient != undefined and isProperty MaxUltraMcpActiveClient #sessionLaunchCount) then MaxUltraMcpActiveClient.sessionLaunchCount else 0
+    local deferBootstrap = false
+    -- Never replace a facade whose callback or worker is still using it.
+    if (MaxUltraMcpActiveClient != undefined and isProperty MaxUltraMcpActiveClient #prepareReload) do (
+        if (not (MaxUltraMcpActiveClient.prepareReload())) do (
+            MaxUltraMcpActiveClient.scheduleReload (getThisScriptFileName())
+            deferBootstrap = true
+        )
+    )
+    if (not deferBootstrap) do (
     local restartServerForReload = MaxUltraMcpActiveClient != undefined
     local stagedUpdateStatus = ""
     local bootstrapRestartedAfterUpdate = false
@@ -510,6 +520,7 @@ global MaxUltraMcpActiveClient
         updateResultFilePath = "",
         updateBusy = false,
         updateAutomaticCheck = false,
+        sessionLaunchCount = 0,
         updateState = #idle,
         updateMessage = "Not checked",
         updateLatestVersion = "",
@@ -517,6 +528,12 @@ global MaxUltraMcpActiveClient
         integrationOpenAIConfigured = false,
         integrationClaudeCodeConfigured = false,
         transportWorkerArguments,
+        transportClient,
+        inTick = false,
+        mainThreadId = 0,
+        deferredReloadTimer,
+        deferredReloadPath = "",
+        deferredReloadStartedAt,
         suppressPanelShutdown = false,
         panelCloseInProgress = false,
         disposeInProgress = false,
@@ -565,7 +582,7 @@ global MaxUltraMcpActiveClient
         cancelledRequestIds = #(),
         activityEntries = #(),
         maximumActivityEntries = 30,
-        activityStatusColumnWidth = 7,
+        activityStatusColumnWidth = 9,
         activityStatusLeadingGap = "  ",
         activityStatusSeparator = "  >  ",
         activityBadgeFont,
@@ -890,18 +907,12 @@ global MaxUltraMcpActiveClient
             local statusStart = findString normalizedEntry "["
             local statusEnd = findString normalizedEntry "]"
             if (statusStart == undefined or statusEnd == undefined or statusEnd <= statusStart) do return normalizedEntry
-            local suffixText = if (statusEnd < normalizedEntry.count) then (substring normalizedEntry (statusEnd + 1) -1) else ""
-            if (suffixText.count >= activityStatusSeparator.count and (substring suffixText 1 activityStatusSeparator.count) == activityStatusSeparator) do return normalizedEntry
-            local statusNameLength = statusEnd - statusStart - 1
-            local statusName = if (statusNameLength > 0) then (substring normalizedEntry (statusStart + 1) statusNameLength) else ""
-            while (statusName.count < activityStatusColumnWidth) do statusName += " "
-            local prefixText = if (statusStart > 1) then ((substring normalizedEntry 1 (statusStart - 1)) + activityStatusLeadingGap + "[") else "["
-            if (suffixText.count > 0 and (substring suffixText 1 1) == " ") do (
-                suffixText = if (suffixText.count > 1) then (substring suffixText 2 -1) else ""
-            )
-            return prefixText + statusName + "]" + activityStatusSeparator + suffixText
+            if ((findString normalizedEntry "[\t") != undefined) do return normalizedEntry
+            local statusName = substring normalizedEntry (statusStart + 1) (statusEnd - statusStart - 1)
+            local timestampText = trimRight (substring normalizedEntry 1 (statusStart - 1))
+            local messageText = if (statusEnd < normalizedEntry.count) then (trimLeft (substring normalizedEntry (statusEnd + 1) -1)) else ""
+            return timestampText + "  [\t" + statusName + "\t]  >  " + messageText
         ),
-
         fn activityDisplayCoreText = (
             local outputText = ""
             for activityEntry in activityEntries do (
@@ -993,6 +1004,12 @@ global MaxUltraMcpActiveClient
         fn activityEntryColor activityEntry = (
             local colorClass = dotNetClass "System.Drawing.Color"
             local normalizedEntry = toLower (activityEntry as string)
+            local categoryStart = findString normalizedEntry "["
+            local categoryEnd = findString normalizedEntry "]"
+            if (categoryStart != undefined and categoryEnd != undefined and categoryEnd > categoryStart) do (
+                local categoryText = substring normalizedEntry (categoryStart + 1) (categoryEnd - categoryStart - 1)
+                normalizedEntry = " [" + (trimLeft (trimRight categoryText " \t") " \t") + "]"
+            )
             local darkTheme = themeIsDark()
             if ((findString normalizedEntry " [error") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 125 125) else (colorClass.FromArgb 180 0 0)
             if ((findString normalizedEntry " [warning") != undefined) do return if (darkTheme) then (colorClass.FromArgb 255 195 80) else (colorClass.FromArgb 145 105 0)
@@ -1149,35 +1166,64 @@ global MaxUltraMcpActiveClient
 
         fn appendColoredActivityText activityEntry = (
             local normalizedActivityEntry = activityDisplayEntryText activityEntry
-            local entryColor = activityEntryColor normalizedActivityEntry
-            local badgeBackgroundColor = activityEntryBadgeBackgroundColor normalizedActivityEntry
-            local badgeTextColor = activityEntryBadgeTextColor normalizedActivityEntry
+            local entryColor = activityEntryColor activityEntry
+            local badgeBackgroundColor = activityEntryBadgeBackgroundColor activityEntry
+            local badgeTextColor = activityEntryBadgeTextColor activityEntry
             local badgeFont = ensureActivityBadgeFont()
             local donateLinkFont = ensureActivityDonateLinkFont()
             local statusStart = findString normalizedActivityEntry "["
             local statusEnd = findString normalizedActivityEntry "]"
-            local hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd >= statusStart
-            local badgeStart = if (hasStatusToken and statusStart > 1 and (substring normalizedActivityEntry (statusStart - 1) 1) == " ") then (statusStart - 1) else statusStart
-            local badgeEnd = if (hasStatusToken and statusEnd < normalizedActivityEntry.count and (substring normalizedActivityEntry (statusEnd + 1) 1) == " ") then (statusEnd + 1) else statusEnd
-            local prefixText = if (hasStatusToken and badgeStart > 1) then (substring normalizedActivityEntry 1 (badgeStart - 1)) else if (hasStatusToken) then "" else normalizedActivityEntry
-            local statusText = if (hasStatusToken) then (substring normalizedActivityEntry badgeStart (badgeEnd - badgeStart + 1)) else ""
-            local suffixText = if (hasStatusToken and badgeEnd < normalizedActivityEntry.count) then (substring normalizedActivityEntry (badgeEnd + 1) -1) else ""
+            local hasStatusToken = statusStart != undefined and statusEnd != undefined and statusEnd > statusStart
+            local suffixText = ""
             if (activityDialog.rtbActivity.TextLength > 0) do activityDialog.rtbActivity.AppendText "\r\n"
-            activityDialog.rtbActivity.SelectionStart = activityDialog.rtbActivity.TextLength
-            activityDialog.rtbActivity.SelectionLength = 0
+            activityDialog.rtbActivity.Select activityDialog.rtbActivity.TextLength 0
+            activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
             activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
             activityDialog.rtbActivity.SelectionColor = entryColor
-            activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
-            if (prefixText != "") do activityDialog.rtbActivity.AppendText prefixText
-            activityDialog.rtbActivity.SelectionBackColor = badgeBackgroundColor
-            activityDialog.rtbActivity.SelectionColor = badgeTextColor
-            if (badgeFont != undefined) do activityDialog.rtbActivity.SelectionFont = badgeFont
-            if (statusText != "") do activityDialog.rtbActivity.AppendText statusText
-            activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
-            activityDialog.rtbActivity.SelectionColor = entryColor
-            activityDialog.rtbActivity.SelectionFont = activityDialog.rtbActivity.Font
-            if (suffixText != "") do activityDialog.rtbActivity.AppendText suffixText
-            local isSupportReminder = (findString normalizedActivityEntry " [support") != undefined and (findString suffixText supportReminderMessage) != undefined
+            if (hasStatusToken and badgeFont != undefined) then (
+                local timestampText = trimRight (substring normalizedActivityEntry 1 (statusStart - 1)) "\t "
+                local statusText = trimLeft (trimRight (substring normalizedActivityEntry (statusStart + 1) (statusEnd - statusStart - 1)) "\t ") "\t "
+                suffixText = if (statusEnd < normalizedActivityEntry.count) then (trimLeft (substring normalizedActivityEntry (statusEnd + 1) -1) "\t") else ""
+                local baseFont = activityDialog.rtbActivity.Font
+                local drawingContext = activityDialog.rtbActivity.CreateGraphics()
+                local pixelsToTwips = 15.0
+                try (pixelsToTwips = 1440.0 / drawingContext.DpiX) catch ()
+                drawingContext.Dispose()
+                local measureFlags = (dotNetClass "System.Windows.Forms.TextFormatFlags").NoPadding
+                local textRenderer = dotNetClass "System.Windows.Forms.TextRenderer"
+                local emptySize = (dotNetClass "System.Drawing.Size").Empty
+                local bracketWidth = (textRenderer.MeasureText "MM" badgeFont emptySize measureFlags).Width - (textRenderer.MeasureText "M" badgeFont emptySize measureFlags).Width
+                local badgeWidth = bracketWidth * 11
+                local halfPoints = (baseFont.SizeInPoints * 2) as integer
+                windows.sendMessage activityDialog.rtbActivity.Handle 0x04CA 1 1
+                local rtfPrefix = "{\\rtf1\\ansi{\\fonttbl{\\f0 " + baseFont.Name + ";}{\\f1 " + badgeFont.Name + ";}}"
+                rtfPrefix += "{\\colortbl ;\\red" + (entryColor.R as string) + "\\green" + (entryColor.G as string) + "\\blue" + (entryColor.B as string) + ";"
+                rtfPrefix += "\\red" + (badgeBackgroundColor.R as string) + "\\green" + (badgeBackgroundColor.G as string) + "\\blue" + (badgeBackgroundColor.B as string) + ";"
+                rtfPrefix += "\\red" + (badgeTextColor.R as string) + "\\green" + (badgeTextColor.G as string) + "\\blue" + (badgeTextColor.B as string) + ";}"
+                local lineStartIndex = activityDialog.rtbActivity.TextLength
+                local timestampRtf = rtfPrefix + "\\pard\\f0\\fs" + (halfPoints as string) + "\\cf1\\b\\i " + timestampText + "\\b0\\i0   \\par}"
+                activityDialog.rtbActivity.SelectedRtf = timestampRtf
+                activityDialog.rtbActivity.Select (activityDialog.rtbActivity.TextLength - 1) 1
+                activityDialog.rtbActivity.SelectedRtf = "{\\rtf1\\ansi}"
+                local originPoint = activityDialog.rtbActivity.GetPositionFromCharIndex lineStartIndex
+                local openPoint = activityDialog.rtbActivity.GetPositionFromCharIndex activityDialog.rtbActivity.TextLength
+                local openStop = (ceil ((openPoint.X - originPoint.X) * pixelsToTwips)) as integer
+                local closeStop = openStop + ((ceil ((badgeWidth - bracketWidth) * pixelsToTwips)) as integer)
+                local centerStop = ((openStop + closeStop + bracketWidth * pixelsToTwips) / 2.0) as integer
+                rtfPrefix += "\\pard\\tqc\\tx" + (centerStop as string) + "\\tql\\tx" + (closeStop as string)
+                rtfPrefix += "\\f1\\fs" + (halfPoints as string) + "\\highlight2\\cf3 [\\tab " + statusText + "\\tab ]\\highlight0\\f0\\cf1\\b0\\i0\\par}"
+                activityDialog.rtbActivity.SelectedRtf = rtfPrefix
+                activityDialog.rtbActivity.Select (activityDialog.rtbActivity.TextLength - 1) 1
+                activityDialog.rtbActivity.SelectedRtf = "{\\rtf1\\ansi}"
+                activityDialog.rtbActivity.Select activityDialog.rtbActivity.TextLength 0
+                activityDialog.rtbActivity.SelectionFont = baseFont
+                activityDialog.rtbActivity.SelectionBackColor = activityDialog.rtbActivity.BackColor
+                activityDialog.rtbActivity.SelectionColor = entryColor
+                if (suffixText != "") do activityDialog.rtbActivity.AppendText suffixText
+            ) else (
+                activityDialog.rtbActivity.AppendText normalizedActivityEntry
+            )
+            local isSupportReminder = (findString (activityEntry as string) " [support") != undefined and (findString suffixText supportReminderMessage) != undefined
             local donateTextOffset = if (isSupportReminder) then (findString suffixText activityDonateLinkText) else undefined
             if (donateTextOffset != undefined) do (
                 local donateCharacterIndex = activityDialog.rtbActivity.TextLength - suffixText.count + donateTextOffset - 1
@@ -1912,6 +1958,51 @@ global MaxUltraMcpActiveClient
             )
         ),
 
+        fn prepareReload = (
+            if (inTick) do return false
+            if (transportWorker != undefined and transportWorker.IsBusy) do (
+                transportWorker.CancelAsync()
+                try (if (transportClient != undefined) do transportClient.Close()) catch ()
+                return false
+            )
+            return true
+        ),
+
+        fn handleDeferredReload reloadSender eventArgs = (
+            if (inTick) do return false
+            local reloadAge = ((dotNetClass "System.DateTime").UtcNow.Subtract deferredReloadStartedAt).TotalSeconds
+            if (reloadAge > 30) do (
+                reloadSender.Stop()
+                addActivity "error" "Bridge restart timed out waiting for worker shutdown; retry after the active operation finishes."
+            )
+            if (isDisposed or not reloadSender.Enabled) then (
+                reloadSender.Stop()
+            ) else if (prepareReload()) do (
+                reloadSender.Stop()
+                local reloadPath = deferredReloadPath
+                try (fileIn reloadPath quiet: true) catch (
+                    addActivity "error" ("Deferred update restart failed: " + (getCurrentException() as string))
+                )
+            )
+            if (not reloadSender.Enabled) do (
+                dotNet.removeEventHandler reloadSender "Tick" handleDeferredReload
+                reloadSender.Dispose()
+                deferredReloadTimer = undefined
+            )
+            return true
+        ),
+
+        fn scheduleReload reloadPath = (
+            if (deferredReloadTimer != undefined) do return false
+            deferredReloadPath = reloadPath
+            deferredReloadStartedAt = (dotNetClass "System.DateTime").UtcNow
+            deferredReloadTimer = dotNetObject "System.Windows.Forms.Timer"
+            deferredReloadTimer.Interval = 250
+            dotNet.addEventHandler deferredReloadTimer "Tick" handleDeferredReload
+            deferredReloadTimer.Start()
+            return true
+        ),
+
         fn pollUpdateOperation = (
             if (updateProcess == undefined or not updateBusy) do return true
             local hasExited = false
@@ -1952,7 +2043,7 @@ global MaxUltraMcpActiveClient
                         addActivity "error" updateMessage
                     ) else (
                         try (
-                            fileIn restartBootstrapPath quiet: true
+                            scheduleReload restartBootstrapPath
                         ) catch (
                             updateState = #error
                             updateMessage = "The verified update could not restart Max Ultra MCP."
@@ -2934,6 +3025,7 @@ global MaxUltraMcpActiveClient
             connectionState = #stopped
             launchDetachedShutdownHelper()
             try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+            try (if (transportClient != undefined) do transportClient.Close()) catch ()
             try (callbacks.removeScripts id: maxShutdownCallbackId) catch ()
             MaxUltraMcpActiveClient = undefined
             return true
@@ -3126,6 +3218,12 @@ global MaxUltraMcpActiveClient
 
         fn sendWireLine wireLine = (
             if (outboundQueue == undefined or isStopped) do return false
+            local queuedCharacters = wireLine.count
+            for queuedLine in (outboundQueue.ToArray()) do queuedCharacters += (queuedLine as string).count
+            if (wireLine.count > 4194304 or queuedCharacters > 8388608 or outboundQueue.Count >= 64) do (
+                try (if (transportClient != undefined) do transportClient.Close()) catch ()
+                throw "BRIDGE_BUSY: outbound transport limit exceeded; connection closed"
+            )
             outboundQueue.Enqueue wireLine
             return true
         ),
@@ -3550,6 +3648,12 @@ global MaxUltraMcpActiveClient
             local actionName = wireFields[3]
             local actionPayload = if (wireFields.count >= 4) then decodeWireField(wireFields[4]) else ""
             local activityLabel = if (wireFields.count >= 5) then decodeWireField(wireFields[5]) else ""
+            if (wireFields.count >= 6) do (
+                local deadlineMilliseconds = (dotNetClass "System.Int64").Parse wireFields[6]
+                local epochTime = dotNetObject "System.DateTime" 1970 1 1
+                local nowMilliseconds = ((dotNetClass "System.DateTime").UtcNow.Subtract epochTime).TotalMilliseconds
+                if (nowMilliseconds >= deadlineMilliseconds) do return sendBridgeResponse requestId false "REQUEST_EXPIRED: request expired before main-thread execution"
+            )
             if (requestWasCancelled requestId) do (
                 addActivity "info" ("Cancelled queued request " + requestId)
                 return sendBridgeResponse requestId false "Request was cancelled before main-thread execution"
@@ -3582,7 +3686,9 @@ global MaxUltraMcpActiveClient
         ),
 
         fn enqueueMainThreadRequest wireLine = (
-            if (pendingRequestLines.count >= maximumPendingRequests) do (
+            local pendingCharacters = wireLine.count
+            for pendingLine in pendingRequestLines do pendingCharacters += pendingLine.count
+            if (pendingRequestLines.count >= maximumPendingRequests or pendingCharacters > 8388608) do (
                 local wireFields = filterString wireLine "\t"
                 if (wireFields.count >= 2) do sendBridgeResponse wireFields[2] false "Main-thread request queue is full"
                 addActivity "error" "Request queue limit reached"
@@ -3657,6 +3763,7 @@ global MaxUltraMcpActiveClient
             connectionError = ""
             try (
                 if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()
+                try (if (transportClient != undefined) do transportClient.Close()) catch ()
             ) catch (
             )
             pendingRequestLines = #()
@@ -3859,6 +3966,7 @@ global MaxUltraMcpActiveClient
 
         fn transportDoWork workerSender eventArgs = (
             local workerArguments = eventArgs.Argument
+            local workerThreadId = (dotNetClass "System.Threading.Thread").CurrentThread.ManagedThreadId
             local workerHost = workerArguments.Item[0]
             local workerPort = workerArguments.Item[1]
             local workerInboundQueue = workerArguments.Item[2]
@@ -3882,9 +3990,11 @@ global MaxUltraMcpActiveClient
             local workerClient = undefined
             local workerStream = undefined
             local workerReader = undefined
+            local receivedFrame = ""
             local workerWriter = undefined
 
             try (
+                if (workerThreadId == workerArguments.Item[15]) do throw "Transport worker unexpectedly entered the Max main thread"
                 local probeReply = workerProbeEndpoint workerHost workerPort probeTimeoutMilliseconds
                 if (workerRestartExistingServer and probeReply.controlState == #healthy) do (
                     if (not workerHostIsLoopback workerHost) do throw "Automatic server restart is allowed only for a configured loopback endpoint"
@@ -3983,21 +4093,55 @@ global MaxUltraMcpActiveClient
                 try (if (lifecycleMutex != undefined) do lifecycleMutex.Dispose()) catch ()
                 lifecycleMutex = undefined
 
-                workerClient = dotNetObject "System.Net.Sockets.TcpClient"
-                workerClient.Connect workerHost workerPort
+                workerClient = workerArguments.Item[14]
+                if (workerSender.CancellationPending) do throw "Transport connect cancelled"
+                local connectOperation = workerClient.ConnectAsync workerHost workerPort
+                if (not (connectOperation.Wait 2000)) do throw "Transport connect deadline exceeded"
                 workerStream = workerClient.GetStream()
+                workerStream.ReadTimeout = 1000
+                workerStream.WriteTimeout = 1000
                 local utf8Encoding = dotNetObject "System.Text.UTF8Encoding" false
-                workerReader = dotNetObject "System.IO.StreamReader" workerStream utf8Encoding
+                workerReader = dotNetObject "System.IO.BinaryReader" workerStream
                 workerWriter = dotNetObject "System.IO.StreamWriter" workerStream utf8Encoding
                 workerWriter.AutoFlush = true
+                local frameClock = dotNetObject "System.Diagnostics.Stopwatch"
                 workerInboundQueue.Enqueue "EVENT\tconnected\t-"
                 while (not workerSender.CancellationPending) do (
-                    while (workerOutboundQueue.Count > 0) do workerWriter.WriteLine (workerOutboundQueue.Dequeue())
-                    if (workerStream.DataAvailable) do (
-                        local receivedLine = workerReader.ReadLine()
-                        if (receivedLine == undefined) do throw "Max Ultra MCP server closed the connection"
-                        workerInboundQueue.Enqueue receivedLine
+                    local writtenLines = 0
+                    while (workerOutboundQueue.Count > 0 and writtenLines < 16 and not workerSender.CancellationPending) do (
+                        workerWriter.WriteLine (workerOutboundQueue.Dequeue())
+                        writtenLines += 1
                     )
+                    local readBytes = 0
+                    while (workerStream.DataAvailable and readBytes < 65536 and not workerSender.CancellationPending) do (
+                        -- Avoid MAXScript's mutable .NET byte-array marshalling. ReadBytes does not read ahead.
+                        -- Request only bytes already available to this sole reader; the stream timeout still applies.
+                        local availableBytes = amin #(workerClient.Available, 8192)
+                        if (availableBytes <= 0) do exit
+                        local receiveBuffer = workerReader.ReadBytes availableBytes
+                        local receivedCount = receiveBuffer.count
+                        if (receivedCount == 0) do throw "Max Ultra MCP server closed the connection"
+                        -- Wire fields are ASCII verbs/ids/numbers and base64; no partial UTF-8 field decoding.
+                        if (receivedFrame.count == 0) do frameClock.Restart()
+                        receivedFrame += utf8Encoding.GetString receiveBuffer 0 receivedCount
+                        local newlineIndex = findString receivedFrame "\n"
+                        while (newlineIndex != undefined) do (
+                            if (newlineIndex > 4194304) do throw "REQUEST_TOO_LARGE: transport frame exceeds 4 MiB"
+                            if (workerInboundQueue.Count >= 64) do throw "BRIDGE_BUSY: inbound queue full; connection closed"
+                            local receivedLine = substring receivedFrame 1 (newlineIndex - 1)
+                            local queuedCharacters = receivedLine.count
+                            for queuedLine in (workerInboundQueue.ToArray()) do queuedCharacters += (queuedLine as string).count
+                            if (queuedCharacters > 8388608) do throw "BRIDGE_BUSY: inbound byte limit exceeded; connection closed"
+                            workerInboundQueue.Enqueue (trimRight receivedLine "\r")
+                            receivedFrame = substring receivedFrame (newlineIndex + 1) (receivedFrame.count - newlineIndex)
+                            frameClock.Restart()
+                            newlineIndex = findString receivedFrame "\n"
+                        )
+                        if (receivedFrame.count > 4194304) do throw "REQUEST_TOO_LARGE: transport frame exceeds 4 MiB"
+                        readBytes += receivedCount
+                    )
+                    if (receivedFrame.count > 0 and frameClock.ElapsedMilliseconds > 5000) do throw "TRANSPORT_TIMEOUT: incomplete frame exceeded 5 seconds"
+                    if (workerClient.Client.Poll 0 (dotNetClass "System.Net.Sockets.SelectMode").SelectRead and workerClient.Available == 0) do throw "Max Ultra MCP server closed the connection"
                     (dotNetClass "System.Threading.Thread").Sleep 10
                 )
             ) catch (
@@ -4015,6 +4159,7 @@ global MaxUltraMcpActiveClient
         ),
         fn initializeIdentity = (
             if (processId != 0) do return true
+            mainThreadId = (dotNetClass "System.Threading.Thread").CurrentThread.ManagedThreadId
             local processInfo = (dotNetClass "System.Diagnostics.Process").GetCurrentProcess()
             processId = processInfo.Id
             local processStartTime = processInfo.StartTime.ToUniversalTime()
@@ -4042,11 +4187,16 @@ global MaxUltraMcpActiveClient
             if (transportWorker != undefined) do (
                 try (if (transportWorker.IsBusy) do return false) catch ()
             )
+            if (transportWorker != undefined) do (
+                dotNet.removeEventHandler transportWorker "DoWork" transportDoWork
+                transportWorker.Dispose()
+            )
             inboundQueue = createSynchronizedQueue()
             outboundQueue = createSynchronizedQueue()
             pendingRequestLines = #()
             cancelledRequestIds = #()
             transportWorker = dotNetObject "CSharpUtilities.SynchronizingBackgroundWorker"
+            transportClient = dotNetObject "System.Net.Sockets.TcpClient"
             transportWorker.WorkerSupportsCancellation = true
             dotNet.addEventHandler transportWorker "DoWork" transportDoWork
             local workerArguments = dotNetObject "System.Collections.ArrayList"
@@ -4064,6 +4214,11 @@ global MaxUltraMcpActiveClient
             workerArguments.Add (loadServerConsoleVisibleSetting())
             workerArguments.Add controlTokenFilePath
             workerArguments.Add restartExistingServer
+            workerArguments.Add transportClient
+            workerArguments.Add mainThreadId
+            -- The arguments root the worker in .NET while DoWork owns them, even after panel close.
+            workerArguments.Add transportWorker
+            dotNet.setLifetimeControl transportWorker #dotnet
             restartExistingServer = false
             transportWorkerArguments = workerArguments
             outboundQueue.Enqueue (buildHelloLine())
@@ -4079,6 +4234,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeForReload = (
+            if (not (prepareReload())) do return false
             if (disposeInProgress) do return true
             disposeInProgress = true
             isDisposed = true
@@ -4090,6 +4246,7 @@ global MaxUltraMcpActiveClient
             disposeRestoreBubble()
             releasePanelIconImages()
             try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+            try (if (transportClient != undefined) do transportClient.Close()) catch ()
             local integrationProcessFinished = true
             try (if (integrationProcess != undefined) do integrationProcessFinished = integrationProcess.HasExited) catch ()
             try (if (integrationProcess != undefined) do integrationProcess.Dispose()) catch ()
@@ -4154,6 +4311,7 @@ global MaxUltraMcpActiveClient
             try (
                 if (transportWorker != undefined and transportWorker.IsBusy) then (
                     transportWorker.CancelAsync()
+                    try (if (transportClient != undefined) do transportClient.Close()) catch ()
                 ) else (
                     pendingConnectOnly = false
                     startTransport allowServerLaunch: false
@@ -4170,11 +4328,15 @@ global MaxUltraMcpActiveClient
 
         fn handleTimerTick timerSender eventArgs = (
             if (isDisposed or pollTimer == undefined or timerSender != pollTimer) do return true
+            if ((dotNetClass "System.Threading.Thread").CurrentThread.ManagedThreadId != mainThreadId) do return false
+            if (inTick) do return true
+            inTick = true
             try (
                 tickCount += 1
                 runPendingAutomaticOnboardingCheck()
                 pollIntegrationOperation()
                 pollUpdateOperation()
+                if (isDisposed) do throw "Bridge lifetime ended during callback"
                 pollSupportReminder()
                 pollFooterPromotion()
                 local handledInboundLines = 0
@@ -4183,10 +4345,11 @@ global MaxUltraMcpActiveClient
                     handledInboundLines += 1
                 )
                 local handledRequests = 0
-                while (not isStopped and pendingRequestLines.count > 0 and handledRequests < maximumRequestsPerTick) do (
+                while (not isDisposed and deferredReloadTimer == undefined and not isStopped and (inboundQueue == undefined or inboundQueue.Count == 0) and pendingRequestLines.count > 0 and handledRequests < maximumRequestsPerTick) do (
                     local requestLine = pendingRequestLines[1]
                     deleteItem pendingRequestLines 1
                     handleRequestLine requestLine
+                    if (isDisposed) do throw "Bridge lifetime ended during request"
                     handledRequests += 1
                 )
                 if (not isStopped and mod tickCount 10 == 0) do sendSceneStatus()
@@ -4203,9 +4366,17 @@ global MaxUltraMcpActiveClient
                 connectionError = timerFailure
                 stopPollTimer()
                 try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
+                try (if (transportClient != undefined) do transportClient.Close()) catch ()
                 try (format "[3DGROUND | Max Ultra MCP] TIMER STOPPED AFTER CALLBACK ERROR | %\n" timerFailure) catch ()
             )
+            inTick = false
             return true
+        ),
+
+        -- Facade-owned counter survives bootstrap replacement but not a new Max process.
+        fn registerSessionLaunch = (
+            sessionLaunchCount += 1
+            return (mod (sessionLaunchCount - 1) 3) == 0
         ),
 
         fn startBridge = (
@@ -4213,6 +4384,7 @@ global MaxUltraMcpActiveClient
             isDisposed = false
             registerMaxShutdownCallback()
             if (not isStopped and transportWorker != undefined and transportWorker.IsBusy) do return true
+            local checkUpdatesThisLaunch = registerSessionLaunch()
             isStopped = false
             pendingConnectOnly = false
             hasConnectedThisSession = false
@@ -4232,7 +4404,7 @@ global MaxUltraMcpActiveClient
                 dotNet.addEventHandler pollTimer "Tick" handleTimerTick
                 pollTimer.Start()
                 beginAutomaticOnboardingCheck()
-                if (loadAutomaticUpdateSetting()) do startUpdateCheck automaticCheck: true
+                if (checkUpdatesThisLaunch and loadAutomaticUpdateSetting()) do startUpdateCheck automaticCheck: true
             ) catch (
                 local timerStartFailure = getCurrentException() as string
                 try (format "[3DGROUND | Max Ultra MCP] TIMER START ERROR | %\n" timerStartFailure) catch ()
@@ -4244,9 +4416,10 @@ global MaxUltraMcpActiveClient
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient statusDialog: MaxUltraMcpAiStatusDialog serverStatusDialog: MaxUltraMcpServerStatusDialog activityDialog: MaxUltraMcpActivityDialog supportDialog: MaxUltraMcpSupportDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog restartExistingServer: restartServerForReload
+    bridgeClient = MaxUltraMcpBridgeClient sessionLaunchCount: previousLaunchCount statusDialog: MaxUltraMcpAiStatusDialog serverStatusDialog: MaxUltraMcpServerStatusDialog activityDialog: MaxUltraMcpActivityDialog supportDialog: MaxUltraMcpSupportDialog settingsDialog: MaxUltraMcpSettingsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog restartExistingServer: restartServerForReload
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient
     )
+)
 )

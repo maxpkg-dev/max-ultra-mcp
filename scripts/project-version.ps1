@@ -1,4 +1,4 @@
-# Parses the canonical stable Max Ultra MCP version.ini metadata.
+# Parses the canonical Max Ultra MCP version.ini metadata.
 # Copyright (c) 2026 Lukianenko Vasyl
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
@@ -48,7 +48,7 @@ function Get-MaxUltraProjectVersionInfo {
     }
     $parsedVersion = ConvertTo-MaxUltraReleaseVersion -Text $versionMatch.Groups['value'].Value
     $channel = $channelMatch.Groups['value'].Value.Trim().ToLowerInvariant()
-    if ($channel -ne 'stable') {
+    if ($channel -notin @('stable', 'beta')) {
         throw "Unsupported release channel '$channel'."
     }
     return [pscustomobject]@{
