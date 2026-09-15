@@ -2,12 +2,10 @@
 
 ## Unreleased
 
-## 1.3.4 - 2026-09-13
+## 1.3.4 - 2026-09-15
 
 - Changed: Automatic update checks run on bridge starts 1, 4, 7 and so on within each Max session; manual checks remain immediate.
-
 - Improved: Activity timestamps are bold italic; compact status badges use visually centered labels and aligned brackets while preserving the original palette.
-
 - Fixed: Persistent transport reads complete frames without StreamReader read-ahead stalls, bounds connect/read/write waits and partial frames, and closes the shared socket on cancellation.
 - Fixed: Nested timer dispatch is rejected; reload waits asynchronously for the current callback and worker to finish before replacing the facade.
 - Added: Request admission and queue size limits, pre-dispatch deadlines, explicit unknown-outcome timeout wording, and isolated transport/lifecycle regression fixtures. Real-Max soak and native-crash validation remain required.
