@@ -8,17 +8,17 @@ The v1 architecture and mock-tested MCP surface are implemented. The current aut
 
 The first production-foundations increment adds session-owned common jobs and read-only material diagnostics. The remaining workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
 
-### Recent changes in 1.3.0
+### Recent changes in 1.4.0
 
-- Added read-only UI diagnostics, a diagnostics CLI, and the ChatGPT/Codex workflow plugin.
-- Added a dedicated armchair modeling skill with upholstery and subdivision guidance.
-- Kept AI-client connections alive across verified daemon restarts.
-- Refined the fixed-size panel, AI readiness, Activity log, Hide/Expand, and support controls.
-- Updated production package coverage and release metadata; see [CHANGELOG.md](CHANGELOG.md).
+- Added the [Skills manager](#skills-manager) with persistent custom skills, folder and multiple-ZIP import, navigable previews, and a reusable skill creation prompt.
+- Added [automatic Antigravity setup](docs/ANTIGRAVITY.md) with backed-up settings updates that preserve other MCP servers.
+- Redesigned [AI Client Setup](#installation-for-release-users) with individual Codex, Claude Code, and Antigravity logo buttons and per-client setup statuses. Manual STDIO settings start collapsed on every fresh opening.
+- Expanded architectural detailing workflows and added offline skill discovery through `max_skills_list` and `max_skill_read`.
+- See [CHANGELOG.md](CHANGELOG.md) for the complete release notes.
 
 ## What users can do
 
-- Start the bridge and configure ChatGPT Desktop, Codex, Claude Code, or another STDIO client from one MaxScript entry point.
+- Start the bridge and configure ChatGPT Desktop, Codex, Claude Code, Antigravity, or another STDIO client from one MaxScript entry point.
 - Connect one or more already-open 3ds Max instances to one local bridge.
 - Let each connected MCP client select its own Max instance.
 - Inspect and modify scenes through structured MCP tools.
@@ -66,7 +66,7 @@ MaxPkg release packages bundle a portable Node.js runtime. Users do not install 
 
    Start a new task after installation. Requests in any language such as "create a teapot in 3ds Max" then activate the Max Ultra MCP workflow automatically.
 
-The onboarding uses official `codex mcp` and `claude mcp` commands when their CLIs are available. ChatGPT Desktop and Codex share the OpenAI MCP configuration. Claude Code registration is user-scoped. If a CLI is unavailable, the same window shows and copies exact STDIO values for manual or other-client setup. Codex and Claude registration use their official CLIs; Antigravity setup makes a backup and updates only its Max Ultra MCP server entry.
+The onboarding uses official `codex mcp` and `claude mcp` commands when their CLIs are available. ChatGPT Desktop and Codex share the OpenAI MCP configuration. Claude Code registration is user-scoped. Expand **Manual / Other STDIO clients** to view and copy exact STDIO values for manual or other-client setup; this section starts collapsed on every fresh Setup opening. Antigravity setup makes a backup and updates only its Max Ultra MCP server entry.
 
 Closing onboarding dismisses only its automatic display without stopping the bridge or disabling readiness checks. The main panel uses one fixed-width aggregate AI button rather than presenting an unconfigured optional client as a separate red requirement. When one or more registrations are ready, the green button names the ready clients; when none is ready, it displays **Click to set up AI agent**. Restart, runtime, setup, and check failures remain explicit aggregate states, while the Setup page retains per-client details. These statuses do not claim that an AI chat is currently connected. The automatic check runs once with a 30-second timeout, while the refresh icon runs it immediately on demand. Open setup again through the aggregate status or **Settings -> Open AI client setup**. The source-only `scripts\install-chatgpt-codex.bat` remains available to developers; release installation and onboarding use MaxPkg and the first-start window.
 
