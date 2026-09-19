@@ -7,8 +7,10 @@ param(
     [ValidateSet('Status','Install')][string]$Action = 'Status',
     [Parameter(Mandatory = $true)][string]$ResultPath,
     [ValidateSet('core','archviz','full')][string]$Profile = 'archviz',
+    [ValidateRange(1,65535)][int]$Port = 47635,
     [switch]$InstallOpenAI,
-    [switch]$InstallClaudeCode
+    [switch]$InstallClaudeCode,
+    [switch]$InstallAntigravity
 )
 
 Set-StrictMode -Version 2.0
@@ -20,6 +22,7 @@ $statusCheckDeadlineUtc = [DateTime]::UtcNow.AddSeconds(30)
 $clientCommandTimeoutMilliseconds = 10000
 $nodeProbeTimeoutMilliseconds = 5000
 $installDeadlineUtc = [DateTime]::UtcNow.AddSeconds(90)
+. (Join-Path $PSScriptRoot 'antigravity-integration.ps1')
 
 function ConvertTo-IniValue([object]$Value) {
     if ($null -eq $Value) { return '' }
@@ -322,22 +325,58 @@ function Install-ClaudeCodeClient([hashtable]$Status, [string]$NodePath, [DateTi
     return $Status
 }
 
+function Install-AntigravityClient($Status, [string]$NodePath, [DateTime]$DeadlineUtc) {
+    if ($Status.setupAvailable -ne 'true') { return $Status }
+    if ([string]::IsNullOrWhiteSpace($NodePath) -or -not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
+        $Status.state = 'runtime_missing'
+        $Status.detail = 'The MCP runtime is unavailable. Reinstall Max Ultra MCP and retry.'
+        return $Status
+    }
+    $configHelper = Join-Path $projectRoot 'core\antigravity-config.js'
+    $install = Invoke-ExternalCommand $NodePath @($configHelper,'--config',$Status.configPath,'--node',$NodePath,'--server',$serverPath,'--profile',$Profile,'--port',[string]$Port) $DeadlineUtc 20000
+    if ($install.TimedOut -or $install.InvocationFailed) {
+        $Status.state = 'install_failed'
+        $Status.detail = 'Setup did not finish. Refresh status before retrying; an existing backup is kept beside the settings file.'
+        return $Status
+    }
+    try { $outcome = $install.Output | ConvertFrom-Json -ErrorAction Stop } catch {
+        $Status.state = 'install_failed'
+        $Status.detail = 'Setup could not report its result. Refresh status before retrying.'
+        return $Status
+    }
+    $refreshed = Get-AntigravityStatus -NodePath $NodePath -ServerPath $serverPath -Profile $Profile -Port $Port
+    $refreshed['backupPath'] = [string](Get-AntigravityProperty $outcome 'backupPath' '')
+    if ($install.ExitCode -ne 0 -or -not $outcome.ok -or $refreshed.configured -ne 'true') {
+        $refreshed.state = 'install_failed'
+        $refreshed.detail = [string](Get-AntigravityProperty (Get-AntigravityProperty $outcome 'error') 'message' 'Could not verify saved settings. Refresh status and retry.')
+    } else {
+        $refreshed.detail = 'Setup complete. Use the Test prompt in Antigravity. If tools are unavailable, refresh its MCP servers or reopen Antigravity.'
+    }
+    return $refreshed
+}
+
 try {
     $nodePath = Resolve-NodeRuntime $statusCheckDeadlineUtc
+    $antigravity = Get-AntigravityStatus -NodePath $nodePath -ServerPath $serverPath -Profile $Profile -Port $Port
     $openAI = Get-ClientStatus 'openai' 'ChatGPT Desktop / Codex' 'codex' $statusCheckDeadlineUtc
     $claudeCode = Get-ClientStatus 'claudeCode' 'Claude Code' 'claude' $statusCheckDeadlineUtc
 
     if ($Action -eq 'Install') {
         if ($InstallOpenAI) { $openAI = Install-OpenAIClient $openAI $nodePath $installDeadlineUtc }
         if ($InstallClaudeCode) { $claudeCode = Install-ClaudeCodeClient $claudeCode $nodePath $installDeadlineUtc }
+        if ($InstallAntigravity) { $antigravity = Install-AntigravityClient $antigravity $nodePath $installDeadlineUtc }
     }
 
     $runtimeReady = -not [string]::IsNullOrWhiteSpace($nodePath) -and (Test-Path -LiteralPath $serverPath -PathType Leaf)
     $message = if ($Action -eq 'Install') { 'Selected integrations were processed. Restart or reconnect the configured AI clients.' } else { 'Integration status was refreshed.' }
+    if ($Action -eq 'Install' -and $InstallAntigravity -and -not $InstallOpenAI -and -not $InstallClaudeCode) {
+        $message = if ($antigravity.state -eq 'configured') { 'Antigravity settings saved. Run the Test prompt.' } else { 'Antigravity setup needs attention.' }
+    }
     Write-IntegrationResult ([ordered]@{
         operation = [ordered]@{ state = 'complete'; action = $Action.ToLowerInvariant(); message = $message }
         openai = [ordered]@{ cliAvailable = $openAI.CliAvailable.ToString().ToLowerInvariant(); configured = $openAI.Configured.ToString().ToLowerInvariant(); state = $openAI.State; detail = $openAI.Detail }
         claudeCode = [ordered]@{ cliAvailable = $claudeCode.CliAvailable.ToString().ToLowerInvariant(); configured = $claudeCode.Configured.ToString().ToLowerInvariant(); state = $claudeCode.State; detail = $claudeCode.Detail }
+        antigravity = $antigravity
         runtime = [ordered]@{ ready = $runtimeReady.ToString().ToLowerInvariant(); command = $nodePath; server = $serverPath; arguments = '"' + $serverPath + '" --stdio'; environment = "MAX_ULTRA_MCP_TOOL_PROFILE=$Profile" }
     })
     exit 0

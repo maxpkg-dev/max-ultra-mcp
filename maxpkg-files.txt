@@ -108,6 +108,9 @@ skills/max-ultra-maxpkg-packaging/references/build-and-verify.md
 skills/max-ultra-maxpkg-packaging/references/marketplace-publishing.md
 skills/max-ultra-maxpkg-packaging/scripts/get-maxpkg-upstream.ps1
 scripts/agent-integration.ps1
+scripts/antigravity-integration.ps1
+core/antigravity-config.js
+docs/ANTIGRAVITY.md
 scripts/update-manager.ps1
 scripts/project-version.ps1
 scripts/max-ui-automation.ps1

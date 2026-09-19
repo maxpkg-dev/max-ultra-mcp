@@ -451,24 +451,26 @@ global MaxUltraMcpActiveClient
         on dncPages SelectedIndexChanged eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.handleOnboardingTabChanged eventSender.SelectedIndex
     )
 
-    rollout MaxUltraMcpOnboardingSetupDialog "" width: 540 height: 350 (
+    rollout MaxUltraMcpOnboardingSetupDialog "" width: 540 height: 398 (
         label lblOnboardingIntro "Connect this 3ds Max bridge to one or more AI clients." pos: [16,8] width: 508 height: 18
-        label lblOnboardingHint "Automatic setup uses official client CLIs and never edits their config files directly." pos: [16,28] width: 508 height: 18
+        label lblOnboardingHint "Select the AI clients you want to connect, then click Install selected." pos: [16,28] width: 508 height: 18
 
-        groupBox grpSupportedAgents "Supported clients" pos: [12,50] width: 516 height: 126
+        groupBox grpSupportedAgents "Supported clients" pos: [12,50] width: 516 height: 174
         checkbox chkOpenAI "ChatGPT Desktop / Codex" pos: [28,74] width: 230 height: 20 checked: true
         dotNetControl lblOpenAIStatus "System.Windows.Forms.Label" pos: [48,96] width: 462 height: 18
         checkbox chkClaudeCode "Claude Code" pos: [28,122] width: 230 height: 20 checked: true
         dotNetControl lblClaudeCodeStatus "System.Windows.Forms.Label" pos: [48,144] width: 462 height: 18
+        checkbox chkAntigravity "Antigravity" pos: [28,170] width: 470 height: 20 checked: true
+        dotNetControl lblAntigravityStatus "System.Windows.Forms.Label" pos: [48,192] width: 462 height: 18
 
-        groupBox grpManual "Manual / other STDIO clients" pos: [12,184] width: 516 height: 94
-        dotNetControl txtManual "System.Windows.Forms.TextBox" pos: [24,206] width: 492 height: 58
+        groupBox grpManual "Manual / other STDIO clients" pos: [12,232] width: 516 height: 94
+        dotNetControl txtManual "System.Windows.Forms.TextBox" pos: [24,254] width: 492 height: 58
 
-        dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [16,282] width: 508 height: 20
-        dotNetControl btnInstallAgents "System.Windows.Forms.Button" pos: [12,308] width: 152 height: 28
-        dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [172,308] width: 112 height: 28
-        dotNetControl btnCopyManual "System.Windows.Forms.Button" pos: [292,308] width: 128 height: 28
-        dotNetControl btnSetupDonate "System.Windows.Forms.Button" pos: [424,308] width: 104 height: 28
+        dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [16,330] width: 508 height: 20
+        dotNetControl btnInstallAgents "System.Windows.Forms.Button" pos: [12,356] width: 152 height: 28
+        dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [172,356] width: 112 height: 28
+        dotNetControl btnCopyManual "System.Windows.Forms.Button" pos: [292,356] width: 128 height: 28
+        dotNetControl btnSetupDonate "System.Windows.Forms.Button" pos: [424,356] width: 104 height: 28
 
         on MaxUltraMcpOnboardingSetupDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingSetupDialog()
         on btnInstallAgents Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.installSelectedAgentIntegrations()
@@ -2948,6 +2950,10 @@ global MaxUltraMcpActiveClient
 
         fn integrationStateText sectionName = (
             local stateValue = integrationEffectiveState sectionName
+            if (sectionName == "antigravity") do (
+                if (stateValue == "configured") do return "Settings saved - connection not verified"
+                if (stateValue == "not_configured") do return "Setup required - select Antigravity and install"
+            )
             case stateValue of (
                 "configured": "Ready - MCP configured"
                 "not_configured": "Setup required - client found, MCP not configured"
@@ -3001,10 +3007,12 @@ global MaxUltraMcpActiveClient
             try (
                 local openAIStateValue = integrationEffectiveState "openai"
                 local claudeStateValue = integrationEffectiveState "claudeCode"
+                local antigravityStateValue = integrationEffectiveState "antigravity"
                 local readyClientText = ""
                 local restartClientText = ""
                 if (openAIStateValue == "configured") do readyClientText = "ChatGPT / Codex"
                 if (claudeStateValue == "configured") do readyClientText = if (readyClientText == "") then "Claude Code" else readyClientText + " + Claude Code"
+                if (antigravityStateValue == "configured") do readyClientText = if (readyClientText == "") then "Antigravity" else readyClientText + " + Antigravity"
                 if (openAIStateValue == "restart_required") do restartClientText = "ChatGPT / Codex"
                 if (claudeStateValue == "restart_required") do restartClientText = if (restartClientText == "") then "Claude Code" else restartClientText + " + Claude Code"
 
@@ -3015,14 +3023,15 @@ global MaxUltraMcpActiveClient
                     combinedStatusState = #warning
                 ) else if (readyClientText != "") then (
                     combinedStatusText = readyClientText + " | MCP ready"
+                    if (antigravityStateValue == "configured") do combinedStatusText = readyClientText + " | Configured"
                     combinedStatusState = #pass
                 ) else if (restartClientText != "") then (
                     combinedStatusText = restartClientText + " | Restart required"
                     combinedStatusState = #warning
-                ) else if (integrationLastCheckFailed or openAIStateValue == "check_failed" or claudeStateValue == "check_failed") then (
+                ) else if (integrationLastCheckFailed or openAIStateValue == "check_failed" or claudeStateValue == "check_failed" or antigravityStateValue == "check_failed") then (
                     combinedStatusText = "AI status | Check failed"
                     combinedStatusState = #issue
-                ) else if (openAIStateValue == "runtime_missing" or claudeStateValue == "runtime_missing") then (
+                ) else if (openAIStateValue == "runtime_missing" or claudeStateValue == "runtime_missing" or antigravityStateValue == "runtime_missing") then (
                     combinedStatusText = "AI runtime | Missing"
                     combinedStatusState = #issue
                 ) else if (openAIStateValue == "install_failed" or claudeStateValue == "install_failed") then (
@@ -3034,7 +3043,7 @@ global MaxUltraMcpActiveClient
                 )
 
                 local combinedStatusColor = MaxUltraMcpTheme.statusColor combinedStatusState
-                local combinedStatusDescription = "ChatGPT / Codex: " + (integrationStateText "openai") + " | Claude Code: " + (integrationStateText "claudeCode") + ". Click to open AI Client Setup."
+                local combinedStatusDescription = "ChatGPT / Codex: " + (integrationStateText "openai") + " | Claude Code: " + (integrationStateText "claudeCode") + " | Antigravity: " + (integrationStateText "antigravity") + ". Click to open AI Client Setup."
                 MaxUltraMcpUiKit.styleButton statusDialog.btnAiStatus baseColorValue: combinedStatusColor
                 MaxUltraMcpUiKit.updateButtonState statusDialog.btnRefreshAgents (not integrationBusy)
                 statusDialog.btnAiStatus.Text = combinedStatusText
@@ -3062,6 +3071,8 @@ global MaxUltraMcpActiveClient
             integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
             local openAIAvailable = integrationValueIsTrue "openai" "cliAvailable"
             local claudeAvailable = integrationValueIsTrue "claudeCode" "cliAvailable"
+            local antigravityAvailable = integrationValueIsTrue "antigravity" "setupAvailable"
+            local antigravityConfigured = integrationValueIsTrue "antigravity" "configured"
             try (
                 if (integrationBusy) then (
                     local warningColor = MaxUltraMcpTheme.warningColor
@@ -3079,10 +3090,17 @@ global MaxUltraMcpActiveClient
                 onboardingSetupDialog.chkClaudeCode.enabled = claudeAvailable and not integrationClaudeCodeConfigured and not integrationBusy
                 onboardingSetupDialog.chkOpenAI.checked = integrationOpenAIConfigured or (openAIAvailable and not integrationBusy)
                 onboardingSetupDialog.chkClaudeCode.checked = integrationClaudeCodeConfigured or (claudeAvailable and not integrationBusy)
-                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnInstallAgents (not integrationBusy and ((openAIAvailable and not integrationOpenAIConfigured) or (claudeAvailable and not integrationClaudeCodeConfigured)))
+                onboardingSetupDialog.chkAntigravity.enabled = antigravityAvailable and not antigravityConfigured and not integrationBusy
+                onboardingSetupDialog.chkAntigravity.checked = antigravityConfigured or (antigravityAvailable and not integrationBusy)
+                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnInstallAgents (not integrationBusy and ((openAIAvailable and not integrationOpenAIConfigured) or (claudeAvailable and not integrationClaudeCodeConfigured) or (antigravityAvailable and not antigravityConfigured)))
                 MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnRefreshAgents (not integrationBusy)
                 MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnCopyManual (not integrationBusy)
                 onboardingSetupDialog.txtManual.Text = manualAgentConfigurationText()
+                onboardingSetupDialog.lblAntigravityStatus.Text = if (integrationBusy) then "Checking Antigravity settings..." else integrationStateText "antigravity"
+                onboardingSetupDialog.lblAntigravityStatus.ForeColor = integrationStateColor "antigravity"
+                local antigravityVersion = readIntegrationValue "antigravity" "version" fallbackValue: ""
+                onboardingSetupDialog.chkAntigravity.text = "Antigravity" + (if (antigravityVersion != "") then " " + antigravityVersion else "")
+                onboardingSetupDialog.lblAntigravityStatus.AccessibleDescription = readIntegrationValue "antigravity" "detail" fallbackValue: ""
                 onboardingSetupDialog.lblOnboardingOperation.Text = if (integrationBusy) then "Checking installed clients and MCP registrations..." else readIntegrationValue "operation" "message" fallbackValue: ""
             ) catch ()
             return true
@@ -3141,6 +3159,7 @@ global MaxUltraMcpActiveClient
                 MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnInstallAgents
                 MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnRefreshAgents
                 MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnCopyManual
+                onboardingSetupDialog.lblAntigravityStatus.BackColor = rolloutBackground
                 configureDonateButton onboardingSetupDialog.btnSetupDonate
                 onboardingSetupDialog.btnInstallAgents.Text = "Install selected"
                 onboardingSetupDialog.btnRefreshAgents.Text = "Refresh status"
@@ -3182,7 +3201,7 @@ global MaxUltraMcpActiveClient
             ) catch (return false)
         ),
 
-        fn startIntegrationOperation actionName installOpenAI: false installClaudeCode: false automaticCheck: false = (
+        fn startIntegrationOperation actionName installOpenAI: false installClaudeCode: false installAntigravity: false automaticCheck: false = (
             if (isDisposed or integrationBusy) do return false
             integrationAutomaticCheckPending = false
             integrationAutomaticCheckDueAt = undefined
@@ -3201,8 +3220,10 @@ global MaxUltraMcpActiveClient
                 if (profileValue == undefined or findItem #("core", "archviz", "full") (toLower profileValue) == 0) do profileValue = "archviz"
                 local actionValue = if (actionName == #install) then "Install" else "Status"
                 local argumentText = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + quoteProcessArgument helperPath + " -Action " + actionValue + " -ResultPath " + quoteProcessArgument resultPath + " -Profile " + profileValue
+                argumentText += " -Port " + (hostPort as string)
                 if (installOpenAI) do argumentText += " -InstallOpenAI"
                 if (installClaudeCode) do argumentText += " -InstallClaudeCode"
+                if (installAntigravity) do argumentText += " -InstallAntigravity"
                 local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
                 startInfo.FileName = resolveWindowsExecutable @"WindowsPowerShell\v1.0\powershell.exe"
                 startInfo.Arguments = argumentText
@@ -3247,16 +3268,18 @@ global MaxUltraMcpActiveClient
             )
             local installOpenAI = false
             local installClaudeCode = false
+            local installAntigravity = false
             try (
                 installOpenAI = onboardingSetupDialog.chkOpenAI.enabled and onboardingSetupDialog.chkOpenAI.checked
                 installClaudeCode = onboardingSetupDialog.chkClaudeCode.enabled and onboardingSetupDialog.chkClaudeCode.checked
+                installAntigravity = onboardingSetupDialog.chkAntigravity.enabled and onboardingSetupDialog.chkAntigravity.checked
             ) catch ()
-            if (not installOpenAI and not installClaudeCode) do (
-                messageBox "No available client CLI is selected. Use the manual STDIO values for clients without a CLI." title: "Max Ultra MCP - AI Client Setup"
+            if (not installOpenAI and not installClaudeCode and not installAntigravity) do (
+                messageBox "Select an available AI client first." title: "Max Ultra MCP - AI Client Setup"
                 return false
             )
             addActivity "info" "Installing selected AI client integrations"
-            return startIntegrationOperation #install installOpenAI: installOpenAI installClaudeCode: installClaudeCode automaticCheck: false
+            return startIntegrationOperation #install installOpenAI: installOpenAI installClaudeCode: installClaudeCode installAntigravity: installAntigravity automaticCheck: false
         ),
 
         fn resetClipboardFeedback = (
@@ -3336,7 +3359,7 @@ global MaxUltraMcpActiveClient
             if (not (onboardingDialogIsOpen())) do (
                 try (
                     onboardingPage = #none
-                    onboardingFloater = newRolloutFloater "Max Ultra MCP - AI Client Setup" 548 430
+                    onboardingFloater = newRolloutFloater "Max Ultra MCP - AI Client Setup" 548 478
                     addRollout onboardingTabsDialog onboardingFloater rolledUp: false border: false
                 ) catch (
                     onboardingFloater = undefined
@@ -3388,13 +3411,16 @@ global MaxUltraMcpActiveClient
             integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
             local openAIStateValue = readIntegrationValue "openai" "state" fallbackValue: ""
             local claudeStateValue = readIntegrationValue "claudeCode" "state" fallbackValue: ""
+            local antigravityStateValue = readIntegrationValue "antigravity" "state" fallbackValue: ""
             local conclusiveStates = #("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing")
             local automaticCheckConclusive = (findItem conclusiveStates openAIStateValue) > 0 and (findItem conclusiveStates claudeStateValue) > 0
+            automaticCheckConclusive = automaticCheckConclusive and (findItem conclusiveStates antigravityStateValue) > 0
             integrationLastCheckFailed = helperExitCode != 0 and openAIStateValue == "" and claudeStateValue == ""
-            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured) do persistOnboardingDismissed true
+            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured or integrationValueIsTrue "antigravity" "configured") do persistOnboardingDismissed true
             refreshOnboardingDialog()
             if (helperExitCode != 0) do addActivity "error" ("AI integration helper failed: " + readIntegrationValue "operation" "message" fallbackValue: "unknown error")
-            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (loadOnboardingDismissed())) do showOnboardingDialog refreshStatus: false
+            if (integrationOperationName == #install and antigravityStateValue == "install_failed") do messageBox (readIntegrationValue "antigravity" "detail" fallbackValue: "Antigravity setup failed. Refresh status and retry.") title: "Antigravity setup"
+            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (integrationValueIsTrue "antigravity" "configured") and not (loadOnboardingDismissed())) do showOnboardingDialog refreshStatus: false
             return true
         ),
 
