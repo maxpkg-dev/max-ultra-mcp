@@ -32,6 +32,10 @@ The first production-foundations increment adds session-owned common jobs and re
 - Validate and build a dimensioned house plan interpreted from an attached image.
 - Use unrestricted `max_execute` when a semantic tool does not exist yet.
 
+## Skills manager
+
+The main panel's **Skills** button opens a separate manager. View built-in workflows, copy a creation prompt into a successful AI conversation, and import an instruction-only custom skill folder or ZIP after preview. Add Skill publishes owned discovery adapters for Codex, Claude Code, and Antigravity; `max_skills_list` and `max_skill_read` expose the canonical content without needing Max connected. Custom data stays in `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\user-skills` across updates. See the [local HTML manual](docs/CUSTOM_SKILLS.html) and [submission guide](docs/SUBMIT_SKILL.html). Native invocation and renderer compatibility still require real-client testing.
+
 ## Automatic updates
 
 The Settings window enables automatic update checks by default. Version metadata and release assets are downloaded with Windows `curl.exe` from a hidden detached helper process, so network waits never block the 3ds Max UI thread. Only a stable official GitHub Release whose MZP filename, package GUID, asset URLs, and SHA-256 all match is accepted. The verified MZP is installed through MaxPkg, the active bridge is disposed, and `01_START_MAX_ULTRA_MCP_FIRST.ms` restarts automatically from the updated package. Failed checks or installation attempts keep the previous installation recoverable. Disable automatic checks or use **Check now** in Settings at any time.

@@ -13,6 +13,7 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { BridgeControlClient } = require("./bridge-control-client");
 const { getMcpTools, normalizeProfile } = require("./tool-catalog");
+const { SkillStore } = require("./skill-store");
 const { version: SERVER_VERSION } = require("./package.json");
 
 const DEFAULT_RECONNECT_GRACE_MS = 10000;
@@ -28,6 +29,7 @@ function writeRpc(message) {
 }
 
 function errorCode(error) {
+  if (/^SKILL_[A-Z_]+$/.test(error?.code || "")) return error.code;
   const message = String(error?.message || error || "Unknown error");
   if (/ECONNREFUSED|ECONNRESET|EPIPE|ENOTCONN|socket hang up|Bridge stopped|daemon unavailable|control client is not connected|connection closed/i.test(message)) return "BRIDGE_DOWN";
   if (/No 3ds Max instances/i.test(message)) return "MAX_NOT_CONNECTED";
@@ -140,6 +142,11 @@ function imageDescriptor(toolName, data) {
 }
 
 async function buildContent(toolName, envelope) {
+  if (envelope.ok && toolName === "max_skill_read" && envelope.data?.imageBase64) {
+    const { imageBase64, ...metadata } = envelope.data;
+    envelope.data = metadata;
+    return [{ type: "text", text: JSON.stringify({ ...envelope, data: metadata }) }, { type: "image", data: imageBase64, mimeType: metadata.mimeType }];
+  }
   const content = [{ type: "text", text: JSON.stringify(envelope, null, 2) }];
   if (!envelope.ok) return content;
   const descriptor = imageDescriptor(toolName, envelope.data);
@@ -157,6 +164,7 @@ async function buildContent(toolName, envelope) {
 
 class StdioHost {
   constructor(options = {}) {
+    this.skillStore = options.skillStore || new SkillStore();
     this.profile = normalizeProfile(options.profile || process.env.MAX_ULTRA_MCP_TOOL_PROFILE || "archviz");
     this.tools = getMcpTools(this.profile);
     this.toolByName = new Map(this.tools.map((entry) => [entry.name, entry]));
@@ -232,8 +240,13 @@ class StdioHost {
         const args = message.params?.arguments || {};
         validateSchema(args, definition.inputSchema);
         try {
-          await this.ensureConnected();
-          const data = await this.client.callTool(toolName, args);
+          let data;
+          if (toolName === "max_skills_list") data = this.skillStore.list();
+          else if (toolName === "max_skill_read") data = this.skillStore.read(args);
+          else {
+            await this.ensureConnected();
+            data = await this.client.callTool(toolName, args);
+          }
           const envelope = successEnvelope(data, startedAt);
           response.result = { content: await buildContent(toolName, envelope), structuredContent: envelope, isError: false };
         } catch (error) {

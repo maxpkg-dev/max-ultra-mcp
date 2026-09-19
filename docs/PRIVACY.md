@@ -44,6 +44,8 @@ Windows environment variables such as `%LOCALAPPDATA%` are preferred over expand
 
 ## Runtime diagnostics
 
+Custom skills are local user-authored data, excluded from releases and source control. Import does not collect chats, execute imported scripts, download URLs, or contact AI providers. Add Skill publishes native discovery adapters for Codex, Claude Code, and Antigravity, exposing names/descriptions; connected MCP clients can discover enabled skills and request their bodies/assets. Clients may send that context to their model provider. Imported previews are passive HTML with scripts blocked. The trusted standalone submission guide permits only its hash-approved Copy Text script, which writes the template to the clipboard on an explicit click; email links only open a draft and never send automatically. Sanitize user skill paths, registry provenance, content and errors before sharing diagnostic output.
+
 Runtime logs may contain operational paths and process ids because local diagnostics require them. They must remain local and must not be copied into documentation, issues, fixtures, or commits without sanitization.
 
 AI onboarding status files may contain local executable and repository paths. They stay in the per-user Max Ultra MCP state directory, must never include CLI output or client configuration contents, and must be sanitized before sharing.

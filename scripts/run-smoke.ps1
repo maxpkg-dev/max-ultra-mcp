@@ -17,6 +17,14 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\diagnostics-cli-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skill-store-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skill-markdown-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skill-zip-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skills-help-copy-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\ui-automation-helper-test.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\activity-log-winforms-test.ps1')

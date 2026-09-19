@@ -17,6 +17,7 @@ const { JobRegistry, snapshotJob } = require("./job-registry");
 const { generateMaterialDiagnosticsScript, parseMaterialDiagnostics } = require("./material-diagnostics");
 const { generatePolygonMeshScript, validatePolygonMesh } = require("./polygon-mesh");
 const { runUiAutomation } = require("./windows-ui");
+const { SkillStore } = require("./skill-store");
 
 const NOT_HANDLED = Symbol("NOT_HANDLED");
 
@@ -249,6 +250,8 @@ function createPrimitiveScript(args) {
 }
 
 async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
+  if (toolName === "max_skills_list") return new SkillStore().list();
+  if (toolName === "max_skill_read") return new SkillStore().read(args);
   if (!allToolNames.has(toolName)) return NOT_HANDLED;
   bridge = withActivityLabel(bridge, activityLabelForTool(toolName, args));
   ensureRuntime(bridge, session);

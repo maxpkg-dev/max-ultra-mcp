@@ -1221,7 +1221,13 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /FromArgb 255 125 125/);
     assert.match(bootstrapSource, /FromArgb 255 195 80/);
     assert.match(bootstrapSource, /FromArgb 120 225 150/);
-    assert.match(bootstrapSource, /findString normalizedEntry " \[support"[\s\S]*ControlPaint"\)\.Light MaxUltraMcpTheme\.supportColor[\s\S]*ControlPaint"\)\.Dark MaxUltraMcpTheme\.supportColor/);
+    assert.match(bootstrapSource, /findString normalizedEntry " \[support"[^\n]*return MaxUltraMcpTheme\.linkColor/);
+    assert.doesNotMatch(bootstrapSource, /skillsDialog\.chkSkill(?:Codex|Claude|Antigravity)\.width\s*=/);
+    assert.doesNotMatch(bootstrapSource, /catch\s*\([^\n]*throw\s*\(getCurrentException/);
+    // MAXScript resolves bare forward method references as undefined; use the struct receiver.
+    assert.match(bootstrapSource, /this\.openSkillsHelp "CUSTOM_SKILLS\.html"/);
+    assert.match(bootstrapSource, /this\.openSkillsHelp "SUBMIT_SKILL\.html"/);
+    assert.match(bootstrapSource, /fn handleSkillDocumentScroll[\s\S]*?this\.updateSkillHeaderScroll\(\)/);
     assert.match(bootstrapSource, /FromArgb 110 205 235/);
     assert.match(bootstrapSource, /FromArgb 20 90 145/);
     const badgeBackgroundColorBody = sourceSection(bootstrapSource, "fn activityEntryBadgeBackgroundColor", "fn activityEntryBadgeTextColor", "activity status badge background");

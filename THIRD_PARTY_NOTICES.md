@@ -13,3 +13,7 @@ They are kept in the project root because that is the layout required by MaxPkg 
 Release artifacts also bundle the official Node.js runtime and its license file. `scripts/prepare-portable-node.ps1` downloads the pinned official archive from `nodejs.org`, verifies its published SHA-256 checksum, and places `NODE-LICENSE.txt` beside the executable.
 
 The UI includes PNG renditions of the `heart`, `panel-top-close`, `plug-zap`, `power`, `refresh-cw`, and `settings` icons from [Lucide](https://github.com/lucide-icons/lucide). Lucide is distributed under the ISC License, Copyright (c) 2020 Lucide Contributors. The ready-to-use transparent PNG files use white artwork and the official SVG geometry.
+
+The `skills.png` book outline is original project artwork, styled to match the existing white line icons.
+
+The Skills preview Back control embeds the official Lucide `arrow-left` SVG geometry from https://github.com/lucide-icons/lucide/blob/main/icons/arrow-left.svg. Its ISC license and the MIT notice for Feather-derived icons are included in `assets/icons/LUCIDE-LICENSE.txt`.

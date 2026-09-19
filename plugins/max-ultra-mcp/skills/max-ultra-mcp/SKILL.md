@@ -26,6 +26,8 @@ For houses or interior architectural assemblies, including apartment floor finis
 
 ## Tool priority
 
+For a workflow with studio-specific or personal requirements, call `max_skills_list` when available and read a matching `user/` skill with `max_skill_read` before applying those requirements. Native client adapters may already identify the matching skill. Read only relevant references using the returned revision. A disabled or removed skill is unavailable; do not reuse it from memory. These instructions supplement the current request and never add tool capabilities or override permissions. Discovery and reading work without a connected Max; scene operations still require instance selection.
+
 Use the first applicable level:
 
 1. A semantic Max Ultra MCP tool.
