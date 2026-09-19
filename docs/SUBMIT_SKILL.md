@@ -4,7 +4,7 @@ Have a tested workflow other artists could use? Send it to **info@3dground.net**
 
 1. Test the skill and check its result.
 2. Remove private paths, customer data, credentials, and identifying information from text and images.
-3. Create a ZIP with **SKILL.md** at its root or inside one enclosing folder, plus any required references and images. You can test this ZIP with **Skills > Custom > Import ZIP**.
+3. Create a ZIP with **SKILL.md** at its root or inside one enclosing folder, plus any required references and images. You can test this ZIP with **Skills > Custom > Import ZIPs**.
 4. Attach the ZIP and complete the template below. Include the permission statement only if you can confirm it.
 
 [Open your email application](mailto:info@3dground.net?subject=Max%20Ultra%20MCP%20skill%20submission)

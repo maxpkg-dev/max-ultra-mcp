@@ -7,7 +7,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { renderMarkdown, linkTarget } = require("../core/skill-markdown");
+const { renderMarkdown, renderImportReport, linkTarget } = require("../core/skill-markdown");
 const sample = "---\nname: preview-example\ndescription: Check readable passive Markdown.\n---\n# Workflow\n\n## Inputs\n\nA **bold** and *italic* paragraph.\nSecond line.\n\n- First\n  - Nested\n    1. Ordered child\n- Second\n\n```maxscript\nif (ready) do (\n    format \"<safe>\"\n)\n```\n\n| Name | Result |\n| --- | --- |\n| Example | Pass |\n\n[Reference](references/rules.md)\n\n<script id=attack>alert('bad')</script>\n\n[Unsafe](javascript:alert)\n![Remote](https://example.invalid/image.png)\n";
 const html = renderMarkdown(sample, { background: "81,81,81", foreground: "225,225,225" });
 assert.match(html, /<div class="metadata">/);
@@ -45,6 +45,15 @@ assert.match(navigation, /\.metadata\{padding:12px 14px;border:1px solid #aaa;bo
 assert.match(navigation, /border-bottom:1px solid #aaa/);
 assert.doesNotMatch(navigation, /\.eyebrow\{[^}]*border/);
 assert.match(navigation, /padding:0 14px 0 10px/);
+const failedStatus = renderMarkdown("Instructions", { navigation: true, status: { label: "Error", detail: '<unsafe> "registration" failed' } });
+assert.match(failedStatus, /\.skill-badge\{[^}]*border-radius:0/);
+assert.match(failedStatus, /class="notice">&lt;unsafe&gt; &quot;registration&quot; failed<\/div>/);
+assert.doesNotMatch(failedStatus, /<unsafe>/);
+const importReport = renderImportReport([{ name: '<script>success</script>' }], [{ name: '<img>bad.zip', reason: '[click](https://example.invalid) <script>bad</script>' }], { errorColor: "255,125,125", successColor: "120,225,150" });
+assert.match(importReport, /&lt;script&gt;success/);
+assert.match(importReport, /&lt;img&gt;bad.zip/);
+assert.doesNotMatch(importReport, /<script|<img|href="https:/);
+assert.match(importReport, /class="import-tip"/);
 assert.match(renderMarkdown("Text", { navigation: true, buttonBackground: "116,116,116", buttonHover: "150,150,150" }), /background:rgb\(116,116,116\)/);
 assert.equal(linkTarget("https://user:secret@example.invalid", "SKILL.md"), null);
 for (const skill of ["max-ultra-renderer-settings", "max-ultra-small-house-detailing"]) {

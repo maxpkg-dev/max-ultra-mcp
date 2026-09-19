@@ -11,14 +11,13 @@ Save a successful workflow so your AI assistant can reuse it.
 
 ## Import and use
 
-1. Choose **Import Folder** or **Import ZIP**.
-2. Select the folder or ZIP and review the preview.
-3. Click **Add Skill**. It becomes available to Codex, Claude Code, and Antigravity.
-4. Ask your assistant to use the skill for a matching task. If it is not found, refresh the client or start a new conversation.
+1. Choose **Import Folder** for one folder, or **Import ZIPs** for one or more archives.
+2. Select the sources. Valid skills are imported immediately for Codex, Claude Code, and Antigravity. Each ZIP is checked independently; a failed archive does not stop the others or replace an existing skill.
+3. Read the results in the preview pane. Successful imports and any errors remain visible until you choose another action or select a skill. Restart your AI client or start a new chat, then ask it to use the skill for a matching task.
 
 A ZIP must contain exactly one skill: **SKILL.md** at the archive root or inside one enclosing folder. The filename must be exactly **SKILL.md**. Use a standard, unencrypted ZIP.
 
-Import sends no data. Your AI client may send instructions and images to its model provider when using the skill. Review content before enabling it.
+Import sends no data. Your AI client may send instructions and images to its model provider when using the skill. Choose only skills you trust; Delete removes an unwanted imported skill.
 
 ## Browse and remove
 

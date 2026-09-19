@@ -4,7 +4,7 @@
 # Developed by Lukianenko Vasyl
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('list','preview','preview-zip','import','import-zip','read','delete','picker')][string]$Action,
+    [Parameter(Mandatory = $true)][ValidateSet('list','preview','preview-zip','import','import-zip','add-folder','add-zip','add-zips','read','delete','picker')][string]$Action,
     [Parameter(Mandatory = $true)][string]$ResultPath,
     [string]$Source = '',
     [string]$Revision = '',
@@ -14,7 +14,9 @@ param(
     [string]$Background = '',
     [string]$Foreground = '',
     [string]$ButtonBackground = '',
-    [string]$ButtonHover = ''
+    [string]$ButtonHover = '',
+    [string]$ErrorColor = '',
+    [string]$SuccessColor = ''
 )
 $ErrorActionPreference = 'Stop'
 if ($Action -eq 'picker') {
@@ -32,6 +34,9 @@ if ($Action -eq 'picker') {
 $runnerPath = Join-Path $PSScriptRoot 'run-node-script.ps1'
 $helperArguments = @($Action)
 switch ($Action) {
+    'add-folder' { $helperArguments += $Source }
+    'add-zip' { $helperArguments += $Source }
+    'add-zips' { $helperArguments = @('add-zips-file', $Source) }
     'preview' { $helperArguments += $Source }
     'preview-zip' { $helperArguments += $Source }
     'import' { $helperArguments += @($Source, $Revision, $Clients) }
@@ -46,5 +51,7 @@ if ($Background) { $helperArguments += @('--background', $Background) }
 if ($Foreground) { $helperArguments += @('--foreground', $Foreground) }
 if ($ButtonBackground) { $helperArguments += @('--buttonBackground', $ButtonBackground) }
 if ($ButtonHover) { $helperArguments += @('--buttonHover', $ButtonHover) }
+if ($ErrorColor) { $helperArguments += @('--errorColor', $ErrorColor) }
+if ($SuccessColor) { $helperArguments += @('--successColor', $SuccessColor) }
 & $runnerPath 'core\skills-cli.js' @helperArguments
 exit $LASTEXITCODE

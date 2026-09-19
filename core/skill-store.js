@@ -54,7 +54,15 @@ function atomicJson(destination, value) {
 function metadata(markdown) {
   const normalized = markdown.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
   const match = /^---\n([\s\S]*?)\n---\n([\s\S]+)$/.exec(normalized);
-  if (!match || !match[2].trim()) fail("SKILL_INVALID", "SKILL.md requires frontmatter and instructions.");
+  if (!match) {
+    if (!normalized.startsWith("---\n")) fail("SKILL_INVALID", "Start SKILL.md with a line containing exactly three ASCII hyphens (---), then name and description.");
+    const lines = normalized.split("\n");
+    const divider = lines.findIndex((line, index) => index > 0 && /^-{3,}[ \t]*$/.test(line));
+    if (divider > 0 && lines[divider] !== "---") fail("SKILL_INVALID", `Invalid frontmatter delimiter on line ${divider + 1}: use exactly three ASCII hyphens (---), not a longer or padded divider.`);
+    if (divider > 0) fail("SKILL_INVALID", "Add nonempty instructions after the closing frontmatter line (---).");
+    fail("SKILL_INVALID", "Close the name/description frontmatter with a line containing exactly three ASCII hyphens (---), followed by instructions.");
+  }
+  if (!match[2].trim()) fail("SKILL_INVALID", "Add nonempty instructions after the closing frontmatter line (---).");
   const values = {};
   for (const line of match[1].split("\n")) {
     if (!line.trim()) continue;

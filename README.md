@@ -34,7 +34,7 @@ The first production-foundations increment adds session-owned common jobs and re
 
 ## Skills manager
 
-The main panel's **Skills** button opens a separate manager. View built-in workflows, copy a creation prompt into a successful AI conversation, and import an instruction-only custom skill folder or ZIP after preview. Add Skill publishes owned discovery adapters for Codex, Claude Code, and Antigravity; `max_skills_list` and `max_skill_read` expose the canonical content without needing Max connected. Custom data stays in `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\user-skills` across updates. See the [local HTML manual](docs/CUSTOM_SKILLS.html) and [submission guide](docs/SUBMIT_SKILL.html). Native invocation and renderer compatibility still require real-client testing.
+The main panel's **Skills** button opens a separate manager. View built-in workflows, copy a creation prompt into a successful AI conversation, and import an instruction-only custom skill folder or ZIP in one action. Import validates the package before saving it and publishes owned discovery adapters for Codex, Claude Code, and Antigravity; `max_skills_list` and `max_skill_read` expose the canonical content without needing Max connected. Custom data stays in `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\user-skills` across updates. See the [local HTML manual](docs/CUSTOM_SKILLS.html) and [submission guide](docs/SUBMIT_SKILL.html). Native invocation and renderer compatibility still require real-client testing.
 
 ## Automatic updates
 

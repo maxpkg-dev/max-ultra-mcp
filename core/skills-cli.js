@@ -6,13 +6,65 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { randomUUID } = require("node:crypto");
+const { randomUUID, createHash } = require("node:crypto");
 const { SkillStore, noLinks } = require("./skill-store");
-const { renderMarkdown } = require("./skill-markdown");
+const { renderMarkdown, renderImportReport } = require("./skill-markdown");
 const { withZipSkill } = require("./skill-zip");
+
+function customStatus(store, entry) {
+  if (entry?.source !== "Custom") return undefined;
+  let label = entry.state === "ready" ? (entry.enabled ? "Ready" : "Disabled") : ({ installing: "Installing", removing: "Removing", error: "Error", disabled: "Disabled" }[entry.state] || "Unavailable");
+  let detail = entry.error || "";
+  if (label === "Ready") {
+    const record = store.registry().skills.find((item) => `user/${item.id}` === entry.id);
+    try {
+      if (!record) throw new Error("The import record is missing.");
+      for (const client of record.clients || []) {
+        const adapter = record.adapters.find((item) => item.client === client);
+        const destination = store.adapterPath(record, client);
+        if (!adapter || !fs.existsSync(destination)) throw new Error(`The ${client} registration is missing.`);
+        if (createHash("sha256").update(fs.readFileSync(destination)).digest("hex") !== adapter.hash) throw new Error(`The ${client} registration was changed.`);
+      }
+    } catch (error) { label = "Error"; detail = `${error.message} Inspect the registration, or delete and import the skill again.`; }
+  }
+  return { label, detail };
+}
 
 function run(args, store = new SkillStore(), appearance = {}) {
   const [command, ...values] = args;
+  if (command === "add-zips-file") {
+    const input = noLinks(values[0]);
+    if (fs.statSync(input).size > 2 * 1024 * 1024) throw new Error("ZIP selection exceeds the supported size.");
+    return run(["add-zips", ...fs.readFileSync(input, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean)], store, appearance);
+  }
+  if (command === "add-zips") {
+    if (!values.length) return { cancelled: true, message: "" };
+    const succeeded = [], failed = [];
+    for (const archive of values) {
+      let name = path.basename(archive);
+      try {
+        const imported = withZipSkill(archive, (folder, originalArchive) => {
+          const preview = store.preview(folder);
+          name = `${preview.name} (${path.basename(archive)})`;
+          return store.import(folder, preview.revision, Object.keys(store.clientRoots), originalArchive);
+        });
+        if (imported.state !== "ready") throw new Error(`${imported.error || "Registration incomplete."} Delete the incomplete import before retrying.`);
+        succeeded.push({ id: imported.id, name: imported.name });
+      } catch (error) { failed.push({ name, reason: error.message }); }
+    }
+    const message = `${succeeded.length} imported, ${failed.length} failed.`;
+    return { ...store.list({ management: true }), succeeded, failed, html: renderImportReport(succeeded, failed, appearance), message };
+  }
+  if (command === "add-folder") {
+    try {
+      const preview = store.preview(values[0]);
+      return run(["import", values[0], preview.revision, undefined, values[1]], store, appearance);
+    } catch (error) {
+      const failed = [{ name: path.basename(values[0]), reason: error.message }];
+      return { ok: false, failed, succeeded: [], html: renderImportReport([], failed, appearance), message: error.message };
+    }
+  }
+  if (command === "add-zip") return withZipSkill(values[0], (folder, archive) => run(["add-folder", folder, archive], store, appearance));
   if (command === "preview-zip") return withZipSkill(values[0], (folder, archive) => {
     const result = run(["preview", folder], store, appearance);
     result.preview.source = archive;
@@ -31,20 +83,24 @@ function run(args, store = new SkillStore(), appearance = {}) {
     const preview = store.preview(values[0]);
     const text = fs.readFileSync(path.join(preview.source, "SKILL.md"), "utf8");
     const notice = `${preview.files.length} files, ${preview.bytes} bytes\n${preview.files.map((file) => file.path).join("\n")}\n\n${preview.warning}`;
-    return { preview, revision: preview.revision, text, html: renderMarkdown(text, { ...appearance, notice }), message: "Preview checked. Click Add Skill to make it available to Codex, Claude Code and Antigravity." };
+    return { preview, revision: preview.revision, text, html: renderMarkdown(text, { ...appearance, notice }), message: "Package validation passed." };
   }
   if (command === "import") {
     const clients = values[2] === undefined ? Object.keys(store.clientRoots) : values[2] && values[2] !== "none" ? values[2].split(",") : [];
     const imported = store.import(values[0], values[1], clients, values[3]);
-    return { ...store.list({ management: true }), message: imported.state === "ready" ? "Skill added. Refresh your AI client or start a new conversation if it is not found." : `Saved, but activation failed: ${imported.error}. Delete the incomplete import before retrying.` };
+    const message = imported.state === "ready" ? "Skill imported." : `Saved, but activation failed: ${imported.error}. Delete the incomplete import before retrying.`;
+    const succeeded = imported.state === "ready" ? [{ id: imported.id, name: imported.name }] : [];
+    const failed = imported.state === "ready" ? [] : [{ name: imported.name, reason: message }];
+    return { ...store.list({ management: true }), succeeded, failed, html: renderImportReport(succeeded, failed, appearance), message };
   }
   if (command === "read") {
     const relativePath = values[1] || "SKILL.md";
     const result = store.read({ id: values[0], relativePath }, { management: true });
     const text = result.text === undefined ? `Image asset: ${relativePath}\n\nThis image is available to the agent through max_skill_read.` : result.text + (result.nextOffset ? "\n[Preview truncated]" : "");
     const entry = store.list({ management: true }).skills.find((skill) => skill.id === values[0]);
-    const notice = [entry?.source, entry?.state, ...(entry?.clients || []).map((client) => `${client.client}: ${client.state}`)].filter(Boolean).join(" | ");
-    return { text, html: renderMarkdown(text, { ...appearance, relativePath, notice, navigation: true }), message: "Read-only Markdown preview. Imported HTML and scripts are not executed." };
+    const status = entry?.source === "Built-in" ? { kind: "Built-in", label: "Read-only", detail: "" } : customStatus(store, entry);
+    const notice = [entry?.source, entry?.state].filter(Boolean).join(" | ");
+    return { text, html: renderMarkdown(text, { ...appearance, relativePath, notice, status, navigation: true }), message: status?.detail || "Read-only Markdown preview. Imported HTML and scripts are not executed." };
   }
   if (command === "delete") {
     const result = store.remove(values[0]);
@@ -70,7 +126,7 @@ if (require.main === module) {
   const destination = resultIndex >= 0 ? args[resultIndex + 1] : null;
   if (resultIndex >= 0) args.splice(resultIndex, 2);
   const appearance = {};
-  for (const key of ["background", "foreground", "buttonBackground", "buttonHover"]) {
+  for (const key of ["background", "foreground", "buttonBackground", "buttonHover", "errorColor", "successColor"]) {
     const index = args.indexOf("--" + key);
     if (index >= 0) { appearance[key] = args[index + 1]; args.splice(index, 2); }
   }

@@ -412,13 +412,13 @@ global MaxUltraMcpActiveClient
         on btnAboutDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
     rollout MaxUltraMcpSkillsDialog "Max Ultra MCP Skills" width: 920 height: 900 (
-        radiobuttons rdoSource labels: #("Built-in", "Custom") pos: [12,10] width: 220 height: 20 columns: 2
+        -- Reserve native label extents for three digits; configure replaces these before display.
+        radiobuttons rdoSource labels: #("Built-in (999)", "Custom (999)") pos: [12,10] width: 300 height: 20 columns: 2 offsets: #([0,0], [2,0]) align: #left
         dotNetControl btnSkillsRefresh "System.Windows.Forms.Button" pos: [700,8] width: 108 height: 26
         dotNetControl lvSkills "System.Windows.Forms.ListView" pos: [12,42] width: 796 height: 180
         dotNetControl wbSkillPreview "System.Windows.Forms.WebBrowser" pos: [12,232] width: 796 height: 294
         dotNetControl btnImportFolder "System.Windows.Forms.Button" pos: [12,536] width: 120 height: 30
         dotNetControl btnImportZip "System.Windows.Forms.Button" pos: [140,536] width: 100 height: 30
-        dotNetControl btnApplyImport "System.Windows.Forms.Button" pos: [140,536] width: 160 height: 30
         dotNetControl btnDeleteSkill "System.Windows.Forms.Button" pos: [308,536] width: 88 height: 30
         dotNetControl btnCreationPrompt "System.Windows.Forms.Button" pos: [504,536] width: 304 height: 30
         dotNetControl lblSkillPrivacy "System.Windows.Forms.Label" pos: [12,602] width: 796 height: 18
@@ -436,7 +436,6 @@ global MaxUltraMcpActiveClient
         on btnSkillsRefresh Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.startSkillsOperation "list"
         on btnImportFolder Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.previewSkillFolder()
         on btnImportZip Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.previewSkillZip()
-        on btnApplyImport Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.importPreviewedSkill()
         on btnDeleteSkill Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.deleteSelectedSkill()
         on btnCreationPrompt Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copySkillCreationPrompt()
         on btnSkillManual Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.openSkillsHelp "CUSTOM_SKILLS.html"
@@ -534,6 +533,12 @@ global MaxUltraMcpActiveClient
         skillsScrollWindow = undefined,
         skillsBackElement = undefined,
         skillsHeaderTimer = undefined,
+        skillsCopyFeedbackUntil = undefined,
+        skillsCatalogLoaded = false,
+        skillsPendingReadId = "",
+        skillsReadDeadline = undefined,
+        skillsOperationSelectedId = "",
+        skillsPendingDeleteId = "",
         skillsWelcomeHtml = "",
         skillsViewRevision = 0,
         skillsOperationViewRevision = 0,
@@ -2242,7 +2247,7 @@ global MaxUltraMcpActiveClient
             try (
                 local backLink = skillsDialog.wbSkillPreview.Document.GetElementById "skill-back"
                 if (backLink == undefined) do return false
-                local canGoBack = skillsProcess == undefined and skillsSelectedId != "" and skillsPreviewHistory.count > 0
+                local canGoBack = skillsProcess == undefined and skillsPendingReadId == "" and skillsSelectedId != "" and skillsPreviewHistory.count > 0
                 backLink.SetAttribute "aria-disabled" (if canGoBack then "false" else "true")
                 backLink.TabIndex = if canGoBack then 0 else -1
                 backLink.Style = if canGoBack then "display:inline-block" else "display:none"
@@ -2255,14 +2260,14 @@ global MaxUltraMcpActiveClient
         fn refreshSkillsButtons = (
             if (not (skillsDialogIsOpen())) do return false
             local customPage = skillsDialog.rdoSource.state == 2
-            local idleState = skillsProcess == undefined
-            skillsDialog.rdoSource.enabled = idleState
-            skillsDialog.lvSkills.Enabled = idleState
+            local idleState = skillsProcess == undefined and skillsPendingReadId == ""
+            local canChooseSkill = (skillsProcess == undefined or skillsOperation == "read") and skillsPendingDeleteId == ""
+            skillsDialog.rdoSource.enabled = canChooseSkill
+            skillsDialog.lvSkills.Enabled = canChooseSkill
             MaxUltraMcpUiKit.updateButtonState skillsDialog.btnSkillsRefresh idleState
             MaxUltraMcpUiKit.updateButtonState skillsDialog.btnImportFolder (customPage and idleState)
             MaxUltraMcpUiKit.updateButtonState skillsDialog.btnImportZip (customPage and idleState)
-            MaxUltraMcpUiKit.updateButtonState skillsDialog.btnApplyImport (customPage and idleState and skillsPreviewRevision != "")
-            MaxUltraMcpUiKit.updateButtonState skillsDialog.btnDeleteSkill (customPage and idleState and skillsDialog.lvSkills.SelectedItems.Count == 1)
+            MaxUltraMcpUiKit.updateButtonState skillsDialog.btnDeleteSkill (customPage and canChooseSkill and skillsDialog.lvSkills.SelectedItems.Count == 1)
             MaxUltraMcpUiKit.updateButtonState skillsDialog.btnCreationPrompt customPage
             refreshSkillBackLink()
             return true
@@ -2270,6 +2275,19 @@ global MaxUltraMcpActiveClient
 
         fn renderSkillsRows = (
             if (not (skillsDialogIsOpen())) do return false
+            if skillsCatalogLoaded do (
+                local builtinCount = 0
+                local customCount = 0
+                for skillRow in skillsRows do (
+                    if skillRow[4] == "Built-in" do builtinCount += 1
+                    if skillRow[4] == "Custom" do customCount += 1
+                )
+                local categoryHandles = skillsDialog.rdoSource.hwnd
+                if categoryHandles.count >= 2 do (
+                    UIAccessor.SetWindowText categoryHandles[1] ("Built-in (" + (builtinCount as string) + ")")
+                    UIAccessor.SetWindowText categoryHandles[2] ("Custom (" + (customCount as string) + ")")
+                )
+            )
             skillsRendering = true
             skillsDialog.lvSkills.Items.Clear()
             local visibleSource = if (skillsDialog.rdoSource.state == 1) then "Built-in" else "Custom"
@@ -2299,7 +2317,10 @@ global MaxUltraMcpActiveClient
                 local operationGuid = (dotNetClass "System.Guid").NewGuid()
                 skillsResultFilePath = uiStateDirectory + "skills-" + operationGuid.ToString() + ".ini"
                 local helperArguments = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + quoteProcessArgument helperPath + " -Action " + operationName + " -ResultPath " + quoteProcessArgument skillsResultFilePath
-                if (sourceFolder != "") do helperArguments += " -Source " + quoteProcessArgument sourceFolder
+                if operationName == "add-zips" then (
+                    (dotNetClass "System.IO.File").WriteAllText (skillsResultFilePath + ".inputs") sourceFolder
+                    helperArguments += " -Source " + quoteProcessArgument (skillsResultFilePath + ".inputs")
+                ) else if (sourceFolder != "") do helperArguments += " -Source " + quoteProcessArgument sourceFolder
                 if (revisionValue != "") do helperArguments += " -Revision " + quoteProcessArgument revisionValue
                 if (clientNames != "") do helperArguments += " -Clients " + quoteProcessArgument clientNames
                 if (skillIdentifier != "") do helperArguments += " -SkillId " + quoteProcessArgument skillIdentifier
@@ -2310,6 +2331,10 @@ global MaxUltraMcpActiveClient
                 local backgroundRgb = (previewBackground.R as string) + "," + (previewBackground.G as string) + "," + (previewBackground.B as string)
                 local foregroundRgb = (previewForeground.R as string) + "," + (previewForeground.G as string) + "," + (previewForeground.B as string)
                 helperArguments += " -Background " + quoteProcessArgument backgroundRgb + " -Foreground " + quoteProcessArgument foregroundRgb
+                local reportErrorColor = activityEntryColor "[error]"
+                local reportSuccessColor = activityEntryColor "[success]"
+                helperArguments += " -ErrorColor " + quoteProcessArgument ((reportErrorColor.R as string) + "," + (reportErrorColor.G as string) + "," + (reportErrorColor.B as string))
+                helperArguments += " -SuccessColor " + quoteProcessArgument ((reportSuccessColor.R as string) + "," + (reportSuccessColor.G as string) + "," + (reportSuccessColor.B as string))
                 local buttonBackground = MaxUltraMcpTheme.buttonColor
                 local buttonHover = (dotNetClass "System.Windows.Forms.ControlPaint").Light buttonBackground
                 helperArguments += " -ButtonBackground " + quoteProcessArgument ((buttonBackground.R as string) + "," + (buttonBackground.G as string) + "," + (buttonBackground.B as string))
@@ -2324,6 +2349,20 @@ global MaxUltraMcpActiveClient
                 skillsProcess = (dotNetClass "System.Diagnostics.Process").Start skillsStartInfo
                 if (skillsProcess == undefined) do throw "Windows could not start the Skills helper."
                 skillsOperation = operationName
+                skillsOperationSelectedId = skillIdentifier
+                if (operationName == "add-folder" or operationName == "add-zips") do (
+                    skillsViewRevision += 1
+                    skillsPendingReadId = ""
+                    skillsReadDeadline = undefined
+                    this.detachSkillDocumentEvents()
+                    skillsSelectedId = ""
+                    skillsPreviewHistory = #()
+                    skillsCurrentReference = "SKILL.md"
+                    skillsScrollRestore = 0
+                    skillsRendering = true
+                    skillsDialog.lvSkills.SelectedItems.Clear()
+                    skillsRendering = false
+                )
                 skillsOperationViewRevision = skillsViewRevision
                 setSkillsStatus "Working..."
                 refreshSkillsButtons()
@@ -2349,7 +2388,7 @@ global MaxUltraMcpActiveClient
                 skillsPreviewSource = chosenFolder
                 skillsPreviewRevision = ""
                 skillsSelectedId = ""
-                return startSkillsOperation "preview" sourceFolder: chosenFolder
+                return startSkillsOperation "add-folder" sourceFolder: chosenFolder
             ) catch (
                 setSkillsStatus ("Folder picker error: " + (getCurrentException() as string))
                 return false
@@ -2395,6 +2434,16 @@ global MaxUltraMcpActiveClient
 
         fn handleSkillHeaderTick sender eventArgs = (
             if (isDisposed or not (skillsDialogIsOpen()) or sender != skillsHeaderTimer) do return false
+            if (skillsPendingReadId != "" and skillsProcess == undefined and skillsReadDeadline != undefined and ((dotNetClass "System.DateTime").UtcNow.CompareTo skillsReadDeadline) >= 0) do (
+                local requestedId = skillsPendingReadId
+                skillsPendingReadId = ""
+                skillsReadDeadline = undefined
+                if requestedId == skillsSelectedId do startSkillsOperation "read" skillIdentifier: requestedId
+            )
+            if (skillsCopyFeedbackUntil != undefined and ((dotNetClass "System.DateTime").UtcNow.CompareTo skillsCopyFeedbackUntil) >= 0) do (
+                skillsDialog.btnCreationPrompt.Text = "Copy Skill Creation Prompt"
+                skillsCopyFeedbackUntil = undefined
+            )
             try (updateSkillHeaderScroll()) catch (setSkillsStatus ("Preview header error: " + (getCurrentException() as string)))
         ),
 
@@ -2407,6 +2456,7 @@ global MaxUltraMcpActiveClient
             skillsProcess = undefined
             local showFolderPicker = false
             local resultIsCurrent = skillsOperationViewRevision == skillsViewRevision
+            if skillsOperation == "read" do resultIsCurrent = resultIsCurrent and skillsOperationSelectedId == skillsSelectedId and skillsPendingReadId == ""
             try (
                 if (not (doesFileExist skillsResultFilePath)) do throw "Skills helper failed before writing a result. Check the portable Node.js runtime."
                 local operationSucceeded = (getINISetting skillsResultFilePath "result" "ok") == "true"
@@ -2415,13 +2465,14 @@ global MaxUltraMcpActiveClient
                     showFolderPicker = true
                 )
                 if (resultIsCurrent and (skillsOperation == "preview" or skillsOperation == "preview-zip")) do skillsPreviewRevision = if (operationSucceeded) then getINISetting skillsResultFilePath "result" "revision" else ""
-                if (resultIsCurrent and (getINISetting skillsResultFilePath "result" "hasList") == "true") do (
+                if (resultIsCurrent and operationSucceeded and (getINISetting skillsResultFilePath "result" "hasList") == "true") do (
                     skillsRows = #()
                     local skillCount = (getINISetting skillsResultFilePath "result" "count") as integer
                     for rowIndex in 1 to skillCount do (
                         local sectionName = "skill" + ((rowIndex - 1) as string)
                         append skillsRows #((readSkillsResult sectionName "id"), (readSkillsResult sectionName "name"), (readSkillsResult sectionName "description"), (readSkillsResult sectionName "source"), (readSkillsResult sectionName "state"), (readSkillsResult sectionName "clients"), (readSkillsResult sectionName "error"))
                     )
+                    skillsCatalogLoaded = true
                     renderSkillsRows()
                 )
                 if (skillsDialogIsOpen() and resultIsCurrent) do (
@@ -2432,19 +2483,44 @@ global MaxUltraMcpActiveClient
                     )
                     setSkillsStatus (readSkillsResult "result" "message")
                 )
-            ) catch (setSkillsStatus ("Skills error: " + (getCurrentException() as string)))
+            ) catch (if resultIsCurrent do setSkillsStatus ("Skills error: " + (getCurrentException() as string)))
             try (if (doesFileExist skillsResultFilePath) do deleteFile skillsResultFilePath) catch ()
             try (if (doesFileExist (skillsResultFilePath + ".txt")) do deleteFile (skillsResultFilePath + ".txt")) catch ()
             try (if (doesFileExist (skillsResultFilePath + ".html")) do deleteFile (skillsResultFilePath + ".html")) catch ()
+            try (if (doesFileExist (skillsResultFilePath + ".inputs")) do deleteFile (skillsResultFilePath + ".inputs")) catch ()
             skillsResultFilePath = ""
             refreshSkillsButtons()
-            if (not resultIsCurrent and skillsDialogIsOpen()) do startSkillsOperation "list"
+            if skillsPendingDeleteId != "" then (
+                local deleteId = skillsPendingDeleteId
+                skillsPendingDeleteId = ""
+                startSkillsOperation "delete" skillIdentifier: deleteId
+            ) else if (not resultIsCurrent and skillsDialogIsOpen() and skillsPendingReadId == "" and skillsSelectedId == "") do startSkillsOperation "list"
             if (showFolderPicker) do chooseSkillFolder()
             return true
         ),
 
+        fn loadSkillsCategorySetting = (
+            local storedCategory = ""
+            try (
+                if (uiStateFilePath != undefined and uiStateFilePath != "" and doesFileExist uiStateFilePath) do storedCategory = getINISetting uiStateFilePath "skills" "category"
+            ) catch ()
+            return (if storedCategory == "custom" then 2 else 1)
+        ),
+
+        fn persistSkillsCategorySetting = (
+            if (uiStateDirectory == undefined or uiStateDirectory == "") do return false
+            try (
+                if (not (doesDirectoryExist uiStateDirectory)) do makeDir uiStateDirectory
+                setINISetting uiStateFilePath "skills" "category" (if skillsDialog.rdoSource.state == 2 then "custom" else "builtin")
+                return true
+            ) catch (return false)
+        ),
+
         fn handleSkillsSourceChanged = (
+            persistSkillsCategorySetting()
             skillsViewRevision += 1
+            skillsPendingReadId = ""
+            skillsReadDeadline = undefined
             detachSkillDocumentEvents()
             skillsPreviewHistory = #()
             skillsHeaderLastScroll = 0
@@ -2464,8 +2540,11 @@ global MaxUltraMcpActiveClient
         fn handleSkillsSelection = (
             if (skillsRendering or not (skillsDialogIsOpen())) do return false
             refreshSkillsButtons()
-            if (skillsProcess != undefined or skillsDialog.lvSkills.SelectedItems.Count != 1) do return false
+            if (skillsPendingDeleteId != "" or (skillsProcess != undefined and skillsOperation != "read") or skillsDialog.lvSkills.SelectedItems.Count != 1) do return false
             skillsViewRevision += 1
+            detachSkillDocumentEvents()
+            skillsPendingReadId = ""
+            skillsReadDeadline = undefined
             skillsPreviewSource = ""
             skillsPreviewRevision = ""
             refreshSkillsButtons()
@@ -2482,7 +2561,17 @@ global MaxUltraMcpActiveClient
                     )
                 )
             )
-            return startSkillsOperation "read" skillIdentifier: selectedId
+            skillsPendingReadId = selectedId
+            skillsReadDeadline = (dotNetClass "System.DateTime").UtcNow.AddMilliseconds 180.0
+            MaxUltraMcpTheme.initialize()
+            local bg = MaxUltraMcpTheme.backgroundColor
+            local fg = MaxUltraMcpTheme.textColor
+            local bgCss = "rgb(" + (bg.R as string) + "," + (bg.G as string) + "," + (bg.B as string) + ")"
+            local fgCss = "rgb(" + (fg.R as string) + "," + (fg.G as string) + "," + (fg.B as string) + ")"
+            skillsDialog.wbSkillPreview.DocumentText = "<!doctype html><html><head><meta http-equiv='X-UA-Compatible' content='IE=edge'></head><body style='margin:0;padding:18px;font:14px Segoe UI;background:" + bgCss + ";color:" + fgCss + "'>Loading...</body></html>"
+            setSkillsStatus "Loading..."
+            refreshSkillsButtons()
+            return true
         ),
 
         fn restoreSkillPreviewScroll = (
@@ -2505,7 +2594,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn navigateSkillBack = (
-            if (skillsProcess != undefined or skillsPreviewHistory.count == 0 or skillsSelectedId == "") do return false
+            if (skillsProcess != undefined or skillsPendingReadId != "" or skillsPreviewHistory.count == 0 or skillsSelectedId == "") do return false
             local previousDocument = skillsPreviewHistory[skillsPreviewHistory.count]
             deleteItem skillsPreviewHistory skillsPreviewHistory.count
             skillsCurrentReference = previousDocument[1]
@@ -2546,7 +2635,7 @@ global MaxUltraMcpActiveClient
                 this.openSkillsHelp "SUBMIT_SKILL.html"
             ) else if (targetUri.Scheme == "http" or targetUri.Scheme == "https") then (
                 try (shellLaunch targetUri.AbsoluteUri "") catch (setSkillsStatus "Could not open the link in your browser.")
-            ) else if (targetUri.Scheme == "skill-ref" and skillsSelectedId != "" and skillsProcess == undefined) then (
+            ) else if (targetUri.Scheme == "skill-ref" and skillsSelectedId != "" and skillsProcess == undefined and skillsPendingReadId == "") then (
                 local relativeReference = (dotNetClass "System.Uri").UnescapeDataString (substring targetUri.OriginalString 11 (targetUri.OriginalString.count - 10))
                 local previousScroll = 0
                 try (
@@ -2573,10 +2662,10 @@ global MaxUltraMcpActiveClient
         fn previewSkillZip = (
             if (skillsProcess != undefined or not (skillsDialogIsOpen()) or skillsDialog.rdoSource.state != 2) do return false
             local picker = dotNetObject "System.Windows.Forms.OpenFileDialog"
-            picker.Title = "Select a skill ZIP containing SKILL.md"
+            picker.Title = "Select skill ZIPs containing SKILL.md"
             picker.Filter = "Skill ZIP archives (*.zip)|*.zip"
             picker.CheckFileExists = true
-            picker.Multiselect = false
+            picker.Multiselect = true
             picker.RestoreDirectory = true
             try (
                 local owner = dotNetObject "System.Windows.Forms.NativeWindow"
@@ -2585,12 +2674,12 @@ global MaxUltraMcpActiveClient
                 try (result = picker.ShowDialog owner) catch (owner.ReleaseHandle(); throw())
                 owner.ReleaseHandle()
                 if (result != (dotNetClass "System.Windows.Forms.DialogResult").OK) do (picker.Dispose(); return false)
-                skillsPreviewSource = picker.FileName
+                skillsPreviewSource = (dotNetClass "System.String").Join "\n" picker.FileNames
                 picker.Dispose()
                 skillsPreviewRevision = ""
                 skillsSelectedId = ""
                 skillsPreviewHistory = #()
-                return startSkillsOperation "preview-zip" sourceFolder: skillsPreviewSource
+                return startSkillsOperation "add-zips" sourceFolder: skillsPreviewSource
             ) catch (
                 try (picker.Dispose()) catch ()
                 setSkillsStatus ("ZIP picker error: " + (getCurrentException() as string))
@@ -2598,22 +2687,26 @@ global MaxUltraMcpActiveClient
             )
         ),
 
-        fn importPreviewedSkill = (
-            if (skillsPreviewRevision == "" or skillsPreviewSource == "" or not (skillsDialogIsOpen()) or skillsDialog.rdoSource.state != 2) do return false
-            local chosenClients = "codex,claude,antigravity"
-            local previewRevision = skillsPreviewRevision
-            skillsPreviewRevision = ""
-            local importAction = if (toLower (getFilenameType skillsPreviewSource) == ".zip" and doesFileExist skillsPreviewSource) then "import-zip" else "import"
-            return startSkillsOperation importAction sourceFolder: skillsPreviewSource revisionValue: previewRevision clientNames: chosenClients
-        ),
-
         fn deleteSelectedSkill = (
-            if (skillsProcess != undefined or not (skillsDialogIsOpen()) or skillsDialog.rdoSource.state != 2 or skillsDialog.lvSkills.SelectedItems.Count != 1) do return false
+            if (skillsPendingDeleteId != "" or (skillsProcess != undefined and skillsOperation != "read") or not (skillsDialogIsOpen()) or skillsDialog.rdoSource.state != 2 or skillsDialog.lvSkills.SelectedItems.Count != 1) do return false
             local chosenEntry = skillsDialog.lvSkills.SelectedItems.Item[0]
+            local deleteId = chosenEntry.Tag as string
+            if not (matchPattern deleteId pattern: "user/*") do return false
             local confirmText = "Delete \"" + chosenEntry.Text + "\"?\n\nDeletes the imported skill, all included files, and managed client adapters. Your original source folder is kept.\n\nFor an incomplete removal, this retries the remaining cleanup."
             if (not (queryBox confirmText title: "Delete custom skill")) do return false
+            skillsViewRevision += 1
+            skillsPendingReadId = ""
+            skillsReadDeadline = undefined
+            skillsSelectedId = ""
+            skillsPreviewHistory = #()
+            detachSkillDocumentEvents()
             skillsPreviewRevision = ""
-            return startSkillsOperation "delete" skillIdentifier: (chosenEntry.Tag as string)
+            if skillsProcess != undefined then (
+                skillsPendingDeleteId = deleteId
+                setSkillsStatus "Deleting selected skill..."
+                refreshSkillsButtons()
+                return true
+            ) else return startSkillsOperation "delete" skillIdentifier: deleteId
         ),
 
         fn copySkillCreationPrompt = (
@@ -2622,9 +2715,13 @@ global MaxUltraMcpActiveClient
                 local promptPath = (ensureSlash (getFilenamePath bootstrapFilePath)) + @"docs\SKILL_CREATION_PROMPT.md"
                 local promptContent = (dotNetClass "System.IO.File").ReadAllText promptPath
                 (dotNetClass "System.Windows.Forms.Clipboard").SetText promptContent
+                skillsDialog.btnCreationPrompt.Text = "Copied"
+                skillsCopyFeedbackUntil = (dotNetClass "System.DateTime").UtcNow.AddSeconds 2.0
                 setSkillsStatus "Copied. Paste into the conversation where the task was completed. No conversation was collected or sent."
                 return true
             ) catch (
+                skillsCopyFeedbackUntil = undefined
+                skillsDialog.btnCreationPrompt.Text = "Copy Skill Creation Prompt"
                 setSkillsStatus "Could not copy the creation prompt. Close applications holding the clipboard and retry."
                 return false
             )
@@ -2644,10 +2741,9 @@ global MaxUltraMcpActiveClient
             skillsDialog.wbSkillPreview.height = amax 60 (footerY - previewTop - 10)
             skillsDialog.btnImportFolder.pos = [12,footerY]
             skillsDialog.btnImportZip.pos = [140,footerY]
-            skillsDialog.btnApplyImport.pos = [248,footerY]
-            skillsDialog.btnDeleteSkill.pos = [416,footerY]
-            skillsDialog.btnCreationPrompt.pos = [512,footerY]
-            skillsDialog.btnCreationPrompt.width = skillsWindowWidth - 524
+            skillsDialog.btnDeleteSkill.pos = [248,footerY]
+            skillsDialog.btnCreationPrompt.pos = [344,footerY]
+            skillsDialog.btnCreationPrompt.width = skillsWindowWidth - 356
             skillsDialog.lblSkillPrivacy.pos = [12,footerY + 40]
             skillsDialog.lblSkillPrivacy.width = usableWidth
             skillsDialog.lblSkillsStatus.pos = [12,footerY + 64]
@@ -2660,12 +2756,26 @@ global MaxUltraMcpActiveClient
 
         fn configureSkillsDialog = (
             if (not (skillsDialogIsOpen())) do return false
+            skillsPendingReadId = ""
+            skillsReadDeadline = undefined
+            if not skillsCatalogLoaded do (
+                local categoryHandles = skillsDialog.rdoSource.hwnd
+                if categoryHandles.count >= 2 do (
+                    UIAccessor.SetWindowText categoryHandles[1] "Built-in (?)"
+                    UIAccessor.SetWindowText categoryHandles[2] "Custom (?)"
+                )
+            )
+            skillsDialog.rdoSource.state = loadSkillsCategorySetting()
+            skillsSelectedId = ""
+            skillsPreviewHistory = #()
+            skillsCurrentReference = "SKILL.md"
+            skillsScrollRestore = 0
+            if skillsWelcomeHtml != "" do skillsDialog.wbSkillPreview.DocumentText = skillsWelcomeHtml
             layoutSkillsDialog()
-            for buttonControl in #(skillsDialog.btnSkillsRefresh, skillsDialog.btnImportFolder, skillsDialog.btnImportZip, skillsDialog.btnApplyImport, skillsDialog.btnDeleteSkill, skillsDialog.btnCreationPrompt) do MaxUltraMcpUiKit.styleButton buttonControl
+            for buttonControl in #(skillsDialog.btnSkillsRefresh, skillsDialog.btnImportFolder, skillsDialog.btnImportZip, skillsDialog.btnDeleteSkill, skillsDialog.btnCreationPrompt) do MaxUltraMcpUiKit.styleButton buttonControl
             skillsDialog.btnSkillsRefresh.Text = "Refresh"
             skillsDialog.btnImportFolder.Text = "Import Folder"
-            skillsDialog.btnImportZip.Text = "Import ZIP"
-            skillsDialog.btnApplyImport.Text = "Add Skill"
+            skillsDialog.btnImportZip.Text = "Import ZIPs"
             skillsDialog.btnDeleteSkill.Text = "Delete"
             skillsDialog.btnCreationPrompt.Text = "Copy Skill Creation Prompt"
             MaxUltraMcpUiKit.styleButton skillsDialog.btnSkillManual
@@ -2713,6 +2823,9 @@ global MaxUltraMcpActiveClient
 
         fn handleSkillsDialogClosed = (
             skillsViewRevision += 1
+            skillsPendingReadId = ""
+            skillsReadDeadline = undefined
+            skillsCopyFeedbackUntil = undefined
             if skillsHeaderTimer != undefined do (
                 skillsHeaderTimer.Stop()
                 dotNet.removeEventHandler skillsHeaderTimer "Tick" handleSkillHeaderTick
