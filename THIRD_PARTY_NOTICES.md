@@ -1,5 +1,7 @@
 # Third-party notices
 
+Architectural workflow contributions supplied by Anastasiia Reznichenko are acknowledged in the packaged skill's [attribution and source terms](skills/max-ultra-small-house-detailing/ATTRIBUTION.md). That notice records the source collection's unspecified licensing status; it does not grant a license to the original materials. Original lesson PDFs, photographs, screenshots, and project records are not bundled.
+
 The following source-controlled MaxPkg release-tooling files are synchronized from [maxpkg-dev/max-dev-tool](https://github.com/maxpkg-dev/max-dev-tool) revision `4412adcf06b1f62b27fc42fc7a252a4a96b95402`:
 
 - `maxpkg-packager.ms`

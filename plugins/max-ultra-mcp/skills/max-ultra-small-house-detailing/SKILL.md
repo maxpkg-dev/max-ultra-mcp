@@ -1,11 +1,13 @@
 ---
 name: max-ultra-small-house-detailing
-description: Create or refine barnhouse and small-house architectural 3D scenes in Autodesk 3ds Max through Max Ultra MCP, from plans, dimensions, and references to editable roofs, facades, and furnishings. Use for a complete house workflow or architectural detailing; use max-ultra-floor-plan for floor-plan-only requests. Does not produce construction documentation.
+description: Create or refine houses and interior architectural assemblies in Autodesk 3ds Max through Max Ultra MCP. Use for roofs, facades, fitted furnishings, floor finishes, ceilings, windows, doors, moldings, and ornament placement from plans or references, including individual details in apartments and other interiors. Use max-ultra-floor-plan for wall-shell and opening-layout construction. Does not produce construction documentation.
 ---
 
-# Max Ultra Small House Architectural Workflow
+# Max Ultra House and Interior Architectural Detailing
 
 Start from a supplied plan, dimensions, and visual references, or continue an existing house scene, to create coherent, editable architectural assemblies. For a new house, establish the dimensional shell through the floor-plan skill before adding roofs, facades, and requested furnishings. This is architectural 3D modeling, not construction documentation or engineering certification. This workflow adapts architectural skills supplied by Yuriy Bobak (Bobak Studio). The supplied notes describe one 3ds Max 2027 / Corona 15 Hotfix 2 session; they are evidence for checks to perform, not universal plugin behavior or building specifications. Scene coordinates, asset choices, dimensions, and render presets from that session are intentionally excluded.
+
+The same assembly checks apply to an apartment, another interior, or a single requested detail; they do not require building a complete house. Additional workflow contributions supplied by Anastasiia Reznichenko inform the floor, opening, trim, and UV references; see [attribution and source terms](ATTRIBUTION.md). Use the current brief and scene, not the source projects' dimensions, layer numbering, renderer, or approval history.
 
 ## Establish scope and geometry
 
@@ -14,6 +16,8 @@ Start from a supplied plan, dimensions, and visual references, or continue an ex
 3. Establish facade directions, ridge direction, entry, glazing, room boundaries, and reference scale. Separate measured dimensions from inferred ones. Ask about unresolved critical dimensions before dependent construction; continue independent work within the request.
 4. For discrepancies, compare a top view with an interior or exterior view. Check wall ends, opening returns, furniture bounds, and camera orientation together before moving architecture to match an imported asset.
 5. Preserve useful existing parts and sources. Create separate, named assemblies for the requested walls, glazing, roof, timber, drainage, furnishings, or site elements. A complete house need not be one subdivision mesh. Use the general skill's validated polygon workflow for custom mesh topology and [max-ultra-spline-modeling](../max-ultra-spline-modeling/SKILL.md) for editable profiles.
+
+Record the finished-floor datum, relevant ceiling/opening levels, and which dimensions are measured, derived, or estimated. Convert physical values into current scene units; neither millimeters nor world Z=0 is a mandatory scene convention. Resolve missing dimensions that determine fit before dependent construction, while continuing independent authorized work. Reuse the scene's organization and preserve approved neighboring geometry and shared sources. Respect requested review boundaries; a complete authorized workflow does not require a new approval after each internal step.
 
 ## Editable architectural details
 
@@ -25,6 +29,9 @@ Start from a supplied plan, dimensions, and visual references, or continue an ex
 
 ## Read detail only when needed
 
+- For finish patterns, thresholds, backing slabs, or ceiling cutouts, read [references/floors-and-ceilings.md](references/floors-and-ceilings.md).
+- For window/door assemblies, reveals, casings, sills, or plinth junctions, read [references/openings-and-joinery.md](references/openings-and-joinery.md).
+- For cornices, baseboards, swept profiles, or repeated ornament, read [references/trim-and-ornaments.md](references/trim-and-ornaments.md).
 - For timber UVs, materials, glass, or shading that persists after geometry checks, read [references/materials-and-review.md](references/materials-and-review.md).
 - For Cosmos assets, fitted furniture, conversion failures, or saving/exporting the result, read [references/assets-and-delivery.md](references/assets-and-delivery.md).
 - For camera creation or repair, use [max-ultra-camera-composition](../max-ultra-camera-composition/SKILL.md), including its camera-basis check. For renderer configuration or lighting-specific properties, use [max-ultra-renderer-settings](../max-ultra-renderer-settings/SKILL.md); discover light classes/properties as well as renderer properties before editing them.

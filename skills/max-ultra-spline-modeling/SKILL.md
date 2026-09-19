@@ -1,6 +1,6 @@
 ---
 name: max-ultra-spline-modeling
-description: Create and edit open or closed SplineShape curves in an already-open Autodesk 3ds Max scene through Max Ultra MCP. Use for paths, outlines, profiles, bezier curves, logos, and source shapes for Extrude or Sweep. Use max-ultra-floor-plan for dimensional architectural plans and max-ultra-mcp polygon guidance for mesh-only topology.
+description: Create and edit open or closed SplineShape curves in an already-open Autodesk 3ds Max scene through Max Ultra MCP. Use for paths, outlines, profiles, bezier curves, logos, and source shapes for Extrude or Sweep. Use max-ultra-floor-plan for wall-shell plans, max-ultra-small-house-detailing for architectural assembly design, and max-ultra-mcp polygon guidance for mesh-only topology.
 ---
 
 # Max Ultra Spline Modeling
@@ -52,9 +52,8 @@ This invariant also applies when a spline is reconstructed from a reference imag
 
 ## Boundaries
 
-- Do not route architectural wall, door, window, and floor construction through this generic skill; use `max-ultra-floor-plan`.
+- Use [max-ultra-floor-plan](../max-ultra-floor-plan/SKILL.md) for dimensional wall shells and opening layouts. Use [max-ultra-small-house-detailing](../max-ultra-small-house-detailing/SKILL.md) for floor finishes, window/door assemblies, and trim junctions; this spline skill supplies their curve mechanics, not their architectural design decisions.
 - Do not collapse a source spline merely to make viewport verification easier.
 - Do not add rendering thickness, Extrude, Sweep, interpolation changes, or normalization unless the request requires them.
 - Do not use UI Automation for ordinary spline construction or sub-object edits.
 - Do not save the scene unless the user explicitly requests it.
-

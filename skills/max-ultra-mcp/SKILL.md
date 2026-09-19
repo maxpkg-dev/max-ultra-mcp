@@ -11,7 +11,7 @@ Use the semantic MCP surface to produce a verified result in the selected 3ds Ma
 
 For reference-driven chairs and armchairs, use `max-ultra-armchair-modeling` as the specialized modeling workflow. For other reference-driven characters, creatures, products, or props, use `max-ultra-character-object-modeling`. For spline paths, profiles, and source shapes, use `max-ultra-spline-modeling`. For dimensional architectural floor plans, use `max-ultra-floor-plan` so its stricter wall-source preservation workflow is loaded.
 
-For creating a barnhouse or small-house architectural scene from plans, dimensions, and references, or adding roofs, timber cladding, architectural details, or fitted furnishings, use [max-ultra-small-house-detailing](../max-ultra-small-house-detailing/SKILL.md). Keep wall and opening construction in the floor-plan workflow.
+For houses or interior architectural assemblies, including apartment floor finishes, ceilings, windows, doors, moldings, repeated ornament, roofs, cladding, and fitted furnishings, use [max-ultra-small-house-detailing](../max-ultra-small-house-detailing/SKILL.md) and its relevant conditional reference. Keep wall-shell and opening-layout construction in the floor-plan workflow. An architectural assembly with separate moving parts is not the single-subject subdivision workflow.
 
 ## Operating workflow
 

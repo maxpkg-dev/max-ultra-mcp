@@ -14,6 +14,16 @@ If the audit fails or times out, do not repeat it indefinitely or call it comple
 - Randomize subtly per board, object, or coherent element with stable variation, using inspected map capabilities. Per-triangle randomization can expose diagonal shading on an otherwise flat board.
 - Separate concave contact dirt from edge wear. Avoid outlining every board in black or using strong bump to disguise poor joints.
 
+## Mapping after fitting
+
+Recheck physical texture scale and direction after changing board length, panel width, reveal depth, profile relief, or a Sweep path. Align longitudinal grain to each member and choose seams for curved hardware deliberately; an existing Unwrap modifier or generated-mapping checkbox is not evidence of correct UVs.
+
+Inspect the intended map channel, material IDs, valid texture-vertex references, and nonzero UV area on nondegenerate visible faces. Check both the source and evaluated stack where modifiers alter the result. Distinguish a degenerate geometry triangle from an otherwise valid surface with collapsed mapping, and report geometry defects rather than silently remodeling approved work during a UV-only task.
+
+For UV-only changes, record and compare vertex positions, topology, transforms, and material assignments before and after. Preserve geometry and user edits. Tiling finishes may use UVs outside 0-1; a unique bake atlas has different requirements. Use the requested mapping convention rather than a fixed millimeters-per-UV-unit value.
+
+A temporary directional checker can expose stretching and orientation errors; restore the intended material afterward. Without the actual finish bitmap, report physical calibration and channel checks only. Do not claim the final wood grain or brushed-metal appearance has been verified.
+
 ## Glass and lighting review
 
 Inspect duplicated panes, intersections, thickness, normals, roughness/bump, absorption, and interface count before attributing noise to exposure. Preserve the requested reflective and transparent appearance. Material opacity cannot repair a missing wall; removing refraction is not a reliable way to transmit light.
