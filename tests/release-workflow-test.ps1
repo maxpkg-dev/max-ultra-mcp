@@ -53,6 +53,13 @@ try {
     Assert-ReleaseTest $invalidVersionRejected 'Incomplete versions must be rejected.'
 
     $projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath (Join-Path $projectRoot 'version.ini')
+    $notesFixture = Join-Path $temporaryRoot 'CHANGELOG.md'
+    [IO.File]::WriteAllText($notesFixture, "# Changelog`n`n## Unreleased`n`n- Added: Future work.`n`n## 1.4.0 - 2026-09-19`n`n- Added: Skills.`n- Fixed: Setup layout.`n`n## 1.3.4 - 2026-09-15`n`n- Fixed: Previous work.`n")
+    $releaseNotes = Get-MaxUltraReleaseNotes -ChangelogPath $notesFixture -Version '1.4.0'
+    Assert-ReleaseTest ($releaseNotes -eq "- Added: Skills.`n- Fixed: Setup layout.") 'Release notes must include the full selected section only.'
+    $missingNotesRejected = $false
+    try { Get-MaxUltraReleaseNotes -ChangelogPath $notesFixture -Version '1.5.0' | Out-Null } catch { $missingNotesRejected = $true }
+    Assert-ReleaseTest $missingNotesRejected 'Missing version notes must block publication.'
     Assert-ReleaseTest ($projectVersion.Version -match '^\d+\.\d+\.\d+$') 'version.ini project metadata was not parsed.'
     Assert-ReleaseTest ($projectVersion.Channel -in @('stable', 'beta')) 'Supported project channel was not accepted.'
 

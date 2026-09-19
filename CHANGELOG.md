@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 1.4.0 - 2026-09-19
+
+- Added: Skills manager for browsing built-in workflows and importing instruction-only custom skill folders or multiple ZIPs, with independent validation and a persistent success/error report for each import.
+- Added: Durable custom-skill storage and discovery adapters for Codex, Claude Code, and Antigravity; deleting a custom skill removes its owned copy and client entries while preserving the original source.
+- Added: Offline max_skills_list and max_skill_read tools expose skill instructions, paged references, and image assets without requiring a connected 3ds Max instance.
+- Added: Copy Skill Creation Prompt, local creation/import documentation, and a submission guide with explicit copy feedback help turn a successful AI conversation into a reusable skill.
+- Improved: Skills previews support reference navigation with Back and scroll restoration, passive themed Markdown and images, readable compact badges, and layouts sized to the display work area.
+- Improved: Skills selection responds to rapid changes without showing stale results; built-in/custom categories show counts and retain the selected category between openings.
+- Improved: Architectural detailing workflows cover floors, ceilings, openings, joinery, molding, and ornaments, with attributed source terms and synchronized client skill adapters.
+- Added: Automatic Antigravity 2.x detection and MCP setup using backed-up, verified settings updates that preserve other servers; repeated setup is idempotent and malformed or concurrently changed settings are rejected.
+- Improved: AI Client Setup uses individual Codex, Claude Code, and Antigravity logo buttons with clear availability, progress, configuration, and error statuses; repeated or conflicting installation actions are guarded.
+- Fixed: Setup centers each logo/name pair with spacing and a lower vertical position, shows all manual STDIO values above Copy, and adjusts window height without overlapping controls.
+- Changed: Manual / Other STDIO clients starts collapsed on every fresh Setup opening; Refresh status, Test prompt, Donate, and manual copying remain available.
+- Improved: GitHub release notes include the complete reviewed changelog for the published version.
+
 ## 1.3.4 - 2026-09-15
 
 - Changed: Automatic update checks run on bridge starts 1, 4, 7 and so on within each Max session; manual checks remain immediate.

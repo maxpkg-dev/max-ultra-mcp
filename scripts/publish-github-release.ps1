@@ -116,6 +116,7 @@ if ([string]$packageData.version -ne $projectVersion) {
     throw 'core\package.json does not match version.ini. Run scripts\prepare-release.ps1.'
 }
 $releaseTag = "v$projectVersion"
+$releaseNotes = Get-MaxUltraReleaseNotes -ChangelogPath (Join-Path $projectRoot 'CHANGELOG.md') -Version $projectVersion
 
 $allMzpFiles = if (Test-Path -LiteralPath $distDirectory -PathType Container) {
     @(Get-ChildItem -LiteralPath $distDirectory -Recurse -File -Filter '*.mzp')
@@ -227,14 +228,21 @@ if (-not $Yes) {
     }
 }
 
-& $ghCommand.Source release create $releaseTag $releasePackage.FullName $checksumPath `
-    --repo $expectedRepository `
-    --target $headCommit `
-    --title "Max Ultra MCP $projectVersion" `
-    --generate-notes `
-    --latest
-if ($LASTEXITCODE -ne 0) {
-    throw 'GitHub CLI failed to create the release.'
+$releaseNotesPath = [IO.Path]::GetTempFileName()
+try {
+    [IO.File]::WriteAllText($releaseNotesPath, ($releaseNotes + "`n"), (New-Object Text.UTF8Encoding($false)))
+    & $ghCommand.Source release create $releaseTag $releasePackage.FullName $checksumPath `
+        --repo $expectedRepository `
+        --target $headCommit `
+        --title "Max Ultra MCP $projectVersion" `
+        --notes-file $releaseNotesPath `
+        --generate-notes `
+        --latest
+    if ($LASTEXITCODE -ne 0) {
+        throw 'GitHub CLI failed to create the release.'
+    }
+} finally {
+    Remove-Item -LiteralPath $releaseNotesPath -ErrorAction SilentlyContinue
 }
 $publishedJson = Invoke-ReleaseCommand -Executable $ghCommand.Source -Arguments @(
     'release', 'view', $releaseTag, '--repo', $expectedRepository, '--json', 'url,assets'

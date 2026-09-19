@@ -744,7 +744,7 @@ async function runSmokeTest() {
     const dotNetButtonNames = [
       "btnAiStatus", "btnRefreshAgents", "btnHide",
       "btnReconnect", "btnStop", "btnSettings", "btnDonate", "btnCheckUpdates", "btnAgentSetup", "btnAboutDonate",
-      "btnInstallAgents", "btnCopyManual", "btnCopyTestPrompt",
+      "btnOpenAI", "btnClaudeCode", "btnAntigravity", "btnManualToggle", "btnCopyManual", "btnCopyTestPrompt",
     ];
     for (const buttonName of dotNetButtonNames) {
       assert.match(bootstrapSource, new RegExp(`dotNetControl ${buttonName} "System\\.Windows\\.Forms\\.Button"`));
@@ -845,8 +845,10 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingSetupDialog ""/);
     assert.match(bootstrapSource, /rollout MaxUltraMcpOnboardingTestDialog ""/);
     assert.match(bootstrapSource, /dotNetControl dncPages "System\.Windows\.Forms\.TabControl"/);
-    assert.match(bootstrapSource, /checkbox chkOpenAI "ChatGPT Desktop \/ Codex"/);
-    assert.match(bootstrapSource, /checkbox chkClaudeCode "Claude Code"/);
+    assert.doesNotMatch(bootstrapSource, /checkbox chk(?:OpenAI|ClaudeCode|Antigravity)|btnInstallAgents|installSelectedAgentIntegrations/);
+    for (const [button, client] of [["btnOpenAI", "openai"], ["btnClaudeCode", "claudeCode"], ["btnAntigravity", "antigravity"]]) {
+      assert.match(bootstrapSource, new RegExp(`on ${button} Click[^\\n]+installAgentIntegration "${client}"`));
+    }
     assert.match(bootstrapSource, /onboardingTestDialog\.btnCopyTestPrompt\.Text = "Copy test prompt"/);
     assert.match(bootstrapSource, /dotNetControl txtTestPrompt "System\.Windows\.Forms\.TextBox"/);
     assert.match(bootstrapSource, /txtTestPrompt\.Text = onboardingTestPromptText\(\)/);
@@ -857,14 +859,27 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /removeRollout onboardingSetupDialog onboardingFloater/);
     assert.doesNotMatch(bootstrapSource, /btnSetupPage|btnTestPage|txtTestPrompt\.Visible|txtTestPrompt\.BringToFront/);
     assert.match(bootstrapSource, /local rolloutBackground = MaxUltraMcpTheme\.backgroundColor/);
-    assert.match(bootstrapSource, /lblOpenAIStatus\.BackColor = rolloutBackground/);
+    assert.match(bootstrapSource, /styleLabel statusLabel backgroundValue: rolloutBackground/);
     assert.match(bootstrapSource, /clipboardFeedbackButton\.text = "Copied"/);
     assert.match(bootstrapSource, /clipboardFeedbackTimer\.Interval = 1600/);
     assert.match(bootstrapSource, /fn onboardingTestPromptText/);
     assert.match(bootstrapSource, /Call max_health and max_scene_summary/);
     assert.match(bootstrapSource, /Do not run arbitrary MaxScript, change the scene, start a render, or save any file/);
     assert.match(bootstrapSource, /restart or reconnect this AI client so it reloads the MCP host/);
-    assert.match(bootstrapSource, /onboardingSetupDialog\.btnInstallAgents\.Text = "Install selected"/);
+    assert.match(bootstrapSource, /fn onboardingCardPresentation/);
+    assert.match(bootstrapSource, /on MaxUltraMcpOnboardingSetupDialog close[^\n]+releaseOnboardingLogos/);
+    for (const logoName of ["codex", "claude", "antigravity"]) {
+      const logoBytes = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "client-logos", logoName + ".png"));
+      assert.equal(logoBytes.subarray(1, 4).toString(), "PNG");
+      assert.equal(logoBytes.readUInt32BE(16), 48);
+      assert.equal(logoBytes.readUInt32BE(20), 48);
+      for (let offset = 8; offset < logoBytes.length;) {
+        const length = logoBytes.readUInt32BE(offset);
+        const chunk = logoBytes.subarray(offset + 4, offset + 8).toString();
+        assert.ok(!["tEXt", "iTXt", "zTXt", "eXIf"].includes(chunk), "Client logos must not carry identifying metadata");
+        offset += length + 12;
+      }
+    }
     assert.match(bootstrapSource, /onboardingSetupDialog\.btnCopyManual\.Text = "Copy manual setup"/);
     assert.match(bootstrapSource, /setINISetting uiStateFilePath "onboarding" "dismissed"/);
     assert.match(bootstrapSource, /fn beginAutomaticOnboardingCheck/);
@@ -883,7 +898,7 @@ async function runSmokeTest() {
     const manualAgentRefreshBody = sourceSection(
       bootstrapSource,
       "fn refreshAgentIntegrationStatus",
-      "fn installSelectedAgentIntegrations",
+      "fn installAgentIntegration",
       "manual AI readiness refresh",
     );
     assert.match(manualAgentRefreshBody, /integrationAutomaticCheckPending = false[\s\S]*integrationAutomaticCheckDueAt = undefined[\s\S]*startIntegrationOperation #status automaticCheck: false/);

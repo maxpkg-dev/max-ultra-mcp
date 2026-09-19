@@ -12,6 +12,9 @@ assets/icons/refresh-cw.png
 assets/icons/settings.png
 assets/icons/skills.png
 assets/icons/LUCIDE-LICENSE.txt
+assets/client-logos/codex.png
+assets/client-logos/claude.png
+assets/client-logos/antigravity.png
 core/skill-store.js
 core/skill-zip.js
 core/skills-cli.js

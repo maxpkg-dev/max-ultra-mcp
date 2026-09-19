@@ -30,6 +30,20 @@ function Get-MaxUltraMzpInfo {
     }
 }
 
+function Get-MaxUltraReleaseNotes {
+    param(
+        [Parameter(Mandatory = $true)][string]$ChangelogPath,
+        [Parameter(Mandatory = $true)][string]$Version
+    )
+    $releaseVersion = (ConvertTo-MaxUltraReleaseVersion -Text $Version).Text
+    $content = [IO.File]::ReadAllText($ChangelogPath)
+    $releaseSection = [regex]::Match($content, "(?ms)^## $([regex]::Escape($releaseVersion)) - [0-9]{4}-[0-9]{2}-[0-9]{2}\s*\r?\n(?<body>.*?)(?=^## |\z)")
+    if (-not $releaseSection.Success -or [string]::IsNullOrWhiteSpace($releaseSection.Groups['body'].Value)) {
+        throw "CHANGELOG.md has no release notes for $releaseVersion."
+    }
+    return $releaseSection.Groups['body'].Value.Trim()
+}
+
 function Get-MaxUltraMzpPackages {
     param(
         [Parameter(Mandatory = $true)]
