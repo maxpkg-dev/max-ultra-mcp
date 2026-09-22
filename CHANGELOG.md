@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.4.2 - 2026-09-22
+
 - Fixed: Skills previews use the existing timer for header scrolling and Back-link focus instead of HtmlWindow event subscriptions that can fail in 3ds Max 2027.
 
 ## 1.4.1 - 2026-09-22
