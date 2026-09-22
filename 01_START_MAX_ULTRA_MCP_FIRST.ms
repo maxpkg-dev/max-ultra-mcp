@@ -535,8 +535,6 @@ global MaxUltraMcpActiveClient
         skillsScrollRestore = 0,
         skillsHeaderLastScroll = 0,
         skillsHeaderHidden = false,
-        skillsScrollWindow = undefined,
-        skillsBackElement = undefined,
         skillsHeaderTimer = undefined,
         skillsCopyFeedbackUntil = undefined,
         skillsCatalogLoaded = false,
@@ -2363,7 +2361,6 @@ global MaxUltraMcpActiveClient
                     skillsViewRevision += 1
                     skillsPendingReadId = ""
                     skillsReadDeadline = undefined
-                    this.detachSkillDocumentEvents()
                     skillsSelectedId = ""
                     skillsPreviewHistory = #()
                     skillsCurrentReference = "SKILL.md"
@@ -2413,31 +2410,23 @@ global MaxUltraMcpActiveClient
             local roots = document.GetElementsByTagName "html"
             if roots.Count == 0 do return false
             local currentScroll = roots.Item[0].ScrollTop
+            -- Poll focus with scrolling; HtmlWindow event wrappers are unreliable in Max 2027.
+            local backLinkFocused = false
+            try (
+                local focusedElement = document.ActiveElement
+                if (focusedElement != undefined) do backLinkFocused = focusedElement.Id == "skill-back"
+            ) catch ()
+            if (backLinkFocused) do (
+                header.Style = "top:0"
+                skillsHeaderHidden = false
+                skillsHeaderLastScroll = currentScroll
+                return true
+            )
             if (currentScroll <= 0 or currentScroll < skillsHeaderLastScroll) then (
                 skillsHeaderHidden = false
             ) else if (currentScroll > skillsHeaderLastScroll) do skillsHeaderHidden = true
             header.Style = if skillsHeaderHidden then "top:-43px" else "top:0"
             skillsHeaderLastScroll = currentScroll
-            return true
-        ),
-
-        fn handleSkillDocumentScroll sender eventArgs = (
-            try (this.updateSkillHeaderScroll()) catch (setSkillsStatus ("Preview header error: " + (getCurrentException() as string)))
-        ),
-
-        fn handleSkillBackFocus sender eventArgs = (
-            if (not (skillsDialogIsOpen())) do return false
-            local header = skillsDialog.wbSkillPreview.Document.GetElementById "skill-header"
-            if header != undefined do header.Style = "top:0"
-            skillsHeaderHidden = false
-            return true
-        ),
-
-        fn detachSkillDocumentEvents = (
-            if skillsScrollWindow != undefined do dotNet.removeEventHandler skillsScrollWindow "Scroll" this.handleSkillDocumentScroll
-            if skillsBackElement != undefined do dotNet.removeEventHandler skillsBackElement "GotFocus" this.handleSkillBackFocus
-            skillsScrollWindow = undefined
-            skillsBackElement = undefined
             return true
         ),
 
@@ -2530,7 +2519,6 @@ global MaxUltraMcpActiveClient
             skillsViewRevision += 1
             skillsPendingReadId = ""
             skillsReadDeadline = undefined
-            detachSkillDocumentEvents()
             skillsPreviewHistory = #()
             skillsHeaderLastScroll = 0
             skillsHeaderHidden = false
@@ -2551,7 +2539,6 @@ global MaxUltraMcpActiveClient
             refreshSkillsButtons()
             if (skillsPendingDeleteId != "" or (skillsProcess != undefined and skillsOperation != "read") or skillsDialog.lvSkills.SelectedItems.Count != 1) do return false
             skillsViewRevision += 1
-            detachSkillDocumentEvents()
             skillsPendingReadId = ""
             skillsReadDeadline = undefined
             skillsPreviewSource = ""
@@ -2585,21 +2572,23 @@ global MaxUltraMcpActiveClient
 
         fn restoreSkillPreviewScroll = (
             if (not (skillsDialogIsOpen())) do return false
-            detachSkillDocumentEvents()
-            try (skillsDialog.wbSkillPreview.Document.Window.ScrollTo 0 skillsScrollRestore) catch ()
-            skillsHeaderLastScroll = skillsScrollRestore
-            skillsHeaderHidden = false
-            skillsScrollRestore = 0
-            refreshSkillBackLink()
-            updateSkillHeaderScroll()
-            local document = skillsDialog.wbSkillPreview.Document
-            if document != undefined do (
-                skillsScrollWindow = document.Window
-                dotNet.addEventHandler skillsScrollWindow "Scroll" handleSkillDocumentScroll
-                skillsBackElement = document.GetElementById "skill-back"
-                if skillsBackElement != undefined do dotNet.addEventHandler skillsBackElement "GotFocus" handleSkillBackFocus
+            try (
+                local previewDocument = skillsDialog.wbSkillPreview.Document
+                if (previewDocument == undefined) do return false
+                local previewRoots = previewDocument.GetElementsByTagName "html"
+                if (previewRoots.Count == 0) do return false
+                -- Restore the same root element read by the existing header timer.
+                previewRoots.Item[0].ScrollTop = skillsScrollRestore
+                skillsHeaderLastScroll = previewRoots.Item[0].ScrollTop
+                skillsHeaderHidden = false
+                skillsScrollRestore = 0
+                refreshSkillBackLink()
+                updateSkillHeaderScroll()
+                return true
+            ) catch (
+                setSkillsStatus ("Preview restore error: " + (getCurrentException() as string))
+                return false
             )
-            return true
         ),
 
         fn navigateSkillBack = (
@@ -2708,7 +2697,6 @@ global MaxUltraMcpActiveClient
             skillsReadDeadline = undefined
             skillsSelectedId = ""
             skillsPreviewHistory = #()
-            detachSkillDocumentEvents()
             skillsPreviewRevision = ""
             if skillsProcess != undefined then (
                 skillsPendingDeleteId = deleteId
@@ -2841,7 +2829,6 @@ global MaxUltraMcpActiveClient
                 skillsHeaderTimer.Dispose()
                 skillsHeaderTimer = undefined
             )
-            detachSkillDocumentEvents()
             skillsPreviewSource = ""
             skillsPreviewRevision = ""
             skillsPreviewHistory = #()

@@ -1242,7 +1242,10 @@ async function runSmokeTest() {
     // MAXScript resolves bare forward method references as undefined; use the struct receiver.
     assert.match(bootstrapSource, /this\.openSkillsHelp "CUSTOM_SKILLS\.html"/);
     assert.match(bootstrapSource, /this\.openSkillsHelp "SUBMIT_SKILL\.html"/);
-    assert.match(bootstrapSource, /fn handleSkillDocumentScroll[\s\S]*?this\.updateSkillHeaderScroll\(\)/);
+    // Preview navigation must not bind HtmlWindow/DOM events that fail in Max 2027.
+    assert.doesNotMatch(bootstrapSource, /skillsScrollWindow|skillsBackElement|detachSkillDocumentEvents/);
+    const restorePreviewBody = sourceSection(bootstrapSource, "fn restoreSkillPreviewScroll", "fn navigateSkillBack", "Skills scroll restoration");
+    assert.doesNotMatch(restorePreviewBody, /\.Window\b|dotNet\.addEventHandler/);
     assert.match(bootstrapSource, /FromArgb 110 205 235/);
     assert.match(bootstrapSource, /FromArgb 20 90 145/);
     const badgeBackgroundColorBody = sourceSection(bootstrapSource, "fn activityEntryBadgeBackgroundColor", "fn activityEntryBadgeTextColor", "activity status badge background");
