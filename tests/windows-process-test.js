@@ -79,6 +79,24 @@ if (process.platform === "win32") {
     });
     assert.ok(resolved.includes("RESOLVED:" + fakeExe));
     assert.equal(resolveWindowsPowerShell({ env: { SystemRoot: fakeWindowsRoot }, arch: "x64" }), fakeExe);
+    const fakeSysnativeExe = path.join(fakeWindowsRoot, "Sysnative", "WindowsPowerShell", "v1.0", "powershell.exe");
+    fs.mkdirSync(path.dirname(fakeSysnativeExe), { recursive: true });
+    fs.writeFileSync(fakeSysnativeExe, "native resolver fixture only");
+    const probeResolver = (environment = {}) => spawnSync(cmd, ["/d", "/c", "probe.bat"], {
+      cwd: fixture, env: { ...process.env, PATH: "", SystemRoot: fakeWindowsRoot, windir: fakeWindowsRoot, ...environment },
+      windowsHide: true, encoding: "utf8", timeout: 30000,
+    });
+    const preferredNative = probeResolver();
+    assert.equal(preferredNative.status, 0);
+    assert.ok(preferredNative.stdout.includes("RESOLVED:" + fakeSysnativeExe));
+    fs.unlinkSync(fakeSysnativeExe);
+    fs.mkdirSync(fakeSysnativeExe);
+    const directoryNative = probeResolver();
+    assert.equal(directoryNative.status, 0, "a Sysnative directory named powershell.exe must fall back to the System32 file");
+    assert.ok(directoryNative.stdout.includes("RESOLVED:" + fakeExe));
+    const alternateRoot = probeResolver({ SystemRoot: path.join(fixture, "missing") });
+    assert.equal(alternateRoot.status, 0);
+    assert.ok(alternateRoot.stdout.includes("RESOLVED:" + fakeExe), "windir must remain a valid fallback");
     fs.unlinkSync(fakeExe);
     fs.mkdirSync(fakeExe);
     assert.throws(() => resolveWindowsPowerShell({ env: { SystemRoot: fakeWindowsRoot }, arch: "x64" }), { code: "POWERSHELL_NOT_FOUND" });

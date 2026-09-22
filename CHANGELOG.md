@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4.1 - 2026-09-22
+
+- Fixed: Windows PowerShell discovery checks executable file attributes instead of a trailing-slash directory probe, preserving native system-path selection and rejecting directories named powershell.exe.
+
 ## 1.4.0 - 2026-09-19
 
 - Added: Skills manager for browsing built-in workflows and importing instruction-only custom skill folders or multiple ZIPs, with independent validation and a persistent success/error report for each import.
