@@ -569,7 +569,6 @@ global MaxUltraMcpActiveClient
         restoreBubbleSurface,
         restoreBubbleLabel,
         restoreBubbleButton,
-        restoreBubbleDonate,
         restoreBubbleDragging = false,
         restoreBubbleDragOffset,
         restoreBubbleCloseAllowed = false,
@@ -3647,9 +3646,6 @@ global MaxUltraMcpActiveClient
         ),
 
         fn disposeRestoreBubble = (
-            try (if (restoreBubbleDonate != undefined) do dotNet.removeAllEventHandlers restoreBubbleDonate) catch ()
-            try (if (restoreBubbleDonate != undefined) do restoreBubbleDonate.Dispose()) catch ()
-            restoreBubbleDonate = undefined
             local bubbleSurfaceToDispose = restoreBubbleSurface
             local bubbleLabelToDispose = restoreBubbleLabel
             local bubbleButtonToDispose = restoreBubbleButton
@@ -3759,11 +3755,6 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn handleDonateClick donateSender eventArgs = (
-            try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
-            return true
-        ),
-
         fn showRestoreBubble = (
             if (isDisposed) do return false
             if (restoreBubbleForm != undefined) do (
@@ -3801,19 +3792,13 @@ global MaxUltraMcpActiveClient
                 restoreBubbleSurface.AccessibleName = "Max Ultra MCP restore mini-panel surface inside a one-pixel theme outline"
                 restoreBubbleLabel.Text = "Max Ultra MCP"
                 restoreBubbleLabel.Location = dotNetObject "System.Drawing.Point" 7 4
-                restoreBubbleLabel.Size = dotNetObject "System.Drawing.Size" 140 18
+                restoreBubbleLabel.Size = dotNetObject "System.Drawing.Size" 220 18
                 restoreBubbleLabel.BackColor = restoreBubbleSurface.BackColor
                 restoreBubbleLabel.ForeColor = MaxUltraMcpTheme.textColor
                 restoreBubbleLabel.AutoSize = false
                 restoreBubbleLabel.UseCompatibleTextRendering = false
                 MaxUltraMcpUiKit.applyIndependentBoldFont restoreBubbleLabel
                 restoreBubbleLabel.TabStop = false
-                restoreBubbleDonate = dotNetObject "System.Windows.Forms.Button"
-                restoreBubbleDonate.Location = dotNetObject "System.Drawing.Point" 152 2
-                restoreBubbleDonate.Size = dotNetObject "System.Drawing.Size" 76 20
-                configureDonateButton restoreBubbleDonate
-                dotNet.addEventHandler restoreBubbleDonate "Click" handleDonateClick
-                restoreBubbleSurface.Controls.Add restoreBubbleDonate
                 restoreBubbleLabel.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeAll
                 restoreBubbleLabel.AccessibleDescription = "Drag to move the Max Ultra MCP restore mini-panel"
                 restoreBubbleButton.Text = "Expand MCP Server"
