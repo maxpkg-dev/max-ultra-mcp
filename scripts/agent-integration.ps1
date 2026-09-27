@@ -144,22 +144,63 @@ function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments, [Dat
             Stop-ExternalCommandProcess $commandProcess
             return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
         }
-        $commandProcess.WaitForExit()
+        # Process exit does not guarantee ReadToEndAsync has completed.
+        $drainTimeout = Get-RemainingTimeoutMilliseconds $DeadlineUtc $MaximumWaitMilliseconds
+        if ($drainTimeout -le 0 -or -not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($standardOutputTask, $standardErrorTask), $drainTimeout)) {
+            return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
+        }
         $outputParts = New-Object System.Collections.Generic.List[string]
         if ($standardOutputTask.IsCompleted -and -not [string]::IsNullOrWhiteSpace($standardOutputTask.Result)) { $outputParts.Add($standardOutputTask.Result) }
         if ($standardErrorTask.IsCompleted -and -not [string]::IsNullOrWhiteSpace($standardErrorTask.Result)) { $outputParts.Add($standardErrorTask.Result) }
         $outputText = (($outputParts.ToArray() -join ' ') -replace '[\r\n]+', ' ').Trim()
         if ($outputText.Length -gt 65536) { $outputText = $outputText.Substring(0, 65536) }
-        return @{ ExitCode = $commandProcess.ExitCode; Output = $outputText; TimedOut = $false; InvocationFailed = $false }
+        return @{ ExitCode = $commandProcess.ExitCode; Output = $outputText; StandardOutput = $standardOutputTask.Result; TimedOut = $false; InvocationFailed = $false }
     } catch {
         Stop-ExternalCommandProcess $commandProcess
-        return @{ ExitCode = -1; Output = ''; TimedOut = $false; InvocationFailed = $true }
+        $nativeError = $_.Exception
+        while ($null -ne $nativeError.InnerException) { $nativeError = $nativeError.InnerException }
+        $nativeErrorCode = if ($nativeError -is [ComponentModel.Win32Exception]) { $nativeError.NativeErrorCode } else { 0 }
+        return @{ ExitCode = -1; Output = ''; TimedOut = $false; InvocationFailed = $true; NativeErrorCode = $nativeErrorCode }
     } finally {
         if ($null -ne $commandProcess) { try { $commandProcess.Dispose() } catch {} }
     }
 }
 
+function Test-NodeRuntimeCandidate([string]$CandidatePath, [DateTime]$DeadlineUtc) {
+    $probeResult = @{ State = 'runtime_missing'; Command = ''; Candidate = $CandidatePath; Detail = 'Node.js file is missing: ' + $CandidatePath }
+    if (-not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) { return $probeResult }
+    $probe = Invoke-ExternalCommand $CandidatePath @('-p','process.versions.node') $DeadlineUtc $nodeProbeTimeoutMilliseconds
+    if ($probe.TimedOut) {
+        $probeResult.State = 'runtime_timeout'
+        $probeResult.Detail = 'Node.js check timed out. Refresh status to retry. Checked: ' + $CandidatePath
+    } elseif ($probe.InvocationFailed -or $probe.ExitCode -ne 0) {
+        $probeResult.State = 'runtime_launch_failed'
+        $probeResult.Detail = 'Node.js exists but its version check failed (exit ' + $probe.ExitCode + '). Checked: ' + $CandidatePath
+        if ($probe.ContainsKey('NativeErrorCode') -and $probe.NativeErrorCode -ne 0) {
+            $probeResult.Detail = 'Windows could not launch Node.js (error ' + $probe.NativeErrorCode + '). Checked: ' + $CandidatePath
+        }
+    } else {
+        $versionText = $probe.StandardOutput.Trim()
+        $parsedVersion = $null
+        if ($versionText -notmatch '^\d+\.\d+\.\d+$' -or -not [Version]::TryParse($versionText, [ref]$parsedVersion)) {
+            $probeResult.State = 'runtime_invalid_response'
+            $probeResult.Detail = 'Node.js returned an unreadable version. Checked: ' + $CandidatePath
+        } elseif ($parsedVersion.Major -lt 22) {
+            $probeResult.State = 'runtime_unsupported'
+            $probeResult.Detail = 'Node.js ' + $versionText + ' is unsupported; version 22 or newer is required. Checked: ' + $CandidatePath
+        } else {
+            $probeResult.State = 'ready'
+            $probeResult.Command = $CandidatePath
+            $probeResult.Detail = 'Node.js ' + $versionText + ' verified. Checked: ' + $CandidatePath
+        }
+    }
+    return $probeResult
+}
+
 function Resolve-NodeRuntime([DateTime]$DeadlineUtc) {
+    if (-not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
+        return @{ State = 'runtime_missing'; Command = ''; Candidate = $serverPath; Detail = 'Package file is missing: ' + $serverPath + '. Reinstall Max Ultra MCP.' }
+    }
     $candidates = New-Object System.Collections.Generic.List[string]
     $candidates.Add((Join-Path $projectRoot 'runtime\win-x64\node.exe'))
     $nodeCommand = Get-Command node -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -175,18 +216,16 @@ function Resolve-NodeRuntime([DateTime]$DeadlineUtc) {
             }
         }
     }
+    $firstFailure = $null
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
         if ([string]::IsNullOrWhiteSpace($candidate) -or -not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-        try {
-            $versionProbe = Invoke-ExternalCommand $candidate @('-p','process.versions.node') $DeadlineUtc $nodeProbeTimeoutMilliseconds
-            if ($versionProbe.TimedOut) { break }
-            if (-not $versionProbe.InvocationFailed -and $versionProbe.ExitCode -eq 0) {
-                $versionText = ($versionProbe.Output -split '\s+' | Select-Object -First 1)
-                if ([Version]$versionText -ge [Version]'22.0.0') { return $candidate }
-            }
-        } catch {}
+        $candidateResult = Test-NodeRuntimeCandidate $candidate $DeadlineUtc
+        if ($candidateResult.State -eq 'ready') { return $candidateResult }
+        if ($null -eq $firstFailure) { $firstFailure = $candidateResult }
+        if ((Get-RemainingTimeoutMilliseconds $DeadlineUtc 1) -eq 0) { break }
     }
-    return $null
+    if ($null -ne $firstFailure) { return $firstFailure }
+    return @{ State = 'runtime_missing'; Command = ''; Candidate = $candidates[0]; Detail = 'Node.js file is missing: ' + $candidates[0] + '. Reinstall Max Ultra MCP.' }
 }
 
 function Resolve-ClientCommandPath([string]$ClientId, [string]$ExecutableName) {
@@ -296,9 +335,9 @@ function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$Exec
 function Install-OpenAIClient([hashtable]$Status, [string]$NodePath, [DateTime]$DeadlineUtc) {
     if (-not $Status.CliAvailable) { return $Status }
     if ([string]::IsNullOrWhiteSpace($NodePath) -or -not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
-        $Status.State = 'runtime_missing'
+        $Status.State = $runtimeResult.State
         $Status.Configured = $false
-        $Status.Detail = 'The MCP runtime or core/server.js is missing from this package.'
+        $Status.Detail = $runtimeResult.Detail
         return $Status
     }
     Invoke-ExternalCommand $Status.CommandPath @('mcp','remove',$serverName) $DeadlineUtc $clientCommandTimeoutMilliseconds | Out-Null
@@ -312,9 +351,9 @@ function Install-OpenAIClient([hashtable]$Status, [string]$NodePath, [DateTime]$
 function Install-ClaudeCodeClient([hashtable]$Status, [string]$NodePath, [DateTime]$DeadlineUtc) {
     if (-not $Status.CliAvailable) { return $Status }
     if ([string]::IsNullOrWhiteSpace($NodePath) -or -not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
-        $Status.State = 'runtime_missing'
+        $Status.State = $runtimeResult.State
         $Status.Configured = $false
-        $Status.Detail = 'The MCP runtime or core/server.js is missing from this package.'
+        $Status.Detail = $runtimeResult.Detail
         return $Status
     }
     Invoke-ExternalCommand $Status.CommandPath @('mcp','remove',$serverName,'--scope','user') $DeadlineUtc $clientCommandTimeoutMilliseconds | Out-Null
@@ -328,8 +367,8 @@ function Install-ClaudeCodeClient([hashtable]$Status, [string]$NodePath, [DateTi
 function Install-AntigravityClient($Status, [string]$NodePath, [DateTime]$DeadlineUtc) {
     if ($Status.setupAvailable -ne 'true') { return $Status }
     if ([string]::IsNullOrWhiteSpace($NodePath) -or -not (Test-Path -LiteralPath $serverPath -PathType Leaf)) {
-        $Status.state = 'runtime_missing'
-        $Status.detail = 'The MCP runtime is unavailable. Reinstall Max Ultra MCP and retry.'
+        $Status.state = $runtimeResult.State
+        $Status.detail = $runtimeResult.Detail
         return $Status
     }
     $configHelper = Join-Path $projectRoot 'core\antigravity-config.js'
@@ -356,7 +395,8 @@ function Install-AntigravityClient($Status, [string]$NodePath, [DateTime]$Deadli
 }
 
 try {
-    $nodePath = Resolve-NodeRuntime $statusCheckDeadlineUtc
+    $runtimeResult = Resolve-NodeRuntime $statusCheckDeadlineUtc
+    $nodePath = $runtimeResult.Command
     $antigravity = Get-AntigravityStatus -NodePath $nodePath -ServerPath $serverPath -Profile $Profile -Port $Port
     $openAI = Get-ClientStatus 'openai' 'ChatGPT Desktop / Codex' 'codex' $statusCheckDeadlineUtc
     $claudeCode = Get-ClientStatus 'claudeCode' 'Claude Code' 'claude' $statusCheckDeadlineUtc
@@ -377,7 +417,7 @@ try {
         openai = [ordered]@{ cliAvailable = $openAI.CliAvailable.ToString().ToLowerInvariant(); configured = $openAI.Configured.ToString().ToLowerInvariant(); state = $openAI.State; detail = $openAI.Detail }
         claudeCode = [ordered]@{ cliAvailable = $claudeCode.CliAvailable.ToString().ToLowerInvariant(); configured = $claudeCode.Configured.ToString().ToLowerInvariant(); state = $claudeCode.State; detail = $claudeCode.Detail }
         antigravity = $antigravity
-        runtime = [ordered]@{ ready = $runtimeReady.ToString().ToLowerInvariant(); command = $nodePath; server = $serverPath; arguments = '"' + $serverPath + '" --stdio'; environment = "MAX_ULTRA_MCP_TOOL_PROFILE=$Profile" }
+        runtime = [ordered]@{ ready = $runtimeReady.ToString().ToLowerInvariant(); state = $runtimeResult.State; detail = $runtimeResult.Detail; candidate = $runtimeResult.Candidate; command = $nodePath; server = $serverPath; arguments = '"' + $serverPath + '" --stdio'; environment = "MAX_ULTRA_MCP_TOOL_PROFILE=$Profile" }
     })
     exit 0
 } catch {

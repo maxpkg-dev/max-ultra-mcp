@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.4.3 - 2026-09-27
+
+- Removed: Donate button from the restore mini-panel; the title now provides a wider drag area.
+- Changed: AI Client Setup opens after each startup check that confirms no supported client is configured, even if Setup was dismissed in an earlier run. Closing it still dismisses it for the current run.
+- Fixed: AI Client Setup distinguishes missing runtime files, launch failures, timeouts, unsupported versions, and invalid version responses; local probe failures no longer erase saved client registration status.
+- Fixed: Runtime checks wait for redirected output to finish and continue to available fallback runtimes after an individual probe timeout. Manual setup includes the checked path and diagnostic reason.
+- Changed: AI Client Setup has a third Manual setup tab with instructions, copyable STDIO settings, and runtime diagnostics. Setup shows complete, scrollable client statuses and directs users to manual setup when needed.
+
 ## 1.4.2 - 2026-09-22
 
 - Fixed: Skills previews use the existing timer for header scrolling and Back-link focus instead of HtmlWindow event subscriptions that can fail in 3ds Max 2027.

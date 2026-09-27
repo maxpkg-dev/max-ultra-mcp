@@ -461,14 +461,11 @@ global MaxUltraMcpActiveClient
         dotNetControl lblOpenAIStatus "System.Windows.Forms.Label" pos: [12,172] width: 164 height: 24
         dotNetControl lblClaudeCodeStatus "System.Windows.Forms.Label" pos: [188,172] width: 164 height: 24
         dotNetControl lblAntigravityStatus "System.Windows.Forms.Label" pos: [364,172] width: 164 height: 24
-        dotNetControl lblClientDetail "System.Windows.Forms.Label" pos: [12,200] width: 516 height: 42
-
-        dotNetControl btnManualToggle "System.Windows.Forms.Button" pos: [12,246] width: 516 height: 26
-        dotNetControl txtManual "System.Windows.Forms.TextBox" pos: [12,278] width: 516 height: 94
+        dotNetControl txtClientDetail "System.Windows.Forms.TextBox" pos: [12,204] width: 516 height: 170
+        label lblManualHint "Agent not listed or setup failed? Try manual setup.\nSee the Manual setup tab for instructions." pos: [12,380] width: 516 height: 32
 
         dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [12,414] width: 516 height: 22
         dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [12,442] width: 128 height: 28
-        dotNetControl btnCopyManual "System.Windows.Forms.Button" pos: [12,380] width: 128 height: 28
         dotNetControl btnSetupDonate "System.Windows.Forms.Button" pos: [424,442] width: 104 height: 28
 
         on MaxUltraMcpOnboardingSetupDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingSetupDialog()
@@ -476,9 +473,7 @@ global MaxUltraMcpActiveClient
         on btnOpenAI Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.installAgentIntegration "openai"
         on btnClaudeCode Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.installAgentIntegration "claudeCode"
         on btnAntigravity Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.installAgentIntegration "antigravity"
-        on btnManualToggle Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.toggleOnboardingManual()
         on btnRefreshAgents Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.refreshAgentIntegrationStatus()
-        on btnCopyManual Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copyManualAgentConfiguration()
         on btnSetupDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
 
@@ -493,6 +488,18 @@ global MaxUltraMcpActiveClient
         on MaxUltraMcpOnboardingTestDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingTestDialog()
         on btnCopyTestPrompt Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copyOnboardingTestPrompt()
         on btnTestDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
+    )
+    rollout MaxUltraMcpOnboardingManualDialog "" width: 540 height: 478 (
+        label lblManualIntro "Manual STDIO setup for other compatible AI clients" pos: [16,8] width: 508 height: 20
+        dotNetControl txtInstructions "System.Windows.Forms.TextBox" pos: [12,36] width: 516 height: 160
+        dotNetControl txtManual "System.Windows.Forms.TextBox" pos: [12,208] width: 516 height: 196
+        dotNetControl lblManualOperation "System.Windows.Forms.Label" pos: [12,414] width: 516 height: 22
+        dotNetControl btnCopyManual "System.Windows.Forms.Button" pos: [12,442] width: 148 height: 28
+        dotNetControl btnRefreshManual "System.Windows.Forms.Button" pos: [172,442] width: 128 height: 28
+
+        on MaxUltraMcpOnboardingManualDialog open do if (bridgeClient != undefined) do bridgeClient.configureOnboardingManualDialog()
+        on btnCopyManual Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copyManualAgentConfiguration()
+        on btnRefreshManual Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.refreshAgentIntegrationStatus()
     )
     struct MaxUltraMcpBridgeClient (
         hostAddress = "127.0.0.1",
@@ -548,6 +555,7 @@ global MaxUltraMcpActiveClient
         onboardingTabsDialog,
         onboardingSetupDialog,
         onboardingTestDialog,
+        onboardingManualDialog,
         onboardingFloater,
         onboardingPage = #none,
         transportWorker,
@@ -582,7 +590,6 @@ global MaxUltraMcpActiveClient
         integrationBusy = false,
         integrationActiveClient = "",
         onboardingClientStates = #(),
-        onboardingManualExpanded = false,
         onboardingLogoImages = #(),
         integrationAutomaticCheckPending = false,
         integrationAutomaticCheckDueAt,
@@ -2936,13 +2943,14 @@ global MaxUltraMcpActiveClient
         fn integrationEffectiveState sectionName = (
             local stateValue = toLower (readIntegrationValue sectionName "state" fallbackValue: "not_checked")
             local operationState = toLower (readIntegrationValue "operation" "state" fallbackValue: "")
-            local runtimeSensitiveStates = #("configured", "not_configured", "restart_required")
-            if (operationState == "complete" and not (integrationValueIsTrue "runtime" "ready") and (findItem runtimeSensitiveStates stateValue) > 0) do return "runtime_missing"
+            -- A failed local probe must not erase a verified client registration.
+            if (operationState == "complete" and not (integrationValueIsTrue "runtime" "ready") and stateValue == "not_configured") do return readIntegrationValue "runtime" "state" fallbackValue: "runtime_check_failed"
             return stateValue
         ),
 
         fn integrationStateText sectionName = (
             local stateValue = integrationEffectiveState sectionName
+            if (matchPattern stateValue pattern: "runtime_*") do return readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry."
             if (sectionName == "antigravity") do (
                 if (stateValue == "configured") do return "Settings saved - connection not verified"
                 if (stateValue == "not_configured") do return "Setup required - click Antigravity"
@@ -2969,6 +2977,11 @@ global MaxUltraMcpActiveClient
                 "restart_required": "Restart required"
                 "cli_missing": "Client not found"
                 "runtime_missing": "Runtime missing"
+                "runtime_timeout": "Runtime check timed out"
+                "runtime_launch_failed": "Runtime launch failed"
+                "runtime_unsupported": "Unsupported runtime"
+                "runtime_invalid_response": "Invalid runtime response"
+                "runtime_check_failed": "Runtime check failed"
                 "install_failed": "Setup failed"
                 "check_failed": "Check failed"
                 default: "Waiting..."
@@ -2979,6 +2992,7 @@ global MaxUltraMcpActiveClient
             if (integrationBusy) do return #warning
             if (integrationLastCheckFailed) do return #issue
             local stateValue = integrationEffectiveState sectionName
+            if (matchPattern stateValue pattern: "runtime_*") do return #issue
             case stateValue of (
                 "configured": #pass
                 "not_configured": #warning
@@ -3014,6 +3028,17 @@ global MaxUltraMcpActiveClient
                 if (integrationBusy) then (
                     combinedStatusText = "AI clients | Checking..."
                     combinedStatusState = #warning
+                ) else if ((readIntegrationValue "operation" "state" fallbackValue: "") == "complete" and not (integrationValueIsTrue "runtime" "ready")) then (
+                    local runtimeStateValue = readIntegrationValue "runtime" "state" fallbackValue: "runtime_check_failed"
+                    combinedStatusText = case runtimeStateValue of (
+                        "runtime_missing": "AI runtime | Missing files"
+                        "runtime_timeout": "AI runtime | Check timed out"
+                        "runtime_launch_failed": "AI runtime | Launch failed"
+                        "runtime_unsupported": "AI runtime | Unsupported version"
+                        "runtime_invalid_response": "AI runtime | Invalid response"
+                        default: "AI runtime | Check failed"
+                    )
+                    combinedStatusState = #issue
                 ) else if (readyClientText != "") then (
                     combinedStatusText = readyClientText + " | MCP ready"
                     if (antigravityStateValue == "configured") do combinedStatusText = readyClientText + " | Configured"
@@ -3037,6 +3062,7 @@ global MaxUltraMcpActiveClient
 
                 local combinedStatusColor = MaxUltraMcpTheme.statusColor combinedStatusState
                 local combinedStatusDescription = "ChatGPT / Codex: " + (integrationStateText "openai") + " | Claude Code: " + (integrationStateText "claudeCode") + " | Antigravity: " + (integrationStateText "antigravity") + ". Click to open AI Client Setup."
+                if (not (integrationValueIsTrue "runtime" "ready")) do combinedStatusDescription += " " + (readIntegrationValue "runtime" "detail" fallbackValue: "")
                 MaxUltraMcpUiKit.styleButton statusDialog.btnAiStatus baseColorValue: combinedStatusColor
                 MaxUltraMcpUiKit.updateButtonState statusDialog.btnRefreshAgents (not integrationBusy)
                 statusDialog.btnAiStatus.Text = combinedStatusText
@@ -3054,12 +3080,13 @@ global MaxUltraMcpActiveClient
             local argumentsValue = readIntegrationValue "runtime" "arguments" fallbackValue: ((quoteProcessArgument serverValue) + " --stdio")
             local environmentValue = readIntegrationValue "runtime" "environment" fallbackValue: "MAX_ULTRA_MCP_TOOL_PROFILE=archviz"
             if (commandValue == "") do commandValue = "<bundled runtime\\win-x64\\node.exe or Node.js 22+>"
-            return "Name: max-ultra-mcp\r\nCommand: " + commandValue + "\r\nArguments: " + argumentsValue + "\r\nEnvironment: " + environmentValue
+            local diagnosticText = readIntegrationValue "runtime" "detail" fallbackValue: "Runtime not checked."
+            return "Name: max-ultra-mcp\r\nCommand: " + commandValue + "\r\nArguments: " + argumentsValue + "\r\nEnvironment: " + environmentValue + "\r\nRuntime check: " + diagnosticText
         ),
 
         fn onboardingCardPresentation stateValue availableValue busyValue activeValue failedValue = (
             if (busyValue) do return #((if (activeValue) then "Setting up..." else "Checking..."), #warning, false)
-            if (failedValue or findItem #("check_failed", "install_failed", "runtime_missing") stateValue > 0) do return #("Error", #issue, availableValue)
+            if (failedValue or (matchPattern stateValue pattern: "runtime_*") or findItem #("check_failed", "install_failed") stateValue > 0) do return #("Error", #issue, availableValue)
             if (stateValue == "" or stateValue == "not_checked") do return #("Not checked", #neutral, false)
             if (not availableValue) do return #("Not found", #neutral, false)
             if (stateValue == "configured") do return #("Configured", #pass, true)
@@ -3069,16 +3096,7 @@ global MaxUltraMcpActiveClient
 
         fn layoutOnboardingDialog = (
             if (not (onboardingDialogIsOpen())) do return false
-            local desiredHeight = 478
-            if (onboardingPage == #setup and onboardingSetupDialog.open) do (
-                local footerY = if (onboardingManualExpanded) then 442 else 306
-                -- Move MaxScript control hosts, not WinForms children inside those hosts.
-                onboardingSetupDialog.lblOnboardingOperation.pos = [12,footerY - 28]
-                onboardingSetupDialog.btnRefreshAgents.pos = [12,footerY]
-                onboardingSetupDialog.btnSetupDonate.pos = [424,footerY]
-                onboardingSetupDialog.height = footerY + 36
-                desiredHeight = onboardingSetupDialog.height + 80
-            )
+            local desiredHeight = if (onboardingPage == #test) then 478 else 558
             local setupHandle = dotNetObject "System.IntPtr" onboardingFloater.hwnd
             local workingBounds = ((dotNetClass "System.Windows.Forms.Screen").FromHandle setupHandle).WorkingArea
             local scaleGraphics = (dotNetClass "System.Drawing.Graphics").FromHwnd setupHandle
@@ -3094,17 +3112,39 @@ global MaxUltraMcpActiveClient
             return true
         ),
 
-        fn toggleOnboardingManual = (
-            onboardingManualExpanded = not onboardingManualExpanded
-            onboardingSetupDialog.txtManual.Visible = onboardingManualExpanded
-            onboardingSetupDialog.btnCopyManual.Visible = onboardingManualExpanded
-            onboardingSetupDialog.btnManualToggle.Text = (if (onboardingManualExpanded) then "-  " else "+  ") + "Manual / Other STDIO clients"
-            layoutOnboardingDialog()
+        fn refreshOnboardingManualDialog = (
+            if (not (onboardingDialogIsOpen()) or onboardingPage != #manual or not onboardingManualDialog.open) do return false
+            MaxUltraMcpUiKit.updateButtonState onboardingManualDialog.btnRefreshManual (not integrationBusy)
+            MaxUltraMcpUiKit.updateButtonState onboardingManualDialog.btnCopyManual (not integrationBusy)
+            if (not integrationBusy) do onboardingManualDialog.txtManual.Text = manualAgentConfigurationText()
+            onboardingManualDialog.lblManualOperation.Text = if (integrationBusy) then "Checking runtime and client registrations..." else ""
             return true
+        ),
+
+        fn configureOnboardingManualDialog = (
+            if (not (onboardingDialogIsOpen()) or not onboardingManualDialog.open) do return false
+            for manualTextBox in #(onboardingManualDialog.txtInstructions, onboardingManualDialog.txtManual) do (
+                manualTextBox.Multiline = true
+                manualTextBox.ReadOnly = true
+                manualTextBox.WordWrap = true
+                manualTextBox.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Vertical
+                manualTextBox.Font = MaxUltraMcpUiKit.messageFont()
+                manualTextBox.BackColor = lighterThemeSurface()
+                manualTextBox.ForeColor = MaxUltraMcpTheme.textColor
+            )
+            onboardingManualDialog.txtInstructions.Text = "1. Open your AI client's MCP server settings and add a local STDIO server.\r\n2. Enter Name, Command, Arguments and Environment from the values below. Command is the executable path; do not include Arguments in that field.\r\n3. Save the server and restart or reconnect the AI client.\r\n4. Open Test prompt and run the copied prompt in that client to verify the connection.\r\nIf the runtime check fails, use Refresh status and read the diagnostic below. Registration alone does not confirm a live connection."
+            MaxUltraMcpUiKit.styleButton onboardingManualDialog.btnCopyManual
+            MaxUltraMcpUiKit.styleButton onboardingManualDialog.btnRefreshManual
+            onboardingManualDialog.btnCopyManual.Text = "Copy manual setup"
+            onboardingManualDialog.btnCopyManual.AccessibleName = "Copy manual STDIO setup"
+            onboardingManualDialog.btnRefreshManual.Text = "Refresh status"
+            MaxUltraMcpUiKit.styleLabel onboardingManualDialog.lblManualOperation
+            return refreshOnboardingManualDialog()
         ),
 
         fn refreshOnboardingDialog = (
             local mainStatusRefreshed = refreshAiStatusControls()
+            if (onboardingPage == #manual) do return refreshOnboardingManualDialog()
             if (not (onboardingDialogIsOpen()) or onboardingPage != #setup or not onboardingSetupDialog.open) do return mainStatusRefreshed
             integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
             integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
@@ -3113,7 +3153,7 @@ global MaxUltraMcpActiveClient
                 local clientNames = #("Codex", "Claude Code", "Antigravity")
                 local clientButtons = #(onboardingSetupDialog.btnOpenAI, onboardingSetupDialog.btnClaudeCode, onboardingSetupDialog.btnAntigravity)
                 local clientLabels = #(onboardingSetupDialog.lblOpenAIStatus, onboardingSetupDialog.lblClaudeCodeStatus, onboardingSetupDialog.lblAntigravityStatus)
-                local detailMessage = "Configured confirms saved settings. Use Test prompt to check the connection."
+                local detailMessage = "Configured confirms saved settings. Use Test prompt to verify the live connection."
                 local detailColor = MaxUltraMcpTheme.textColor
                 if (onboardingClientStates.count != 3) do onboardingClientStates = #(#(false, "", ""), #(false, "", ""), #(false, "", ""))
                 for clientIndex in 1 to 3 do (
@@ -3139,19 +3179,22 @@ global MaxUltraMcpActiveClient
                     clientLabels[clientIndex].ForeColor = statusTextColor
                     clientLabels[clientIndex].AccessibleDescription = clientState[3]
                     MaxUltraMcpUiKit.updateButtonState clientButtons[clientIndex] presentation[3]
+                    if (presentation[1] != "Error") do detailMessage += "\r\n\r\n" + clientNames[clientIndex] + ": " + presentation[1] + ". " + clientState[3]
                     if (presentation[1] == "Error") do (
                         local errorDetail = if (integrationLastCheckFailed) then "Setup or detection did not finish. Refresh status to retry." else clientState[3]
-                        if (clientState[2] == "runtime_missing") do errorDetail = "Package runtime is missing. Reinstall Max Ultra MCP."
-                        detailMessage = clientNames[clientIndex] + ": " + errorDetail
+                        if (matchPattern clientState[2] pattern: "runtime_*") do errorDetail = readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry."
+                        detailMessage += "\r\n\r\n" + clientNames[clientIndex] + ": " + errorDetail
                         detailColor = MaxUltraMcpTheme.bridgeIssueTextColor
                     )
                 )
                 MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnRefreshAgents (not integrationBusy)
-                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnCopyManual (not integrationBusy)
-                if (not integrationBusy) do onboardingSetupDialog.txtManual.Text = manualAgentConfigurationText()
-                onboardingSetupDialog.lblClientDetail.Text = if (detailMessage.count > 160) then (substring detailMessage 1 157) + "..." else detailMessage
-                onboardingSetupDialog.lblClientDetail.ForeColor = detailColor
-                onboardingSetupDialog.lblClientDetail.AccessibleDescription = detailMessage
+                if (not integrationBusy and (readIntegrationValue "operation" "state" fallbackValue: "") == "complete" and not (integrationValueIsTrue "runtime" "ready")) do (
+                    detailMessage += "\r\n\r\nRuntime: " + (readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry.")
+                    detailColor = MaxUltraMcpTheme.bridgeIssueTextColor
+                )
+                onboardingSetupDialog.txtClientDetail.Text = detailMessage
+                onboardingSetupDialog.txtClientDetail.ForeColor = detailColor
+                onboardingSetupDialog.txtClientDetail.AccessibleDescription = detailMessage
                 onboardingSetupDialog.lblOnboardingOperation.Text = if (integrationBusy) then (if (integrationOperationName == #install) then "Setting up the selected client..." else "Checking installed clients...") else ""
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETUP STATUS ERROR | %\n" (getCurrentException() as string)
@@ -3166,13 +3209,18 @@ global MaxUltraMcpActiveClient
 
         fn showOnboardingPage pageName = (
             if (not (onboardingDialogIsOpen())) do return false
-            local targetPage = if (pageName == #test) then #test else #setup
+            local targetPage = if (findItem #(#setup, #test, #manual) pageName > 0) then pageName else #setup
             if (targetPage == onboardingPage) do return true
             try (
                 if (onboardingPage == #setup and onboardingSetupDialog.open) do removeRollout onboardingSetupDialog onboardingFloater
                 if (onboardingPage == #test and onboardingTestDialog.open) do removeRollout onboardingTestDialog onboardingFloater
+                if (onboardingPage == #manual and onboardingManualDialog.open) do removeRollout onboardingManualDialog onboardingFloater
                 onboardingPage = targetPage
-                if (targetPage == #test) then addRollout onboardingTestDialog onboardingFloater rolledUp: false border: false else addRollout onboardingSetupDialog onboardingFloater rolledUp: false border: false
+                case targetPage of (
+                    #test: addRollout onboardingTestDialog onboardingFloater rolledUp: false border: false
+                    #manual: addRollout onboardingManualDialog onboardingFloater rolledUp: false border: false
+                    default: addRollout onboardingSetupDialog onboardingFloater rolledUp: false border: false
+                )
                 layoutOnboardingDialog()
                 return true
             ) catch (
@@ -3182,6 +3230,7 @@ global MaxUltraMcpActiveClient
         ),
 
         fn handleOnboardingTabChanged selectedIndex = (
+            if (selectedIndex == 2) do return showOnboardingPage #manual
             if (selectedIndex == 1) then return showOnboardingPage #test else return showOnboardingPage #setup
         ),
 
@@ -3197,6 +3246,7 @@ global MaxUltraMcpActiveClient
                 onboardingTabsDialog.dncPages.Multiline = false
                 onboardingTabsDialog.dncPages.TabPages.Add (dotNetObject "System.Windows.Forms.TabPage" "Setup")
                 onboardingTabsDialog.dncPages.TabPages.Add (dotNetObject "System.Windows.Forms.TabPage" "Test prompt")
+                onboardingTabsDialog.dncPages.TabPages.Add (dotNetObject "System.Windows.Forms.TabPage" "Manual setup")
                 onboardingTabsDialog.dncPages.SelectedIndex = 0
                 showOnboardingPage #setup
                 return true
@@ -3241,31 +3291,24 @@ global MaxUltraMcpActiveClient
                     clientButton.Image = logoImage
                 )
                 MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnRefreshAgents
-                MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnCopyManual
-                MaxUltraMcpUiKit.styleButton onboardingSetupDialog.btnManualToggle
-                onboardingSetupDialog.btnManualToggle.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleLeft
                 configureDonateButton onboardingSetupDialog.btnSetupDonate
                 onboardingSetupDialog.btnRefreshAgents.Text = "Refresh status"
-                onboardingSetupDialog.btnCopyManual.Text = "Copy manual setup"
                 onboardingSetupDialog.btnRefreshAgents.AccessibleName = "Refresh AI client readiness"
-                onboardingSetupDialog.btnCopyManual.AccessibleName = "Copy manual STDIO setup"
-                onboardingSetupDialog.txtManual.Multiline = true
-                onboardingSetupDialog.txtManual.ReadOnly = true
-                onboardingSetupDialog.txtManual.WordWrap = false
-                onboardingSetupDialog.txtManual.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Both
-                onboardingSetupDialog.txtManual.BackColor = lighterThemeSurface()
-                onboardingSetupDialog.txtManual.ForeColor = onboardingTextColor
+                onboardingSetupDialog.txtClientDetail.Multiline = true
+                onboardingSetupDialog.txtClientDetail.ReadOnly = true
+                onboardingSetupDialog.txtClientDetail.WordWrap = true
+                onboardingSetupDialog.txtClientDetail.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Vertical
+                onboardingSetupDialog.txtClientDetail.Font = MaxUltraMcpUiKit.messageFont()
+                onboardingSetupDialog.txtClientDetail.BackColor = lighterThemeSurface()
+                onboardingSetupDialog.txtClientDetail.ForeColor = onboardingTextColor
                 for statusLabel in #(onboardingSetupDialog.lblOpenAIStatus, onboardingSetupDialog.lblClaudeCodeStatus, onboardingSetupDialog.lblAntigravityStatus) do (
                     MaxUltraMcpUiKit.styleLabel statusLabel backgroundValue: rolloutBackground
                     MaxUltraMcpUiKit.inheritParentBackColor statusLabel
                     statusLabel.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
                 )
-                MaxUltraMcpUiKit.styleLabel onboardingSetupDialog.lblClientDetail backgroundValue: rolloutBackground
                 MaxUltraMcpUiKit.styleLabel onboardingSetupDialog.lblOnboardingOperation backgroundValue: rolloutBackground
-                MaxUltraMcpUiKit.inheritParentBackColor onboardingSetupDialog.lblClientDetail
                 MaxUltraMcpUiKit.inheritParentBackColor onboardingSetupDialog.lblOnboardingOperation
-                onboardingManualExpanded = not onboardingManualExpanded
-                toggleOnboardingManual()
+                layoutOnboardingDialog()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETUP LAYOUT ERROR | %\n" (getCurrentException() as string)
                 return false
@@ -3410,8 +3453,8 @@ global MaxUltraMcpActiveClient
         fn copyManualAgentConfiguration = (
             try (
                 (dotNetClass "System.Windows.Forms.Clipboard").SetText (manualAgentConfigurationText())
-                showClipboardCopiedFeedback onboardingSetupDialog.btnCopyManual "Copy manual setup"
-                if (onboardingDialogIsOpen() and onboardingPage == #setup and onboardingSetupDialog.open) do onboardingSetupDialog.lblOnboardingOperation.Text = "Manual STDIO settings copied to the clipboard."
+                showClipboardCopiedFeedback onboardingManualDialog.btnCopyManual "Copy manual setup"
+                if (onboardingDialogIsOpen() and onboardingPage == #manual and onboardingManualDialog.open) do onboardingManualDialog.lblManualOperation.Text = "Manual setup and runtime diagnostics copied."
                 return true
             ) catch (
                 messageBox "Could not access the Windows clipboard. Try again after closing another clipboard operation." title: "Max Ultra MCP - AI Client Setup"
@@ -3449,7 +3492,6 @@ global MaxUltraMcpActiveClient
             if (isDisposed) do return false
             if (not (onboardingDialogIsOpen())) do (
                 try (
-                    onboardingManualExpanded = false
                     onboardingPage = #none
                     onboardingFloater = newRolloutFloater "Max Ultra MCP - AI Client Setup" 548 478
                     addRollout onboardingTabsDialog onboardingFloater rolledUp: false border: false
@@ -3512,7 +3554,8 @@ global MaxUltraMcpActiveClient
             refreshOnboardingDialog()
             if (helperExitCode != 0) do addActivity "error" ("AI integration helper failed: " + readIntegrationValue "operation" "message" fallbackValue: "unknown error")
             if (integrationOperationName == #install and antigravityStateValue == "install_failed") do messageBox (readIntegrationValue "antigravity" "detail" fallbackValue: "Antigravity setup failed. Refresh status and retry.") title: "Antigravity setup"
-            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (integrationValueIsTrue "antigravity" "configured") and not (loadOnboardingDismissed())) do showOnboardingDialog refreshStatus: false
+            -- Recheck on every startup even if Setup was dismissed during an earlier run.
+            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (integrationValueIsTrue "antigravity" "configured")) do showOnboardingDialog refreshStatus: false
             return true
         ),
 
@@ -5276,7 +5319,7 @@ global MaxUltraMcpActiveClient
         )
     )
 
-    bridgeClient = MaxUltraMcpBridgeClient sessionLaunchCount: previousLaunchCount statusDialog: MaxUltraMcpAiStatusDialog serverStatusDialog: MaxUltraMcpServerStatusDialog activityDialog: MaxUltraMcpActivityDialog supportDialog: MaxUltraMcpSupportDialog settingsDialog: MaxUltraMcpSettingsDialog skillsDialog: MaxUltraMcpSkillsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog restartExistingServer: restartServerForReload
+    bridgeClient = MaxUltraMcpBridgeClient sessionLaunchCount: previousLaunchCount statusDialog: MaxUltraMcpAiStatusDialog serverStatusDialog: MaxUltraMcpServerStatusDialog activityDialog: MaxUltraMcpActivityDialog supportDialog: MaxUltraMcpSupportDialog settingsDialog: MaxUltraMcpSettingsDialog skillsDialog: MaxUltraMcpSkillsDialog onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog onboardingManualDialog: MaxUltraMcpOnboardingManualDialog restartExistingServer: restartServerForReload
     MaxUltraMcpActiveClient = bridgeClient
     bridgeClient.startBridge()
     bridgeClient

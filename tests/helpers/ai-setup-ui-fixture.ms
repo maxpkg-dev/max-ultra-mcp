@@ -21,7 +21,17 @@ fn setFixtureClient clientId stateValue availableValue = (
     setINISetting fixtureResultPath clientId "detail" "Refresh status and retry."
     return true
 )
-bridgeClient = MaxUltraMcpBridgeClient onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog
+fn assertSetupControlUnclipped controlValue = (
+    local visibleBounds = controlValue.RectangleToScreen controlValue.ClientRectangle
+    local parentControl = controlValue.Parent
+    while (parentControl != undefined) do (
+        local parentBounds = parentControl.RectangleToScreen parentControl.ClientRectangle
+        assertSetup (parentBounds.Contains visibleBounds) "Setup control is clipped by its parent; record Max version and display scaling"
+        parentControl = parentControl.Parent
+    )
+    return true
+)
+bridgeClient = MaxUltraMcpBridgeClient onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog onboardingManualDialog: MaxUltraMcpOnboardingManualDialog
 bridgeClient.bootstrapFilePath = fixtureBootstrapPath
 bridgeClient.integrationResultFilePath = fixtureResultPath
 bridgeClient.suppressOnboardingDismissal = true
@@ -30,15 +40,11 @@ try (
     setINISetting fixtureResultPath "runtime" "ready" "true"
     for clientId in #("openai", "claudeCode", "antigravity") do setFixtureClient clientId "not_configured" "true"
     assertSetup (bridgeClient.showOnboardingDialog refreshStatus: false) "Setup did not open"
-    assertSetup (not bridgeClient.onboardingManualExpanded and not (bridgeClient.onboardingSetupDialog.txtManual.get_Visible())) "Fresh setup must start collapsed"
-    local initialCompactHeight = bridgeClient.onboardingFloater.size.y
-    bridgeClient.toggleOnboardingManual()
-    local expandedHeight = bridgeClient.onboardingFloater.size.y
-    local manualBottom = bridgeClient.onboardingSetupDialog.txtManual.pos.y + bridgeClient.onboardingSetupDialog.txtManual.height
-    assertSetup (bridgeClient.onboardingSetupDialog.txtManual.width == 516) "Manual values lost full-width layout"
-    assertSetup (manualBottom + 8 <= bridgeClient.onboardingSetupDialog.btnCopyManual.pos.y) "Manual copy overlaps text field"
-    assertSetup (bridgeClient.onboardingSetupDialog.btnCopyManual.pos.y + 28 + 6 <= bridgeClient.onboardingSetupDialog.lblOnboardingOperation.pos.y) "Manual copy overlaps operation status"
-    assertSetup (bridgeClient.onboardingSetupDialog.lblOnboardingOperation.pos.y + 22 + 6 <= bridgeClient.onboardingSetupDialog.btnRefreshAgents.pos.y) "Operation status overlaps footer"
+    assertSetup (bridgeClient.onboardingTabsDialog.dncPages.TabPages.Count == 3) "Setup must expose three tabs"
+    assertSetup (bridgeClient.onboardingTabsDialog.dncPages.TabPages.Item[2].Text == "Manual setup") "Manual setup must be third"
+    local initialSetupHeight = bridgeClient.onboardingFloater.size.y
+    assertSetupControlUnclipped bridgeClient.onboardingSetupDialog.txtClientDetail
+    assertSetupControlUnclipped bridgeClient.onboardingSetupDialog.btnRefreshAgents
     local fixtureButtons = #(bridgeClient.onboardingSetupDialog.btnOpenAI, bridgeClient.onboardingSetupDialog.btnClaudeCode, bridgeClient.onboardingSetupDialog.btnAntigravity)
     for clientIndex in 1 to 3 do (
         bridgeClient.integrationBusy = false
@@ -67,7 +73,7 @@ try (
     assertSetup (not (bridgeClient.onboardingSetupDialog.btnClaudeCode.get_Enabled())) "Absent client button enabled"
     assertSetup (not (bridgeClient.installAgentIntegration "claudeCode")) "Absent client could launch setup"
     assertSetup (bridgeClient.onboardingSetupDialog.lblAntigravityStatus.Text == "Error") "Setup failure was hidden"
-    assertSetup (findString bridgeClient.onboardingSetupDialog.lblClientDetail.Text "Refresh status" != undefined) "Error explanation missing"
+    assertSetup (findString bridgeClient.onboardingSetupDialog.txtClientDetail.Text "Refresh status" != undefined) "Error explanation missing"
     bridgeClient.integrationOperationTimeoutSeconds = 0
     bridgeClient.onboardingSetupDialog.btnOpenAI.PerformClick()
     assertSetup (bridgeClient.integrationOperationTimeoutSeconds == 0 and not bridgeClient.integrationBusy) "Configured client was reinstalled"
@@ -83,13 +89,35 @@ try (
     bridgeClient.integrationLastCheckFailed = false
     assertSetup ((bridgeClient.onboardingCardPresentation "not_checked" false false false false)[1] == "Not checked") "Initial state claimed detection"
     assertSetup ((bridgeClient.onboardingCardPresentation "runtime_missing" true false false false)[1] == "Error") "Missing runtime claimed readiness"
-    bridgeClient.toggleOnboardingManual()
-    assertSetup (not (bridgeClient.onboardingSetupDialog.txtManual.get_Visible()) and not (bridgeClient.onboardingSetupDialog.btnCopyManual.get_Visible())) "Manual section did not collapse"
-    assertSetup (bridgeClient.onboardingFloater.size.y < expandedHeight) "Collapsed page retained expanded window height"
-    assertSetup (bridgeClient.onboardingSetupDialog.btnRefreshAgents.pos.y == 306) "Collapsed footer did not move up"
-    bridgeClient.toggleOnboardingManual()
-    assertSetup ((bridgeClient.onboardingSetupDialog.txtManual.get_Visible()) and (bridgeClient.onboardingSetupDialog.btnCopyManual.get_Visible())) "Manual section did not expand"
-    assertSetup (bridgeClient.onboardingFloater.size.y == expandedHeight and bridgeClient.onboardingSetupDialog.btnRefreshAgents.pos.y == 442) "Expanded layout was not restored"
+    setINISetting fixtureResultPath "runtime" "ready" "false"
+    setINISetting fixtureResultPath "runtime" "state" "runtime_timeout"
+    setINISetting fixtureResultPath "runtime" "detail" "Node.js check timed out. Refresh status to retry."
+    setFixtureClient "openai" "configured" "true"
+    setFixtureClient "claudeCode" "not_configured" "true"
+    assertSetup (bridgeClient.integrationEffectiveState "openai" == "configured") "Runtime probe failure erased saved registration"
+    assertSetup (bridgeClient.integrationEffectiveState "claudeCode" == "runtime_timeout") "Runtime timeout became a missing-file error"
+    assertSetup (bridgeClient.refreshOnboardingDialog()) "Runtime error presentation failed"
+    assertSetup (findString bridgeClient.onboardingSetupDialog.txtClientDetail.Text "timed out" != undefined) "Runtime reason was not displayed"
+    assertSetup (findString (bridgeClient.manualAgentConfigurationText()) "timed out" != undefined) "Copyable diagnostic omitted runtime reason"
+    assertSetup (bridgeClient.onboardingSetupDialog.btnRefreshAgents.get_Visible()) "Runtime failure hid refresh"
+    local longDiagnostic = "Node.js check timed out. "
+    for diagnosticIndex in 1 to 20 do longDiagnostic += "Detailed synthetic diagnostic. "
+    longDiagnostic += "End."
+    setINISetting fixtureResultPath "runtime" "detail" longDiagnostic
+    bridgeClient.refreshOnboardingDialog()
+    assertSetup (findString bridgeClient.onboardingSetupDialog.txtClientDetail.Text longDiagnostic != undefined) "Setup truncated the runtime error"
+    bridgeClient.onboardingTabsDialog.dncPages.SelectedIndex = 2
+    assertSetup (bridgeClient.onboardingPage == #manual) "Manual tab did not open during runtime failure"
+    assertSetup (bridgeClient.onboardingManualDialog.txtInstructions.Text.count > 160) "Manual instructions missing"
+    assertSetup (findString bridgeClient.onboardingManualDialog.txtManual.Text longDiagnostic != undefined) "Manual diagnostics were truncated"
+    assertSetupControlUnclipped bridgeClient.onboardingManualDialog.txtManual
+    assertSetupControlUnclipped bridgeClient.onboardingManualDialog.btnCopyManual
+    bridgeClient.integrationBusy = true
+    bridgeClient.refreshOnboardingDialog()
+    assertSetup (not (bridgeClient.onboardingManualDialog.btnRefreshManual.get_Enabled())) "Manual refresh must not interrupt pending setup"
+    bridgeClient.integrationBusy = false
+    setINISetting fixtureResultPath "runtime" "ready" "true"
+    bridgeClient.refreshOnboardingDialog()
     local clipboardClass = dotNetClass "System.Windows.Forms.Clipboard"
     fixturePhase = "save clipboard"
     local savedClipboard = clipboardClass.GetDataObject()
@@ -116,9 +144,39 @@ try (
     bridgeClient.closeOnboardingDialog()
     assertSetup (bridgeClient.onboardingLogoImages.count == 0) "Close leaked logo resources"
     bridgeClient.showOnboardingDialog refreshStatus: false
-    assertSetup (not bridgeClient.onboardingManualExpanded and not (bridgeClient.onboardingSetupDialog.txtManual.get_Visible())) "Fresh reopen restored expanded manual state"
-    assertSetup (bridgeClient.onboardingFloater.size.y == initialCompactHeight) "Fresh reopen did not restore compact height"
+    assertSetup (bridgeClient.onboardingPage == #setup) "Fresh reopen must start on Setup"
+    assertSetup (bridgeClient.onboardingFloater.size.y == initialSetupHeight) "Fresh reopen changed Setup height"
     bridgeClient.closeOnboardingDialog()
+    -- Exercise startup completion without launching a helper or changing client settings.
+    struct SetupFinishedProcessFixture (
+        HasExited = true,
+        ExitCode = 0,
+        fn Dispose = (return true)
+    )
+    bridgeClient.uiStateDirectory = getFilenamePath fixtureResultPath
+    bridgeClient.uiStateFilePath = fixtureResultPath
+    bridgeClient.persistOnboardingDismissed true
+    for clientId in #("openai", "claudeCode", "antigravity") do setFixtureClient clientId "cli_missing" "false"
+    bridgeClient.integrationProcess = SetupFinishedProcessFixture()
+    bridgeClient.integrationBusy = true
+    bridgeClient.integrationAutomaticCheck = true
+    assertSetup (bridgeClient.pollIntegrationOperation()) "Automatic setup check failed"
+    assertSetup (bridgeClient.onboardingDialogIsOpen()) "No configured clients must open Setup"
+    bridgeClient.closeOnboardingDialog()
+    bridgeClient.pollIntegrationOperation()
+    assertSetup (not (bridgeClient.onboardingDialogIsOpen())) "Closing Setup reopened it during the same run"
+    setFixtureClient "openai" "configured" "true"
+    bridgeClient.integrationProcess = SetupFinishedProcessFixture()
+    bridgeClient.integrationBusy = true
+    bridgeClient.integrationAutomaticCheck = true
+    bridgeClient.pollIntegrationOperation()
+    assertSetup (not (bridgeClient.onboardingDialogIsOpen())) "A configured client must suppress automatic Setup"
+    setFixtureClient "openai" "check_failed" "true"
+    bridgeClient.integrationProcess = SetupFinishedProcessFixture()
+    bridgeClient.integrationBusy = true
+    bridgeClient.integrationAutomaticCheck = true
+    bridgeClient.pollIntegrationOperation()
+    assertSetup (not (bridgeClient.onboardingDialogIsOpen())) "Inconclusive checks must not claim no configured clients"
     deleteFile fixtureResultPath
     #("passed", fixtureAssertions, "no bridge start, no client installs, no scene changes")
 ) catch (

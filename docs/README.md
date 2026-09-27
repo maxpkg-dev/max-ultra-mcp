@@ -219,3 +219,9 @@ node .\tests\smoke-test.js
 ```
 
 The JavaScript suites use mock Max 2022 and 2027 clients only. The regression suite verifies the original 13 tools, lifecycle behavior, UI-helper source guards, and agent-adapter packaging; the v1 suite verifies 61–75 profile tools, envelopes, revisions, floor plans, renderer introspection, images, and render jobs; the CLI suite launches real daemon/STDIO child processes and verifies authenticated JSON-only MCP transport. A separate PowerShell helper fixture creates a disposable owned WinForms window and verifies direct HWND capture, bounded native diagnostics, evidence fields, and cleanup. None of these checks opens 3ds Max or modifies a real scene. Child/MAXScriptDialog and plugin/WebBrowser evidence still require the real-Max fixture.
+
+## AI runtime diagnostics
+
+AI Client Setup reports missing files, failed runtime launches, timeouts, unsupported Node.js versions, and invalid version responses separately. A failed local runtime check does not erase a saved client registration or prove that the running MCP connection is broken. Open the **Manual setup** tab to view or copy the checked path and diagnostic reason along with the STDIO values. The bundled executable belongs under `<INSTALL_ROOT>\runtime\win-x64\node.exe`; `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\runtime\state` contains mutable state, not the bundled executable.
+
+Setup opens after each startup check that confirms no supported client is configured. Closing it dismisses automatic display for the current run. A failed or inconclusive client check does not prove that no clients are configured.

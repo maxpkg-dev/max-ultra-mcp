@@ -744,7 +744,7 @@ async function runSmokeTest() {
     const dotNetButtonNames = [
       "btnAiStatus", "btnRefreshAgents", "btnHide",
       "btnReconnect", "btnStop", "btnSettings", "btnDonate", "btnCheckUpdates", "btnAgentSetup", "btnAboutDonate",
-      "btnOpenAI", "btnClaudeCode", "btnAntigravity", "btnManualToggle", "btnCopyManual", "btnCopyTestPrompt",
+      "btnOpenAI", "btnClaudeCode", "btnAntigravity", "btnRefreshManual", "btnCopyManual", "btnCopyTestPrompt",
     ];
     for (const buttonName of dotNetButtonNames) {
       assert.match(bootstrapSource, new RegExp(`dotNetControl ${buttonName} "System\\.Windows\\.Forms\\.Button"`));
@@ -880,7 +880,7 @@ async function runSmokeTest() {
         offset += length + 12;
       }
     }
-    assert.match(bootstrapSource, /onboardingSetupDialog\.btnCopyManual\.Text = "Copy manual setup"/);
+    assert.match(bootstrapSource, /onboardingManualDialog\.btnCopyManual\.Text = "Copy manual setup"/);
     assert.match(bootstrapSource, /setINISetting uiStateFilePath "onboarding" "dismissed"/);
     assert.match(bootstrapSource, /fn beginAutomaticOnboardingCheck/);
     assert.match(bootstrapSource, /beginAutomaticOnboardingCheck\(\)/);
@@ -918,11 +918,12 @@ async function runSmokeTest() {
     );
     assert.match(integrationPollBody, /elapsedTime\.TotalSeconds >= integrationOperationTimeoutSeconds/);
     assert.match(integrationPollBody, /integrationLastCheckFailed = true[\s\S]*timed out after/);
-    assert.match(integrationPollBody, /refreshOnboardingDialog\(\)[\s\S]*if \(wasAutomaticCheck[\s\S]*not \(loadOnboardingDismissed\(\)\)\) do showOnboardingDialog refreshStatus: false/);
+    assert.match(integrationPollBody, /refreshOnboardingDialog\(\)[\s\S]*if \(wasAutomaticCheck[\s\S]*not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not \(integrationValueIsTrue "antigravity" "configured"\)\) do showOnboardingDialog refreshStatus: false/);
+    assert.doesNotMatch(integrationPollBody, /loadOnboardingDismissed/);
     assert.match(integrationPollBody, /local conclusiveStates = #\("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing"\)/);
     assert.match(integrationPollBody, /automaticCheckConclusive[\s\S]*if \(wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive/);
     assert.doesNotMatch(integrationPollBody.match(/local conclusiveStates = #[^\n]+/)?.[0] || "", /check_failed/);
-    assert.match(bootstrapSource, /fn integrationEffectiveState[\s\S]*integrationValueIsTrue "runtime" "ready"[\s\S]*return "runtime_missing"/);
+    assert.match(bootstrapSource, /fn integrationEffectiveState[\s\S]*stateValue == "not_configured"[\s\S]*return readIntegrationValue "runtime" "state"/);
     assert.match(bootstrapSource, /"check_failed": "Check failed - refresh status to retry"/);
     assert.match(bootstrapSource, /"check_failed": "Check failed"/);
     assert.match(bootstrapSource, /"check_failed": #issue/);
