@@ -997,6 +997,9 @@ async function runSmokeTest() {
     );
     assert.match(bootstrapSource, /trailingBackslashCount[\s\S]*argumentContent \+= "\\\\"/);
     assert.match(bootstrapSource, /Update helper exited before writing a result \(exit code/);
+    assert.doesNotMatch(bootstrapSource, /normalizedPackagePath\.StartsWith/);
+    assert.equal((bootstrapSource.match(/\(dotNetClass "System\.String"\)\.Compare normalizedPackagePath 0/g) || []).length, 2);
+    assert.match(bootstrapSource, /try \(pollUpdateOperation\(\)\) catch \([\s\S]*?updateState = #error[\s\S]*?refreshUpdateStatusControl\(\)/);
     assert.doesNotMatch(bootstrapSource, /rolloutBackground = themeDrawingColor #rollupTitleFace/);
     assert.match(updateManagerSource, /Get-MaxUltraSha256Hash[\s\S]*temporaryPackagePath/);
     assert.match(maxPkgFilesSource, /version\.ini/);

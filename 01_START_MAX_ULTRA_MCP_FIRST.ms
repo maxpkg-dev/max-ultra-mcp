@@ -42,7 +42,8 @@ global MaxUltraMcpActiveClient
             local comparisonClass = dotNetClass "System.StringComparison"
             local normalizedPackagePath = pathClass.GetFullPath pendingPackagePath
             local normalizedUpdateRoot = pathClass.GetFullPath (updateStateDirectory + @"updates\")
-            pendingPackageIsValid = normalizedPackagePath.StartsWith normalizedUpdateRoot comparisonClass.OrdinalIgnoreCase
+            -- GetFullPath returns a native MAXScript string, not a .NET String instance.
+            pendingPackageIsValid = normalizedPackagePath.count >= normalizedUpdateRoot.count and ((dotNetClass "System.String").Compare normalizedPackagePath 0 normalizedUpdateRoot 0 normalizedUpdateRoot.count comparisonClass.OrdinalIgnoreCase) == 0
             pendingPackageIsValid = pendingPackageIsValid and doesFileExist normalizedPackagePath
             pendingPackageIsValid = pendingPackageIsValid and (toLower (getFilenameType normalizedPackagePath)) == ".mzp"
             pendingPackageIsValid = pendingPackageIsValid and matchPattern (getFilenameFile normalizedPackagePath) pattern: "max-ultra-mcp@*@c6977570-25a6-41b0-b9bb-b3be8101123c" ignoreCase: true
@@ -2139,7 +2140,8 @@ global MaxUltraMcpActiveClient
                     normalizedPackagePath = (dotNetClass "System.IO.Path").GetFullPath stagedPackagePath
                     normalizedUpdatesRoot = ensureSlash ((dotNetClass "System.IO.Path").GetFullPath (uiStateDirectory + "updates"))
                 ) catch ()
-                if (normalizedPackagePath != "" and normalizedUpdatesRoot != "" and normalizedPackagePath.StartsWith normalizedUpdatesRoot stringComparisonClass.OrdinalIgnoreCase and doesFileExist normalizedPackagePath and matchPattern (getFilenameFile normalizedPackagePath) pattern: "max-ultra-mcp@*@c6977570-25a6-41b0-b9bb-b3be8101123c" ignoreCase: true) then (
+                local packageIsInsideUpdatesRoot = normalizedUpdatesRoot != "" and normalizedPackagePath.count >= normalizedUpdatesRoot.count and ((dotNetClass "System.String").Compare normalizedPackagePath 0 normalizedUpdatesRoot 0 normalizedUpdatesRoot.count stringComparisonClass.OrdinalIgnoreCase) == 0
+                if (packageIsInsideUpdatesRoot and doesFileExist normalizedPackagePath and (toLower (getFilenameType normalizedPackagePath)) == ".mzp" and matchPattern (getFilenameFile normalizedPackagePath) pattern: "max-ultra-mcp@*@c6977570-25a6-41b0-b9bb-b3be8101123c" ignoreCase: true) then (
                     setINISetting uiStateFilePath "updates" "pendingPackage" normalizedPackagePath
                     updateState = #ready
                     updateMessage = "Update " + updateLatestVersion + " is verified. Installing through MaxPkg..."
@@ -5238,7 +5240,17 @@ global MaxUltraMcpActiveClient
                 runPendingAutomaticOnboardingCheck()
                 pollIntegrationOperation()
                 pollSkillsOperation()
-                pollUpdateOperation()
+                try (pollUpdateOperation()) catch (
+                    local updateFailure = getCurrentException() as string
+                    try (if (updateProcess != undefined) do updateProcess.Dispose()) catch ()
+                    updateProcess = undefined
+                    updateBusy = false
+                    updateAutomaticCheck = false
+                    updateState = #error
+                    updateMessage = "Update processing failed: " + updateFailure
+                    addActivity "error" updateMessage
+                    refreshUpdateStatusControl()
+                )
                 if (isDisposed) do throw "Bridge lifetime ended during callback"
                 pollSupportReminder()
                 pollFooterPromotion()
