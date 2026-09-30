@@ -304,7 +304,7 @@ function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$Exec
             CliAvailable = $false
             Configured = $configuredWithoutCli
             State = if ($restartRequired) { 'restart_required' } elseif ($configuredWithoutCli) { 'configured' } else { 'cli_missing' }
-            Detail = if ($restartRequired) { "$DisplayName must be restarted or reconnected to reload the MCP host." } elseif ($configuredWithoutCli) { "$DisplayName is configured." } else { "$DisplayName CLI was not found. Use the manual STDIO values shown in 3ds Max." }
+            Detail = if ($restartRequired) { "$DisplayName must be restarted or reconnected to reload the MCP host." } elseif ($configuredWithoutCli) { "$DisplayName is configured." } elseif ($ClientId -eq 'openai') { 'Codex CLI not found. Automatic setup needs the Codex command-line tool (CLI). Having ChatGPT Desktop installed does not confirm that this tool is available. Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli . Then click Refresh status. For a client that supports local STDIO, see Manual setup.' } elseif ($ClientId -eq 'claudeCode') { 'Claude Code CLI not found. Automatic setup needs the Claude Code command-line tool (CLI). Having Claude Desktop installed does not confirm that this tool is available. Install Claude Code CLI: https://code.claude.com/docs/en/setup . Then click Refresh status. For a client that supports local STDIO, see Manual setup.' } else { "$DisplayName CLI was not found. Use the manual STDIO values shown in 3ds Max." }
         }
     }
 

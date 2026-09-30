@@ -64,12 +64,18 @@ try (
     assertSetup (bridgeClient.onboardingSetupDialog.lblAntigravityStatus.Text == "Setting up...") "Active client lost in-progress status"
     bridgeClient.integrationBusy = false
     bridgeClient.integrationOperationName = #status
+    setFixtureClient "openai" "cli_missing" "false"
+    bridgeClient.refreshOnboardingDialog()
+    assertSetup (bridgeClient.onboardingSetupDialog.lblOpenAIStatus.Text == "Codex CLI not found") "Missing Codex CLI label is ambiguous"
+    assertSetup (findString bridgeClient.onboardingSetupDialog.txtClientDetail.Text "Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli" != undefined) "Missing Codex CLI explanation"
+    assertSetup (not (bridgeClient.onboardingSetupDialog.btnOpenAI.get_Enabled())) "Missing Codex CLI enabled automatic setup"
     setFixtureClient "claudeCode" "cli_missing" "false"
     setFixtureClient "openai" "configured" "true"
     setFixtureClient "antigravity" "install_failed" "true"
     bridgeClient.refreshOnboardingDialog()
     assertSetup (bridgeClient.onboardingSetupDialog.lblOpenAIStatus.Text == "Configured") "Configured status missing"
-    assertSetup (bridgeClient.onboardingSetupDialog.lblClaudeCodeStatus.Text == "Not found") "Absent client status missing"
+    assertSetup (bridgeClient.onboardingSetupDialog.lblClaudeCodeStatus.Text == "Claude Code CLI not found") "Absent client status missing"
+    assertSetup (findString bridgeClient.onboardingSetupDialog.txtClientDetail.Text "https://code.claude.com/docs/en/setup" != undefined) "Missing Claude Code installation link"
     assertSetup (not (bridgeClient.onboardingSetupDialog.btnClaudeCode.get_Enabled())) "Absent client button enabled"
     assertSetup (not (bridgeClient.installAgentIntegration "claudeCode")) "Absent client could launch setup"
     assertSetup (bridgeClient.onboardingSetupDialog.lblAntigravityStatus.Text == "Error") "Setup failure was hidden"

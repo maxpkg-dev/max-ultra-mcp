@@ -2952,6 +2952,8 @@ global MaxUltraMcpActiveClient
 
         fn integrationStateText sectionName = (
             local stateValue = integrationEffectiveState sectionName
+            if (sectionName == "claudeCode" and stateValue == "cli_missing") do return "Claude Code CLI not found. Automatic setup needs the Claude Code command-line tool (CLI). Having Claude Desktop installed does not confirm that this tool is available. Install Claude Code CLI: https://code.claude.com/docs/en/setup . Then click Refresh status. For a client that supports local STDIO, see Manual setup."
+            if (sectionName == "openai" and stateValue == "cli_missing") do return "Codex CLI not found. Automatic setup needs the Codex command-line tool (CLI). Having ChatGPT Desktop installed does not confirm that this tool is available. Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli . Then click Refresh status. For a client that supports local STDIO, see Manual setup."
             if (matchPattern stateValue pattern: "runtime_*") do return readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry."
             if (sectionName == "antigravity") do (
                 if (stateValue == "configured") do return "Settings saved - connection not verified"
@@ -2973,6 +2975,8 @@ global MaxUltraMcpActiveClient
             if (integrationBusy) do return "Checking..."
             if (integrationLastCheckFailed) do return "Check failed"
             local stateValue = integrationEffectiveState sectionName
+            if (sectionName == "openai" and stateValue == "cli_missing") do return "Codex CLI not found"
+            if (sectionName == "claudeCode" and stateValue == "cli_missing") do return "Claude Code CLI not found"
             case stateValue of (
                 "configured": "MCP ready"
                 "not_configured": "Setup required"
@@ -3057,6 +3061,9 @@ global MaxUltraMcpActiveClient
                 ) else if (openAIStateValue == "install_failed" or claudeStateValue == "install_failed") then (
                     combinedStatusText = "AI setup | Failed"
                     combinedStatusState = #issue
+                ) else if (openAIStateValue == "cli_missing" and claudeStateValue == "cli_missing" and antigravityStateValue == "cli_missing") then (
+                    combinedStatusText = "Codex CLI not found"
+                    combinedStatusState = #warning
                 ) else if (toLower (readIntegrationValue "operation" "state" fallbackValue: "") == "") then (
                     combinedStatusText = "AI client | Waiting..."
                     combinedStatusState = #neutral
@@ -3172,12 +3179,16 @@ global MaxUltraMcpActiveClient
                         presentation = onboardingCardPresentation clientState[2] clientState[1] false false false
                         presentation[3] = false
                     )
+                    if ((clientId == "openai" or clientId == "claudeCode") and clientState[2] == "cli_missing" and presentation[1] == "Not found") do (
+                        presentation[1] = if (clientId == "openai") then "Codex CLI not found" else "Claude Code CLI not found"
+                        clientState[3] = integrationStateText clientId
+                    )
                     clientLabels[clientIndex].Text = presentation[1]
                     local statusTextColor = MaxUltraMcpTheme.textColor
                     if (presentation[2] == #pass) do statusTextColor = MaxUltraMcpTheme.bridgePassTextColor
                     if (presentation[2] == #issue) do statusTextColor = MaxUltraMcpTheme.bridgeIssueTextColor
                     if (presentation[2] == #warning) do statusTextColor = MaxUltraMcpTheme.warningColor
-                    if (presentation[1] == "Not found") do statusTextColor = MaxUltraMcpTheme.disabledTextColor
+                    if (presentation[1] == "Not found" or presentation[1] == "Codex CLI not found" or presentation[1] == "Claude Code CLI not found") do statusTextColor = MaxUltraMcpTheme.disabledTextColor
                     clientLabels[clientIndex].ForeColor = statusTextColor
                     clientLabels[clientIndex].AccessibleDescription = clientState[3]
                     MaxUltraMcpUiKit.updateButtonState clientButtons[clientIndex] presentation[3]

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4.5 - 2026-09-30
+
+- Changed: Missing Codex and Claude Code detection identifies the unavailable CLI, explains the command-line tool requirement, and links to each client's official installation instructions with a reminder to refresh status.
+
 ## 1.4.4 - 2026-09-28
 
 - Fixed: Downloaded updates use native MAXScript-compatible path validation at staging and installation, avoiding the `StartsWith` callback error. Update-processing errors are reported without stopping the MCP bridge timer.
