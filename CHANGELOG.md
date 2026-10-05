@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.4.6 - 2026-10-05
+
 - Added: Thirteen core layer tools with scene-bound references, hierarchy and property reads, bulk assignment, selection, and state-bound preview/apply for deletion, merging and empty-layer cleanup. Native hierarchy Undo limitations are reported explicitly.
 - Fixed: Semantic object producers return INode handles compatible with NodeRef consumers and layer assignment, instead of animation handles.
 - Added: Orange Community Skills link between Submit Your Skill and Donate in the Skills window, opening the community ZIP download catalog.
