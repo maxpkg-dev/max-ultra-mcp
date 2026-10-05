@@ -85,6 +85,51 @@ Prefer names such as `sourceFilePath`, `messageContent`, `packageName`, `iniSect
 - For .NET text input, manage `enableAccelerators`, preserve Tab navigation, configure multiline behavior explicitly, and never bind the same event repeatedly when a rollout reopens.
 - Restore temporary UI, viewport, selection, and accelerator state in cleanup paths.
 
+### Safe UI script re-execution
+
+Before redefining a rollout or replacing its saved window reference, close the previous UI instance owned by that script. This ordering is mandatory for scripts that recreate their UI on re-execution: overwriting the rollout or floater reference first can leave an orphan window and duplicate handlers.
+
+- For a rollout displayed with `createDialog`, call `destroyDialog` on the old rollout before its new definition.
+- For a window created with `newRolloutFloater`, call `closeRolloutFloater` on the saved floater before redefining its rollouts or assigning a new floater. Removing one rollout does not close the container.
+- Guard missing references on first execution and already-closed windows. Use rollout `.inDialog` for a dialog and floater `.open` for a floater; rollout `.open` describes its expanded state, not window lifetime. A hidden window still needs cleanup.
+- Close only the script's own UI through its retained reference. Do not enumerate and close unrelated windows. If that UI was registered as a CUI dialog bar, unregister it before closing it.
+- Stop owned timers, remove owned callbacks and .NET event handlers, and release owned resources through idempotent lifecycle cleanup before replacement. Reuse that cleanup from normal close handlers. Do not overwrite the old controller before its cleanup runs, remove other scripts' handlers, or suppress a failed cleanup and create a duplicate anyway.
+- Reuse an existing lifecycle owner or persistent MacroScript scope when available. Only a standalone script that needs a reference across evaluations should introduce a documented, uniquely prefixed global; declaring it must not reset the previous reference before cleanup.
+
+Minimal standalone dialog example (no external timers or handlers):
+
+```maxscript
+-- Retain only this example's dialog across script evaluations.
+global ExampleToolDialog
+if (ExampleToolDialog != undefined) do (
+    if (ExampleToolDialog.inDialog) do destroyDialog ExampleToolDialog
+)
+rollout ExampleToolDialog "Example Tool" (
+    label lblReady "Ready"
+)
+createDialog ExampleToolDialog
+```
+
+Alternative standalone floater example; the rollout stays local and only its container is retained:
+
+```maxscript
+-- Retain only this example's floater across script evaluations.
+global ExampleToolFloater
+(
+    if (ExampleToolFloater != undefined) do (
+        if (ExampleToolFloater.open) do closeRolloutFloater ExampleToolFloater
+    )
+    ExampleToolFloater = undefined
+    rollout exampleToolPanel "Example Tool" (
+        label lblReady "Ready"
+    )
+    ExampleToolFloater = newRolloutFloater "Example Tool" 240 120
+    addRollout exampleToolPanel ExampleToolFloater
+)
+```
+
+These examples guard absent or closed windows without swallowing operational errors. Add the script's resource cleanup before recreation when it owns resources beyond its controls. Verify first run, rerun while open, and rerun after manual close.
+
 ## Verification before execution or handoff
 
 1. Review the final diff and search for stale identifiers, old control names, hard-coded paths, unfinished markers, and accidental globals.
@@ -99,4 +144,6 @@ Sources:
 
 - [Max Ultra MCP repository coding rules](https://github.com/maxpkg-dev/max-ultra-mcp/blob/main/.agents/coding-rules.md)
 - [Official MaxPkg MaxScript coding rules](https://github.com/maxpkg-dev/max-dev-tool/blob/main/code-rules.md)
+- [Autodesk rollout properties and close handlers](https://help.autodesk.com/cloudhelp/2022/ENU/MAXScript-Help/files/MAXScript-Tools-and-Interaction/Creating-MAXScript-Tools/Scripted-Utilities-and-Rollouts/GUID-DC435555-362D-4A03-BCF2-21179C5442F2.html)
+- [Autodesk rollout floater lifetime](https://help.autodesk.com/cloudhelp/2019/ENU/3DSMax-MAXScript/files/GUID-A72112A6-BDFB-47A6-88FB-8D49C4CBD049.htm)
 
