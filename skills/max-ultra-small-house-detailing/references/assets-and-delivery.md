@@ -18,6 +18,8 @@ Determine chair facing from visible geometry, not just an object axis. Measure l
 
 ## Verify saved output
 
+For component showcase screenshots, follow the shared [final showcase capture](../../max-ultra-mcp/references/workflows.md#final-showcase-capture-for-chat). Retain architectural context when presenting placement, fit, or the overall composition.
+
 Use the general skill's scene-files reference before saving or exporting. Restore the intended camera and temporary isolation state unless the user wants them retained. Resolve the exact requested destination and collision policy before a write; do not substitute a similarly named scene.
 
 For `max_scene_save`, inspect the inner execution result as well as the outer tool envelope, read back the scene path, and verify destination existence, nonzero size, and an update corresponding to this save. A pre-existing file alone does not prove success. After a timeout or disconnect, inspect state before retrying an overwrite. Report incomplete or uncertain saves; do not open/reset the working scene merely to test the file.

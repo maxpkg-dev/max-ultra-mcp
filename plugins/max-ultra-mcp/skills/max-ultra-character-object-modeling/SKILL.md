@@ -45,6 +45,8 @@ Read [references/subdivision-topology.md](references/subdivision-topology.md) be
 - TurboSmooth uses one iteration, remains live in the stack, and does not replace the middle-poly source cage.
 - Final screenshots show clean shading, correct normals, stable highlights, and requested likeness from multiple useful views.
 
+For images presented in chat, follow the shared [final showcase capture](../max-ultra-mcp/references/workflows.md#final-showcase-capture-for-chat), including temporary subject isolation and restoration; use its intact-mesh detail approach for individual Elements.
+
 ## Boundaries
 
 - Do not create primitive placeholders as the delivered model and do not claim a primitive assembly is professional polygon modeling.

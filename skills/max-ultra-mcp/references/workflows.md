@@ -30,13 +30,16 @@ For visual composition, capture after each meaningful angle adjustment. Compare 
 
 ### Final showcase capture for chat
 
-Use this sequence when the purpose of the screenshot is to present the finished work attractively to the user, rather than to diagnose topology, normals, selection, or UI behavior.
+Use this sequence when a screenshot presents a completed model, component, or modeling update to the user. Diagnostic evidence for topology, normals, selection, or UI behavior follows its own display requirements.
 
-1. Recall the scene summary recorded before the work. When the scene was empty and the completed result is exactly one visible object, clear selection with `max_select_objects` using `mode:"clear"` and an empty `nodes` array.
-2. Call `max_zoom_extents` so the single result fills the active viewport. In a pre-existing or multi-object scene, frame only the intended result or use its reviewed camera instead of exposing unrelated scene content.
+1. Identify the model or component being presented using current NodeRefs. Record the selection, existing isolation state and its members, and the original visibility of every node, layer, or sub-object whose display will change. Keep this snapshot until cleanup succeeds.
+2. For a specific model or component, temporarily isolate that subject and its relevant parts (Hide Isolation), then frame it closely with `max_frame_selection` or a reviewed view. Use `max_zoom_extents` only when all visible geometry belongs in the image. Preserve necessary context when the request concerns the overall scene, composition, placement, or relationships between objects.
+   - Preserve an existing isolation session rather than blindly exiting or replacing it. Use a supported reversible isolation or visibility operation whose prior state can be restored; inspect the live tool/API capabilities instead of assuming an isolation tool exists.
+   - For a detail inside one mesh, prefer a close view and suitable angle. Use temporary sub-object hiding only when the object's actual class and modifier state support it and the exact hidden/selection state can be restored. Never delete, detach, split, or collapse geometry merely for a screenshot. If safe isolation is unavailable, keep the mesh intact and show the detail with enough context to identify it.
 3. Ensure no workflow-owned modal dialog, context menu, rollout, tooltip, transform gizmo, or temporary helper obscures the result. Do not close unrelated user windows merely to clean the image.
 4. Call `max_redraw_viewports`, then `max_capture_viewport` with `reviewPreset:"clean-realistic"`. Capture maximizes the active viewport and temporarily removes the grid, selection brackets, selected edges, selection and hover outlines, and other supported viewport clutter.
-5. Inspect the returned image before presenting it. Repeat only when the object is clipped, too small, obscured, badly framed, or shown from an unhelpful angle.
+5. Inspect the returned image before presenting it: the intended subject must be prominent, readable, and unobscured. Repeat only when it is clipped, too small, obscured, badly framed, or shown from an unhelpful angle.
+6. Restore the saved visibility, isolation membership/state, and object/sub-object selection after capture, including on failure or cancellation. Restore only the states changed for the image; never use a blanket `unhide all` or reveal previously hidden objects/layers. Verify restoration and report any incomplete cleanup instead of claiming the scene was restored. The capture preset restores viewport display settings, not this workflow's isolation or selection changes.
 
 Do not use this showcase cleanup for evidence that specifically needs selected nodes, edged faces, wireframe, gizmos, plugin windows, or before/after diagnostic state. Do not mutate the user's persistent viewport preferences for a screenshot; rely on the temporary capture preset and its restore result.
 ## Production render
