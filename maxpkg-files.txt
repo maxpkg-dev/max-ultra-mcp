@@ -16,6 +16,11 @@ assets/client-logos/codex.png
 assets/client-logos/claude.png
 assets/client-logos/antigravity.png
 core/skill-store.js
+core/layers.js
+core/layers.ms
+docs/LAYERS.md
+skills/max-ultra-mcp/references/layers.md
+plugins/max-ultra-mcp/skills/max-ultra-mcp/references/layers.md
 core/skill-zip.js
 core/skills-cli.js
 core/skill-markdown.js

@@ -55,7 +55,7 @@ function generateMaterialDiagnosticsScript(options = {}) {
   )
 
   fn mcpNodeRecord nodeValue materialClassValue emptySlotCount missingPaths = (
-    local nodeHandle = (getHandleByAnim nodeValue) as string
+    local nodeHandle = nodeValue.handle as string
     local layerName = try (nodeValue.layer.name as string) catch ("")
     local className = try ((classOf nodeValue) as string) catch ("Unknown")
     return "{\\"node\\":{\\"handle\\":" + nodeHandle + ",\\"name\\":\\"" + (mcpJsonEscape nodeValue.name) + "\\"}," +

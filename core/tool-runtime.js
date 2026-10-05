@@ -18,6 +18,7 @@ const { generateMaterialDiagnosticsScript, parseMaterialDiagnostics } = require(
 const { generatePolygonMeshScript, validatePolygonMesh } = require("./polygon-mesh");
 const { runUiAutomation } = require("./windows-ui");
 const { SkillStore } = require("./skill-store");
+const { invokeLayerTool } = require("./layers");
 
 const NOT_HANDLED = Symbol("NOT_HANDLED");
 
@@ -244,7 +245,7 @@ function createPrimitiveScript(args) {
   undo "Max Ultra MCP: Create primitive" on (
     local n = ${constructor} name:${maxString(name)} pos:${vectorScript(position)} ${properties}
     select n
-    ((getHandleByAnim n) as string) + "|" + n.name
+    (n.handle as string) + "|" + n.name
   )
 )`;
 }
@@ -283,6 +284,12 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   const instance = bridge.selectInstance(args.instance_id, session);
   const publicInstance = bridge.publicInstance(instance);
 
+  if (toolName.startsWith("max_layer_")) return invokeLayerTool({
+    toolName, args, bridge, session, instance,
+    revision: revisionFor(bridge, instance.instanceId),
+    increment: () => incrementRevision(bridge, instance.instanceId),
+  });
+
   if (toolName === "max_capabilities") {
     const info = await bridge.request(instance.instanceId, "get_info", "", 30000);
     const renderer = info?.scene?.render?.renderer || "Unknown";
@@ -294,6 +301,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
       rendererAdapter: /corona/i.test(renderer) ? "corona" : /v-?ray/i.test(renderer) ? "vray" : "generic",
       uiAutomation: { processScoped: true, backend: "Windows UI Automation plus native HWND diagnostics", directHwndCapture: true, boundedDiagnostics: true },
       maxScript: { unrestricted: true },
+      layers: { profile: "core", sceneBoundReferences: true, previewTokens: true, maxPageSize: 200, maxMutationLayers: 500, maxMutationNodes: 2000 },
       tools: [...allToolNames],
     };
   }
@@ -361,7 +369,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   undo "Max Ultra MCP: Create box" on (
     local n=box name:${maxString(name)} width:${size[0]} length:${size[1]} height:${size[2]} pos:${vectorScript(position)}
     if ${selected} do select n
-    ((getHandleByAnim n) as string)+"|"+n.name
+    (n.handle as string)+"|"+n.name
   )
 )`;
     const box = { name, position: { x: position[0], y: position[1], z: position[2] }, dimensions: { width: size[0], length: size[1], height: size[2] }, selected };
@@ -392,7 +400,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     const cloneType = args.cloneType || "copy";
     const cloneFunction = cloneType === "instance" ? "instance" : cloneType === "reference" ? "reference" : "copy";
     const rename = args.name ? `; n.name = ${maxString(args.name)}` : "";
-    const script = `(local source=${source}; if source==undefined do throw "NodeRef not found"; undo "Max Ultra MCP: Clone" on (local n=${cloneFunction} source${rename}; select n; ((getHandleByAnim n) as string)+"|"+n.name))`;
+    const script = `(local source=${source}; if source==undefined do throw "NodeRef not found"; undo "Max Ultra MCP: Clone" on (local n=${cloneFunction} source${rename}; select n; (n.handle as string)+"|"+n.name))`;
     return args.dryRun ? dryRunResult(toolName, instance, script) : executeNodeMutation(bridge, instance, script, args.name || args.node?.name);
   }
   if (toolName === "max_delete_objects") {
@@ -402,7 +410,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
   }
   if (toolName === "max_rename_object") {
     const expression = nodeExpression(args.node, bridge, instance.instanceId);
-    const script = `(local n=${expression}; if n==undefined do throw "NodeRef not found"; if getNodeByName ${maxString(args.name)} exact:true != undefined do throw "Target name already exists"; undo "Max Ultra MCP: Rename" on n.name=${maxString(args.name)}; ((getHandleByAnim n) as string)+"|"+n.name)`;
+    const script = `(local n=${expression}; if n==undefined do throw "NodeRef not found"; if getNodeByName ${maxString(args.name)} exact:true != undefined do throw "Target name already exists"; undo "Max Ultra MCP: Rename" on n.name=${maxString(args.name)}; (n.handle as string)+"|"+n.name)`;
     return args.dryRun ? dryRunResult(toolName, instance, script) : executeNodeMutation(bridge, instance, script, args.name);
   }
   if (toolName === "max_transform_object") {
@@ -413,7 +421,7 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     if (args.rotation) assignments.push(`n.rotation = ${mode === "offset" ? "n.rotation * " : ""}(eulerAngles ${vector3(args.rotation, undefined, "rotation").join(" ")})`);
     if (args.scale) assignments.push(`n.scale = ${mode === "offset" ? "n.scale * " : ""}${vectorScript(vector3(args.scale, undefined, "scale"))}`);
     if (!assignments.length) throw new Error("At least one transform component is required");
-    const script = `(local n=${expression}; if n==undefined do throw "NodeRef not found"; undo "Max Ultra MCP: Transform" on (${assignments.join("; ")}); ((getHandleByAnim n) as string)+"|"+n.name)`;
+    const script = `(local n=${expression}; if n==undefined do throw "NodeRef not found"; undo "Max Ultra MCP: Transform" on (${assignments.join("; ")}); (n.handle as string)+"|"+n.name)`;
     return args.dryRun ? dryRunResult(toolName, instance, script) : executeNodeMutation(bridge, instance, script, args.node?.name);
   }
   if (toolName === "max_select_objects") {
@@ -421,15 +429,6 @@ async function invokeV1Tool(bridge, toolName, args = {}, session = bridge) {
     const expressions = (args.nodes || []).map((node) => nodeExpression(node, bridge, instance.instanceId));
     const command = mode === "clear" ? "clearSelection()" : mode === "add" ? `selectMore #(${expressions.join(",")})` : mode === "remove" ? `deselect #(${expressions.join(",")})` : `select #(${expressions.join(",")})`;
     return executeMutation(bridge, instance, `(${command}; selection.count)`, 30000, { selectionMode: mode });
-  }
-  if (toolName === "max_layer_create") {
-    const script = `(local l=LayerManager.getLayerFromName ${maxString(args.name)}; if l==undefined do l=LayerManager.newLayerFromName ${maxString(args.name)}; l.name)`;
-    return args.dryRun ? dryRunResult(toolName, instance, script) : executeMutation(bridge, instance, script);
-  }
-  if (toolName === "max_layer_assign") {
-    const expressions = args.nodes.map((node) => nodeExpression(node, bridge, instance.instanceId));
-    const script = `(local l=LayerManager.getLayerFromName ${maxString(args.name)}; if l==undefined do l=LayerManager.newLayerFromName ${maxString(args.name)}; local nodes=#(${expressions.join(",")}); if findItem nodes undefined>0 do throw "NodeRef not found"; undo "Max Ultra MCP: Layer" on for n in nodes do l.addNode n; nodes.count)`;
-    return args.dryRun ? dryRunResult(toolName, instance, script) : executeMutation(bridge, instance, script);
   }
   if (toolName === "max_add_modifier") {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(args.modifier)) throw new Error("modifier must be a MaxScript class identifier");
@@ -467,7 +466,7 @@ m.name=marker
 m.unify=false
 m.flip=${flip}
 undo "Max Ultra MCP: Normal review" on addModifier n m
-((getHandleByAnim n) as string)+"|"+n.name+"|"+m.name+"|flip="+(m.flip as string)
+(n.handle as string)+"|"+n.name+"|"+m.name+"|flip="+(m.flip as string)
 )`;
     const evidence = { modifierName, flip, unify: false, comparisonRequiresImmediateScreenshot: true };
     return args.dryRun ? dryRunResult(toolName, instance, script, evidence) : executeMutation(bridge, instance, script, 30000, evidence);
@@ -490,7 +489,7 @@ m.autosmooth=true
 m.threshold=${threshold}
 m.preventIndirect=${preventIndirect}
 undo "Max Ultra MCP: Auto Smooth" on addModifier n m
-((getHandleByAnim n) as string)+"|"+n.name+"|"+m.name+"|autosmooth="+(m.autosmooth as string)+"|threshold="+(m.threshold as string)+"|preventIndirect="+(m.preventIndirect as string)
+(n.handle as string)+"|"+n.name+"|"+m.name+"|autosmooth="+(m.autosmooth as string)+"|threshold="+(m.threshold as string)+"|preventIndirect="+(m.preventIndirect as string)
 )`;
     const evidence = { modifierName, autoSmooth: true, threshold, preventIndirect };
     return args.dryRun ? dryRunResult(toolName, instance, script, evidence) : executeMutation(bridge, instance, script, 30000, evidence);

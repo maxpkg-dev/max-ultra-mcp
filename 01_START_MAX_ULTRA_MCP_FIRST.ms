@@ -622,6 +622,7 @@ global MaxUltraMcpActiveClient
         disposeInProgress = false,
         isDisposed = false,
         maxShutdownCallbackId = #MaxUltraMcpLifecycle,
+        layerSceneEpoch = "",
         tickCount = 0,
         connectionState = #stopped,
         connectionError = "",
@@ -5212,6 +5213,9 @@ global MaxUltraMcpActiveClient
                 callbacks.removeScripts id: maxShutdownCallbackId
                 local callbackScript = "try (if MaxUltraMcpActiveClient != undefined do MaxUltraMcpActiveClient.closeForLifecycle reason:\"3ds Max is exiting\") catch (format \"[3DGROUND | Max Ultra MCP] MAX EXIT ERROR | %\\n\" (getCurrentException() as string))"
                 callbacks.addScript #preSystemShutdown callbackScript id: maxShutdownCallbackId persistent: false
+                if (layerSceneEpoch == "") do layerSceneEpoch = ((dotNetClass "System.Guid").NewGuid()).ToString()
+                local invalidateLayerReferences = "if (MaxUltraMcpActiveClient != undefined) do MaxUltraMcpActiveClient.layerSceneEpoch = ((dotNetClass \"System.Guid\").NewGuid()).ToString()"
+                for sceneEvent in #(#systemPreReset, #systemPreNew, #filePreOpen) do callbacks.addScript sceneEvent invalidateLayerReferences id: maxShutdownCallbackId persistent: false
                 return true
             ) catch (
                 addActivity "error" ("Could not register Max shutdown cleanup: " + (getCurrentException() as string))

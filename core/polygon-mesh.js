@@ -295,7 +295,7 @@ function generatePolygonMeshScript(normalizedMesh) {
     "  local edgeCount = polyop.getNumEdges createdNode",
     "  local faceCount = polyop.getNumFaces createdNode",
     "  local openEdgeCount = (polyop.getOpenEdges createdNode).numberSet",
-    '  ((getHandleByAnim createdNode) as string) + "|" + createdNode.name + "|" + (vertexCount as string) + "|" + (edgeCount as string) + "|" + (faceCount as string) + "|" + (openEdgeCount as string) + "|" + ((classOf createdNode.baseObject) as string)',
+    '  (createdNode.handle as string) + "|" + createdNode.name + "|" + (vertexCount as string) + "|" + (edgeCount as string) + "|" + (faceCount as string) + "|" + (openEdgeCount as string) + "|" + ((classOf createdNode.baseObject) as string)',
     ")",
   ];
   return { script: statements.join("\n") };

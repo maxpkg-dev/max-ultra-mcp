@@ -8,6 +8,7 @@
 "use strict";
 
 const MAX_EXECUTION_TIMEOUT_MS = 600000;
+const { layerTools } = require("./layers");
 
 const target = {
   instance_id: { type: "string", description: "Connected 3ds Max instance id. Optional when exactly one instance is connected or after max_select_instance." },
@@ -119,8 +120,7 @@ const tools = [
   tool("max_rename_object", "Rename one guarded scene node.", schema({ node: objectRef, name: { type: "string", minLength: 1, maxLength: 128 }, dryRun: { type: "boolean", default: false } }, ["node", "name"]), write),
   tool("max_transform_object", "Set or offset node position, Euler rotation, and scale.", schema({ node: objectRef, mode: { type: "string", enum: ["set", "offset"], default: "set" }, position: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, rotation: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, scale: { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 }, dryRun: { type: "boolean", default: false } }, ["node"]), write),
   tool("max_select_objects", "Replace, add to, remove from, or clear the current selection.", schema({ nodes: { type: "array", items: objectRef, default: [] }, mode: { type: "string", enum: ["replace", "add", "remove", "clear"], default: "replace" } }), write),
-  tool("max_layer_create", "Create or get a layer by name.", schema({ name: { type: "string", minLength: 1 }, dryRun: { type: "boolean", default: false } }, ["name"]), write, "full"),
-  tool("max_layer_assign", "Assign guarded nodes to a layer.", schema({ name: { type: "string", minLength: 1 }, nodes: { type: "array", items: objectRef, minItems: 1 }, dryRun: { type: "boolean", default: false } }, ["name", "nodes"]), write, "full"),
+  ...layerTools({ tool, schema, readOnly, write, objectRef }),
   tool("max_add_modifier", "Add a named modifier to one guarded scene node.", schema({ node: objectRef, modifier: { type: "string", minLength: 1 }, parameters: { type: "object", additionalProperties: { type: ["number", "string", "boolean"] } }, dryRun: { type: "boolean", default: false } }, ["node", "modifier"]), openWrite, "full"),
   tool("max_material_create", "Create a standard material with optional diffuse color.", schema({ name: { type: "string", minLength: 1 }, diffuse: { type: "array", items: { type: "integer", minimum: 0, maximum: 255 }, minItems: 3, maxItems: 3 }, dryRun: { type: "boolean", default: false } }, ["name"]), write, "archviz"),
   tool("max_material_assign", "Assign a named scene material to guarded nodes.", schema({ materialName: { type: "string", minLength: 1 }, nodes: { type: "array", items: objectRef, minItems: 1 }, dryRun: { type: "boolean", default: false } }, ["materialName", "nodes"]), write, "archviz"),

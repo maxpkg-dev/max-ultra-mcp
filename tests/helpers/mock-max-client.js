@@ -110,7 +110,9 @@ class MockMaxClient {
       this.executeRequests.push(actionPayload);
       this.activityLabels.push(activityLabel);
       let executionResult = `mock-result:${actionPayload}`;
-      if (actionPayload.includes("Max Ultra MCP: Create polygon mesh")) {
+      if (actionPayload.includes("local layerRequest =") && actionPayload.includes('#("operation","list")')) {
+        executionResult = JSON.stringify({ ok: true, changed: false, layers: [{ layer: { handle: 101, name: "0", instanceId: this.instanceId, sceneId: "mock-layer-scene" }, parent: null, nodeCount: 3, childCount: 0, current: true, properties: { isHidden: false } }], total: 1, nextOffset: null, warnings: [] });
+      } else if (actionPayload.includes("Max Ultra MCP: Create polygon mesh")) {
         const nodeNameMatch = /local nodeName = ("(?:\\.|[^"\\])*")/.exec(actionPayload);
         const nodeName = nodeNameMatch ? JSON.parse(nodeNameMatch[1]) : "MockPolygonMesh";
         executionResult = `42001|${nodeName}|8|12|6|0|Editable_Poly`;

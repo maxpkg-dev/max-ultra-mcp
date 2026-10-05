@@ -371,6 +371,13 @@ async function run() {
     const infoA = await rpc(hostA, { jsonrpc: "2.0", id: 71, method: "tools/call", params: { name: "max_get_info", arguments: {} } });
     assert.deepEqual(infoA.result.structuredContent.data.info.units, { systemType: "Millimeters", systemScale: 1, displayType: "Metric" });
 
+    for (const [layerHost, expectedInstance] of [[hostA, "v1-max-2022"], [hostB, "v1-max-2027"]]) {
+      const layerList = await rpc(layerHost, { jsonrpc: "2.0", id: 710, method: "tools/call", params: { name: "max_layer_list", arguments: { limit: 1 } } });
+      assert.equal(layerList.result.isError, false, JSON.stringify(layerList.result.structuredContent));
+      assert.equal(layerList.result.structuredContent.data.layers[0].layer.instanceId, expectedInstance);
+      assert.equal(layerList.result.structuredContent.sceneRevision, 1000);
+    }
+
     const materialIssues = await rpc(hostA, { jsonrpc: "2.0", id: 72, method: "tools/call", params: { name: "max_material_find_unassigned", arguments: {} } });
     assert.equal(materialIssues.result.isError, false, JSON.stringify(materialIssues.result.structuredContent));
     assert.equal(materialIssues.result.structuredContent.data.matched, 2);

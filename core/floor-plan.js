@@ -482,7 +482,7 @@ function generateFloorPlanScript(normalizedPlan, options = {}) {
   statements.push("    append createdNodes wallPlanSource");
   statements.push("    local wallMesh = copy wallPlanSource");
   statements.push("    wallMesh.name = wallMeshName");
-  statements.push("    setUserProp wallMesh \"MaxUltraMCPSourceHandle\" ((getHandleByAnim wallPlanSource) as string)");
+  statements.push("    setUserProp wallMesh \"MaxUltraMCPSourceHandle\" (wallPlanSource.handle as string)");
   statements.push("    addModifier wallMesh (Extrude amount:(mm " + Number(normalizedPlan.wallHeight).toFixed(6) + "))");
   statements.push("    convertToMesh wallMesh");
   statements.push("    undo off (");
@@ -517,7 +517,7 @@ function generateFloorPlanScript(normalizedPlan, options = {}) {
   }
 
   statements.push("    select visibleNodes");
-  statements.push(`    buildResult = "sourceHandle=" + ((getHandleByAnim wallPlanSource) as string) + ";sourceSpline=" + sourceSplineName + ";wallHandle=" + ((getHandleByAnim wallMesh) as string) + ";wallMesh=" + wallMeshName + ";walls=${normalizedPlan.walls.length};segments=${segmentCount};openings=${normalizedPlan.openings.length};helpers=0;floor=${normalizedPlan.floor.enabled ? 1 : 0}"`);
+  statements.push(`    buildResult = "sourceHandle=" + (wallPlanSource.handle as string) + ";sourceSpline=" + sourceSplineName + ";wallHandle=" + (wallMesh.handle as string) + ";wallMesh=" + wallMeshName + ";walls=${normalizedPlan.walls.length};segments=${segmentCount};openings=${normalizedPlan.openings.length};helpers=0;floor=${normalizedPlan.floor.enabled ? 1 : 0}"`);
   statements.push("  )");
   statements.push("  buildResult");
   statements.push(")");

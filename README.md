@@ -22,6 +22,7 @@ The first production-foundations increment adds session-owned common jobs and re
 - Connect one or more already-open 3ds Max instances to one local bridge.
 - Let each connected MCP client select its own Max instance.
 - Inspect and modify scenes through structured MCP tools.
+- Organize layer hierarchies, membership and properties with [semantic layer tools](docs/LAYERS.md), including explicit preview/apply for merge, deletion and empty-layer cleanup.
 - Validate and create custom Editable Poly topology from object-local vertices and zero-based polygon faces.
 - Maximize the active viewport, temporarily clean and improve its display, capture it, restore the user's display settings, and return the screenshot directly to the model.
 - Start, monitor, cancel, and retrieve renders.
@@ -194,7 +195,7 @@ The source image is interpreted by the model. Raw image bytes are not passed to 
 
 - `core`: connection, scene, objects, viewport, rendering, scripts, diagnostics, and UI automation.
 - `archviz`: core plus materials and structured floor-plan workflows.
-- `full`: archviz plus layers, modifiers, import/export, and animation helpers.
+- `full`: archviz plus modifiers, import/export, and animation helpers. Layer tools are available in `core`.
 
 Set the profile with `MAX_ULTRA_MCP_TOOL_PROFILE`. The default is `archviz`.
 

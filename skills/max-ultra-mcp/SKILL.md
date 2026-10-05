@@ -40,6 +40,7 @@ Never generate MaxScript merely to recreate an available semantic tool. Never us
 
 ## Conditional references
 
+- Read [references/layers.md](references/layers.md) for layer hierarchy, membership, properties, selection, merge, deletion, or empty-layer cleanup. Prefer semantic layer tools, starting with `max_layer_list`.
 - Read [references/code-rules.md](references/code-rules.md) completely before creating or editing a persistent MaxScript source file, rollout, MacroScript, callback, generated script, or reusable `max_run_script` body.
 - Read [references/maxscript.md](references/maxscript.md) before authoring MaxScript for `max_run_script` or `max_execute`.
 - Read [references/polygon-modeling.md](references/polygon-modeling.md) when synthesizing custom polygon topology from dimensions, a reference image, or a modeling request.

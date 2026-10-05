@@ -31,6 +31,8 @@ function writeRpc(message) {
 function errorCode(error) {
   if (/^SKILL_[A-Z_]+$/.test(error?.code || "")) return error.code;
   const message = String(error?.message || error || "Unknown error");
+  const layerError = /\b(STALE_LAYER_REF|LAYER_[A-Z_]+):/.exec(message);
+  if (layerError) return layerError[1];
   if (/ECONNREFUSED|ECONNRESET|EPIPE|ENOTCONN|socket hang up|Bridge stopped|daemon unavailable|control client is not connected|connection closed/i.test(message)) return "BRIDGE_DOWN";
   if (/No 3ds Max instances/i.test(message)) return "MAX_NOT_CONNECTED";
   if (/Multiple 3ds Max|max_select_instance/i.test(message)) return "INSTANCE_REQUIRED";
@@ -64,6 +66,7 @@ function errorHints(error) {
     UI_ELEMENT_NOT_FOUND: ["Call max_ui_list_windows or max_ui_inspect again and retry with a fresh Max-owned HWND."],
     UI_CAPTURE_FAILED: ["Restore the verified Max-owned window, obtain a fresh HWND with max_ui_inspect, and retry direct capture."],
     STALE_NODE_REF: ["Query the scene again and use the new NodeRef; do not fall back to the old name."],
+    STALE_LAYER_REF: ["Call max_layer_list for the selected instance and use a fresh LayerRef; never fall back to the old name."],
     RENDERER_UNSUPPORTED: ["Call max_renderer_properties_get and use only capabilities exposed by the active renderer."],
   };
   return hints[errorCode(error)] || [];
