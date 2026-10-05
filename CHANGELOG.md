@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added: Orange Community Skills link between Submit Your Skill and Donate in the Skills window, opening the community ZIP download catalog.
+
 ## 1.4.5 - 2026-09-30
 
 - Changed: Missing Codex and Claude Code detection identifies the unavailable CLI, explains the command-line tool requirement, and links to each client's official installation instructions with a reminder to refresh status.
