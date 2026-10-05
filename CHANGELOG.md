@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added: Orange Community Skills link between Submit Your Skill and Donate in the Skills window, opening the community ZIP download catalog.
+- Fixed: Community Skills uses a left-aligned native text hyperlink without a WinForms background or button styling.
 
 ## 1.4.5 - 2026-09-30
 

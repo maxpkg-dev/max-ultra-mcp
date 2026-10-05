@@ -426,7 +426,7 @@ global MaxUltraMcpActiveClient
         dotNetControl lblSkillsStatus "System.Windows.Forms.Label" pos: [12,626] width: 796 height: 40
         dotNetControl btnSkillManual "System.Windows.Forms.Button" pos: [12,678] width: 264 height: 30
         dotNetControl btnSubmitSkill "System.Windows.Forms.Button" pos: [284,678] width: 150 height: 30
-        dotNetControl lnkCommunitySkills "System.Windows.Forms.LinkLabel" pos: [446,678] width: 150 height: 30
+        hyperlink lnkCommunitySkills "Community Skills" pos: [446,684] width: 150 height: 18 align: #left color: (color 255 127 0) hoverColor: (color 255 170 64) visitedColor: (color 255 127 0) address: "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"
         dotNetControl btnSkillsDonate "System.Windows.Forms.Button" pos: [688,678] width: 120 height: 30
         on MaxUltraMcpSkillsDialog open do if (bridgeClient != undefined) do bridgeClient.configureSkillsDialog()
         on MaxUltraMcpSkillsDialog close do if (bridgeClient != undefined) do bridgeClient.handleSkillsDialogClosed()
@@ -442,11 +442,6 @@ global MaxUltraMcpActiveClient
         on btnCreationPrompt Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.copySkillCreationPrompt()
         on btnSkillManual Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.openSkillsHelp "CUSTOM_SKILLS.html"
         on btnSubmitSkill Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.openSkillsHelp "SUBMIT_SKILL.html"
-        on lnkCommunitySkills LinkClicked eventSender eventArgs do (
-            try (shellLaunch "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/" "") catch (
-                if (bridgeClient != undefined) do bridgeClient.setSkillsStatus "Could not open Community Skills. Open https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/ in your browser."
-            )
-        )
         on btnSkillsDonate Click eventSender eventArgs do try (shellLaunch "https://store.payproglobal.com/checkout?products[1][id]=137366" "") catch ()
     )
 
@@ -2761,8 +2756,7 @@ global MaxUltraMcpActiveClient
             skillsDialog.lblSkillsStatus.width = usableWidth
             skillsDialog.btnSkillManual.pos = [12,skillsWindowHeight - 42]
             skillsDialog.btnSubmitSkill.pos = [284,skillsWindowHeight - 42]
-            skillsDialog.lnkCommunitySkills.pos = [446,skillsWindowHeight - 42]
-            skillsDialog.lnkCommunitySkills.width = amax 0 (skillsWindowWidth - 590)
+            skillsDialog.lnkCommunitySkills.pos = [446,skillsWindowHeight - 36]
             skillsDialog.btnSkillsDonate.pos = [skillsWindowWidth - 132,skillsWindowHeight - 42]
             return true
         ),
@@ -2795,11 +2789,6 @@ global MaxUltraMcpActiveClient
             MaxUltraMcpUiKit.styleButton skillsDialog.btnSubmitSkill
             skillsDialog.btnSkillManual.Text = "How to create and import skills"
             skillsDialog.btnSubmitSkill.Text = "Submit Your Skill"
-            MaxUltraMcpUiKit.styleLink skillsDialog.lnkCommunitySkills
-            skillsDialog.lnkCommunitySkills.Text = "Community Skills"
-            skillsDialog.lnkCommunitySkills.TextAlign = (dotNetClass "System.Drawing.ContentAlignment").MiddleCenter
-            skillsDialog.lnkCommunitySkills.AccessibleName = "Community Skills"
-            skillsDialog.lnkCommunitySkills.AccessibleDescription = "Open the community skills catalog to download ready-made skill ZIP archives"
             configureDonateButton skillsDialog.btnSkillsDonate
             skillsDialog.lvSkills.View = (dotNetClass "System.Windows.Forms.View").Details
             skillsDialog.lvSkills.FullRowSelect = true
