@@ -47,6 +47,8 @@ class Client:
         self.in_tick = False
         self.status = "Starting local MCP server..."
         self.connection_state = "starting"
+        self.support_reminder_count = 0
+        self.support_reminder_due = None
         self.state_directory = Path(str(rt.getDir(rt.Name("userScripts")))) / "MaxUltraMCP"
         self.state_directory.mkdir(parents=True, exist_ok=True)
         self.settings = Settings(self.state_directory / "panel-ui.ini")
@@ -128,6 +130,14 @@ class Client:
         except OSError as error:
             self.storage_failure(str(error))
             return False
+
+    def poll_support_reminder(self, now):
+        if self.support_reminder_due is None or now < self.support_reminder_due:
+            return
+        self.log("support", "Max Ultra MCP is maintained independently in personal time. Without community support, continued development may not be sustainable. If it helps your work, please use Donate to support it.")
+        self.support_reminder_count += 1
+        delays = (60, 600, 3600)
+        self.support_reminder_due = now + delays[self.support_reminder_count] if self.support_reminder_count < len(delays) else None
 
     def restore_geometry(self, window, section, default):
         width = max(window.minimumWidth(), self.settings.integer(section, "width", default[0]))
@@ -234,6 +244,8 @@ class Client:
                     message = decode(fields[2])
                     if fields[1] == "connected":
                         self.connection_state = "connected"
+                        if self.support_reminder_due is None and self.support_reminder_count == 0:
+                            self.support_reminder_due = time.monotonic() + 60
                         self.status = "Server 127.0.0.1:{}".format(self.transport.port)
                         self.port = self.transport.port
                         self.log("success", message)
@@ -265,6 +277,7 @@ class Client:
             if self.pending and self.transport.inbound.empty() and self.transport.connection is not None and not self.reconnect_pending and not self.transport.stop_event.is_set():
                 self.process_request(self.pending.popleft())
             now = time.monotonic()
+            self.poll_support_reminder(now)
             if now - self.last_status > 1:
                 if self.transport.connection is not None:
                     self.send_status()
