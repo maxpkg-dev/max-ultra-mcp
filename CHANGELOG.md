@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.4.7 - 2026-10-07
+
+- Improved: AI Client Setup installs missing Codex and Claude Code CLIs through confirmed official installers, verifies them, and keeps MCP connection setup as a separate action.
+- Changed: Desktop apps and setup CLIs are detected separately. Missing desktop apps open their official download pages for manual installation; Antigravity requires no extra CLI. Guidance explains Refresh status and Connect on the same client card.
+- Fixed: CLI discovery supports PowerShell wrappers, refreshed user PATH, and standalone Codex locations; failed probes remain distinct from missing components.
+- Fixed: Installation progress remains continuous during automatic work and stops and hides on completion, failure, or browser handoff. Cancellation and bounded timeouts preserve honest outcomes.
+- Improved: The setup log shows only the current action, with stable local timestamps, automatic scrolling, blue information, green verified success, red errors, and amber warnings. Unrelated client errors no longer color its guidance.
+
 ## 1.4.6 - 2026-10-05
 
 - Added: Thirteen core layer tools with scene-bound references, hierarchy and property reads, bulk assignment, selection, and state-bound preview/apply for deletion, merging and empty-layer cleanup. Native hierarchy Undo limitations are reported explicitly.
