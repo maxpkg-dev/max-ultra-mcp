@@ -231,7 +231,7 @@ function Resolve-WindowContext($Selector) {
 function Find-Control($WindowSelector, $ControlSelector) {
     $roots = @()
     if ($null -ne $WindowSelector) {
-        $window = Find-Window $WindowSelector
+        $window = (Resolve-WindowContext $WindowSelector).element
         if ($null -eq $window) { return $null }
         $roots = @($window)
     } else {

@@ -121,6 +121,11 @@ async function main() {
   fs.writeFileSync(entry, original);
   assert.equal(metadata('---\nname: example\ndescription: "Read: a fixture"\n---\nBody').description, "Read: a fixture");
   const canonical = '---\nname: example\ndescription: A synthetic workflow.\n---\nInstructions.\n';
+  const authored = canonical.replace('\n---\nInstructions', '\nauthor: "Fixture Author"\n---\nInstructions');
+  assert.equal(metadata(authored).author, 'Fixture Author');
+  assert.throws(() => metadata(authored.replace('Fixture Author', 'x'.repeat(257))), /Author must/);
+  assert.throws(() => metadata(authored.replace('\n---\nInstructions', '\nauthor: Duplicate\n---\nInstructions')), /exactly one/);
+  assert.match(ini({skills: [{id: 'test', name: 'test', author: 'Fixture Author'}]}), /author=Rml4dHVyZSBBdXRob3I=/);
   assert.equal(metadata('\uFEFF' + canonical.replace(/\n/g, '\r\n')).name, 'example');
   assert.throws(() => metadata(canonical.replace('\n---\nInstructions', '\n' + '-'.repeat(82) + '\nInstructions')), /delimiter on line 4: use exactly three ASCII hyphens/);
   assert.throws(() => metadata(canonical.replace('\n---\nInstructions', '\n--- \nInstructions')), /padded divider/);

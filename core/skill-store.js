@@ -66,8 +66,8 @@ function metadata(markdown) {
   const values = {};
   for (const line of match[1].split("\n")) {
     if (!line.trim()) continue;
-    const field = /^(name|description):[ \t]*(.+)$/.exec(line);
-    if (!field || Object.hasOwn(values, field[1])) fail("SKILL_INVALID", "Use exactly one name and description, each on one line; other YAML fields are not supported by this importer.");
+    const field = /^(name|description|author):[ \t]*(.+)$/.exec(line);
+    if (!field || Object.hasOwn(values, field[1])) fail("SKILL_INVALID", "Use exactly one name and description, and optionally author, each on one line; other YAML fields are not supported by this importer.");
     let value = field[2].trim();
     if (value.startsWith('"')) { try { value = JSON.parse(value); } catch { fail("SKILL_INVALID", "Invalid quoted field."); } }
     else if (value.startsWith("'")) {
@@ -78,6 +78,7 @@ function metadata(markdown) {
     values[field[1]] = value;
   }
   if (!values.name || values.name.length > 64 || !NAME.test(values.name) || !values.description?.trim() || values.description.length > 1024) fail("SKILL_INVALID", "Use a lowercase hyphenated name (1-64 characters) and a description (1-1024 characters).");
+  if (values.author !== undefined && (!values.author.trim() || values.author.length > 256)) fail("SKILL_INVALID", "Author must contain 1-256 characters.");
   return values;
 }
 
@@ -195,7 +196,7 @@ class SkillStore {
     if (snapshot.revision !== expectedRevision) fail("SKILL_STALE", "The source changed. Preview it again.");
     return this.mutate((registry) => {
       if (registry.skills.some((record) => record.name === snapshot.name)) fail("SKILL_DUPLICATE", "A custom skill with this name already exists. Export/delete it first, or rename the new skill.");
-      const record = { id: randomUUID(), name: snapshot.name, description: snapshot.description, revision: snapshot.revision, source: originalArchive ? noLinks(originalArchive) : snapshot.source, enabled: false, state: "installing", adapters: [], clients, error: "" };
+      const record = { id: randomUUID(), name: snapshot.name, description: snapshot.description, author: snapshot.author || "", revision: snapshot.revision, source: originalArchive ? noLinks(originalArchive) : snapshot.source, enabled: false, state: "installing", adapters: [], clients, error: "" };
       registry.skills.push(record);
       this.save(registry); // Durable ownership before any package or adapter creation.
       try {
@@ -230,13 +231,13 @@ class SkillStore {
     }
   }
   publicRecord(record) {
-    return { id: `user/${record.id}`, name: record.name, description: record.description, source: "Custom", revision: record.revision, enabled: record.enabled, state: record.state, error: record.error, clients: record.adapters.map((adapter) => ({ client: adapter.client, state: record.state === "ready" ? "Published; refresh may be needed" : record.state })) };
+    return { id: `user/${record.id}`, name: record.name, description: record.description, author: record.author || "", source: "Custom", revision: record.revision, enabled: record.enabled, state: record.state, error: record.error, clients: record.adapters.map((adapter) => ({ client: adapter.client, state: record.state === "ready" ? "Published; refresh may be needed" : record.state })) };
   }
   builtins() {
     if (!fs.existsSync(noLinks(this.builtinRoot))) return [];
     return fs.readdirSync(this.builtinRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && NAME.test(entry.name) && fs.existsSync(child(this.builtinRoot, `${entry.name}/SKILL.md`))).map((entry) => {
       const content = scanPackage(child(this.builtinRoot, entry.name), { builtin: true });
-      return { id: `bundled/${entry.name}`, name: content.name, description: content.description, revision: content.revision, source: "Built-in", state: "Read only", enabled: true };
+      return { id: `bundled/${entry.name}`, name: content.name, description: content.description, author: content.author || "", revision: content.revision, source: "Built-in", state: "Read only", enabled: true };
     });
   }
   list({ management = false } = {}) {

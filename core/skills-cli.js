@@ -116,7 +116,7 @@ function ini(result) {
   const encode = (value) => Buffer.from(String(value ?? ""), "utf8").toString("base64");
   const lines = ["[result]", `ok=${result.ok === false ? "false" : "true"}`, `message=${encode(result.message)}`, `text=${encode(result.text)}`, `revision=${result.revision || ""}`, `hasList=${Array.isArray(result.skills) ? "true" : "false"}`, `count=${result.skills?.length || 0}`];
   for (const [index, skill] of (result.skills || []).entries()) {
-    lines.push(`[skill${index}]`, `id=${encode(skill.id)}`, `name=${encode(skill.name)}`, `description=${encode(skill.description)}`, `source=${encode(skill.source)}`, `state=${encode(skill.state)}`, `clients=${encode((skill.clients || []).map((client) => `${client.client}: ${client.state}`).join("; "))}`, `error=${encode(skill.error)}`);
+    lines.push(`[skill${index}]`, `id=${encode(skill.id)}`, `name=${encode(skill.name)}`, `description=${encode(skill.description)}`, `author=${encode(skill.author)}`, `source=${encode(skill.source)}`, `state=${encode(skill.state)}`, `clients=${encode((skill.clients || []).map((client) => `${client.client}: ${client.state}`).join("; "))}`, `error=${encode(skill.error)}`);
   }
   return lines.join("\n") + "\n";
 }

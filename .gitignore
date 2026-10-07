@@ -7,3 +7,7 @@ maxpkg-packager.ini
 maxpkg-changelog.ini
 dist/
 /temp
+
+# Python bytecode belongs to the active Max runtime, never the package.
+__pycache__/
+*.pyc

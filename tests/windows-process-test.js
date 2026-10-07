@@ -28,14 +28,13 @@ for (const env of [{ PATH: windowsRoot }, { SystemRoot: "." }, { SystemRoot: "D:
 
 const bootstrap = fs.readFileSync(path.join(root, "01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
 assert.doesNotMatch(bootstrap, /startInfo\.FileName = "(?:powershell|cmd)\.exe"/);
-assert.equal((bootstrap.match(/startInfo\.WorkingDirectory = validateProcessWorkingDirectory /g) || []).length, 4);
-assert.match(bootstrap, /environmentClass\.SystemDirectory/);
-assert.match(bootstrap, /Is64BitOperatingSystem and not environmentClass\.Is64BitProcess/);
-assert.match(bootstrap, /PROCESS_WORKING_DIRECTORY_MISSING/);
-assert.ok(bootstrap.indexOf("fn resolveWindowsExecutable") < bootstrap.indexOf("fn launchDetachedShutdownHelper"));
+const pythonProcesses = fs.readFileSync(path.join(root, "python/max_ultra/processes.py"), "utf8");
+assert.match(pythonProcesses, /Path\(os\.environ\["SystemRoot"\]\) \/ "System32"/);
+assert.match(pythonProcesses, /cwd=str\(script\.parent\)/);
+assert.match(pythonProcesses, /CREATE_NO_WINDOW/);
+assert.match(pythonProcesses, /AssignProcessToJobObject/);
 const uninstall = fs.readFileSync(path.join(root, "scripts/maxpkg-uninstall.ms"), "utf8");
-assert.match(uninstall, /startInfo\.FileName = maxUltraMcpResolveWindowsExecutable/);
-assert.match(uninstall, /startInfo\.WorkingDirectory = maxUltraMcpValidateWorkingDirectory/);
+assert.match(uninstall, /python.ExecuteFile/);
 for (const relativeFile of ["core/windows-ui.js", "core/image-utils.js"]) {
   assert.match(fs.readFileSync(path.join(root, relativeFile), "utf8"), /execFile\(resolveWindowsPowerShell\(\),/);
 }

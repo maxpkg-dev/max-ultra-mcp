@@ -22,7 +22,7 @@ fn layerJson inputValue = (
         escapedValue = substituteString escapedValue "\\" "\\\\"
         escapedValue = substituteString escapedValue "\"" "\\\""
         for characterIndex in 1 to 31 do (
-            local characterValue = (dotNetClass "System.Char").ConvertFromUtf32 characterIndex
+            local characterValue = (python.import "max_ultra.max_api").unicode_character characterIndex
             local unicodeEscape = "\\u" + (formattedPrint characterIndex format: "04x")
             escapedValue = substituteString escapedValue characterValue unicodeEscape
         )
@@ -163,11 +163,7 @@ fn layerFingerprint nodeValues = (
         append statePieces (layerJson #((getHandleByAnim nodeValue) as integer64, nodeValue.name, layerHandle nodeValue.layer, childHandles, nodeValue.isHidden, nodeValue.isFrozen, nodeValue.transform as string))
     )
     local stateText = layerJson statePieces
-    local hashProvider = (dotNetClass "System.Security.Cryptography.SHA256").Create()
-    local stateBytes = (dotNetClass "System.Text.Encoding").UTF8.GetBytes stateText
-    local hashText = (dotNetClass "System.BitConverter").ToString (hashProvider.ComputeHash stateBytes)
-    hashProvider.Dispose()
-    return hashText
+    return (python.import "max_ultra.max_api").sha256 stateText
 )
 local layerHolding = false
 local layerParentRollback = #()

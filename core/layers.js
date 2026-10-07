@@ -121,7 +121,7 @@ function normalizeLayerRequest(toolName, args, instanceId, sceneRevision) {
 }
 
 function generateLayerScript(request, instanceId, { preview = false, expectedFingerprint = "" } = {}) {
-  return `(\nlocal layerRequest = ${maxLiteral(request)}\nlocal layerInstanceId = ${maxLiteral(instanceId)}\nlocal layerPreview = ${preview}\nlocal layerExpectedFingerprint = ${maxLiteral(expectedFingerprint)}\nlocal layerSceneEpoch = if (MaxUltraMcpActiveClient != undefined and isProperty MaxUltraMcpActiveClient #layerSceneEpoch) then MaxUltraMcpActiveClient.layerSceneEpoch else \"\"\n${layerSource}\n)`;
+  return `(\nlocal layerRequest = ${maxLiteral(request)}\nlocal layerInstanceId = ${maxLiteral(instanceId)}\nlocal layerPreview = ${preview}\nlocal layerExpectedFingerprint = ${maxLiteral(expectedFingerprint)}\nlocal layerSceneEpoch = (python.import \"max_ultra.max_api\").scene_epoch()\n${layerSource}\n)`;
 }
 
 async function invokeLayerTool({ toolName, args, bridge, session, instance, revision, increment }) {

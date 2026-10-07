@@ -83,41 +83,8 @@ async function run() {
   bridge.readConnectionData(connection, "a".repeat(4 * 1024 * 1024 + 1));
   assert.equal(socket.destroyed, true);
 
-  // These are source contracts, not execution or native-stability proof for MAXScript.
-  const source = fs.readFileSync(path.join(__dirname, "../01_START_MAX_ULTRA_MCP_FIRST.ms"), "utf8");
-  const worker = source.slice(source.indexOf("fn transportDoWork"), source.indexOf("fn initializeIdentity"));
-  assert.ok(source.includes('sessionLaunchCount: previousLaunchCount'));
-  assert.ok(source.includes('return (mod (sessionLaunchCount - 1) 3) == 0'));
-  const startBridge = source.slice(source.indexOf('fn startBridge = ('), source.indexOf('bridgeClient = MaxUltraMcpBridgeClient'));
-  assert.ok(startBridge.indexOf('transportWorker.IsBusy) do return true') < startBridge.indexOf('registerSessionLaunch()'));
-  assert.ok(startBridge.includes('if (checkUpdatesThisLaunch and loadAutomaticUpdateSetting()) do startUpdateCheck automaticCheck: true'));
-  assert.ok(source.includes('on btnCheckUpdates Click eventSender eventArgs do if (bridgeClient != undefined) do bridgeClient.startUpdateCheck automaticCheck: false'));
-  assert.ok(!source.includes('setINISetting uiStateFilePath "updates" "sessionLaunchCount"'));
-  assert.doesNotMatch(worker, /StreamReader|ReadLine\(|\.Connect workerHost/);
-  assert.match(worker, /ConnectAsync[\s\S]*connectOperation.Wait 2000[\s\S]*ReadTimeout = 1000[\s\S]*WriteTimeout = 1000/);
-  assert.match(worker, /while \(newlineIndex != undefined\)/);
-  assert.match(worker, /System.IO.BinaryReader/);
-  assert.match(worker, /amin #\(workerClient.Available, 8192\)[\s\S]*workerReader.ReadBytes availableBytes/);
-  assert.doesNotMatch(worker, /workerStream.Read[ &]/);
-  assert.match(worker, /workerInboundQueue.Count >= 64/);
-  assert.match(worker, /queuedCharacters > 8388608/);
-  assert.match(worker, /receivedFrame.count > 4194304/);
-  assert.match(worker, /workerThreadId == workerArguments.Item\[15\]/);
-  const tick = source.slice(source.indexOf("fn handleTimerTick"), source.indexOf("fn startBridge"));
-  assert.match(tick, /if \(inTick\) do return true[\s\S]*inTick = true[\s\S]*inTick = false/);
-  assert.match(tick, /inboundQueue.Count == 0/);
-  assert.match(tick, /if \(isDisposed\) do throw/);
-  const dispatch = source.slice(source.indexOf("fn handleRequestLine"), source.indexOf("fn enqueueMainThreadRequest"));
-  assert.ok(dispatch.indexOf("REQUEST_EXPIRED") < dispatch.indexOf("case actionName"));
-  assert.ok(dispatch.includes('(dotNetClass "System.Int64").Parse wireFields[6]'));
-  assert.ok(!dispatch.includes('wireFields[6] as integer64'), 'MAXScript decimal coercion loses timestamp precision');
-  assert.ok(dispatch.indexOf("requestWasCancelled requestId") < dispatch.indexOf("case actionName"));
-  const update = source.slice(source.indexOf("fn pollUpdateOperation"), source.indexOf("fn handleAutomaticUpdateSettingChanged"));
-  assert.doesNotMatch(update, /fileIn/);
-  assert.match(update, /scheduleReload restartBootstrapPath/);
-  const prepare = source.slice(source.indexOf("fn prepareReload"), source.indexOf("fn handleDeferredReload"));
-  assert.match(prepare, /if \(inTick\) do return false[\s\S]*IsBusy[\s\S]*CancelAsync[\s\S]*transportClient.Close[\s\S]*return false/);
-  process.stdout.write("Bridge lifecycle tests passed: admission, deadline wire field, cancellation/no replay, framing, and MAXScript source contracts.\n");
+  require("./python-source-contract").verify(path.join(__dirname, ".."));
+  process.stdout.write("Bridge lifecycle tests passed: admission, deadline wire field, cancellation/no replay, framing, and Python package contracts.\n");
 }
 
 run().catch((error) => { process.stderr.write(error.stack + "\n"); process.exitCode = 1; });
