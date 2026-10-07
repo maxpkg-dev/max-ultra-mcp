@@ -19,11 +19,14 @@
     -- Replace only the process-launch seam. Real button events, routing, guards, and presentation run unchanged.
     local fakeLauncher = "fn startIntegrationOperation actionName installOpenAI: false installClaudeCode: false installAntigravity: false automaticCheck: false = (integrationOperationTimeoutSeconds = (if (installOpenAI) then 1 else 0) + (if (installClaudeCode) then 2 else 0) + (if (installAntigravity) then 4 else 0); integrationOperationName = actionName; integrationBusy = true; refreshOnboardingDialog(); return true),\n"
     definitionsSource = (substring definitionsSource 1 (launchStart - 1)) + fakeLauncher + (substring definitionsSource launchEnd -1)
+    -- Exercise Yes/No routing without opening a modal dialog or running an installer.
+    definitionsSource = substituteString definitionsSource "(queryBox confirmationText title: (\"Install \" + clientLabel) beep: false)" "fixtureConfirmInstall"
+    definitionsSource = substituteString definitionsSource "shellLaunch downloadUrl \"\"" "(append fixtureBrowserUrls downloadUrl; fixtureBrowserSucceeds)"
     definitionsSource = substituteString definitionsSource "format \"[3DGROUND | Max Ultra MCP] SETUP STATUS ERROR | %\\n\" (getCurrentException() as string)" "throw()"
     definitionsSource = substituteString definitionsSource "format \"[3DGROUND | Max Ultra MCP] SETUP LAYOUT ERROR | %\\n\" (getCurrentException() as string)" "throw()"
     local fixtureSource = (dotNetClass "System.IO.File").ReadAllText (testsDirectory + @"helpers\ai-setup-ui-fixture.ms")
     local quotedBootstrap = "@\"" + bootstrapPath + "\""
-    local fixtureOutcome = execute ("(local bridgeClient\nlocal stagedUpdateStatus = \"\"\nlocal fixtureBootstrapPath = " + quotedBootstrap + "\n" + definitionsSource + "\n" + fixtureSource + "\n)")
+    local fixtureOutcome = execute ("(local bridgeClient\nlocal fixtureConfirmInstall = false\nlocal fixtureBrowserUrls = #()\nlocal fixtureBrowserSucceeds = true\nlocal stagedUpdateStatus = \"\"\nlocal fixtureBootstrapPath = " + quotedBootstrap + "\n" + definitionsSource + "\n" + fixtureSource + "\n)")
     if (fixtureOutcome[1] != "passed") do throw (fixtureOutcome as string)
     fixtureOutcome
 )

@@ -4,24 +4,28 @@
 # Developed by Lukianenko Vasyl
 
 param(
-    [ValidateSet('Status','Install')][string]$Action = 'Status',
+    [ValidateSet('Status','Install','InstallCli')][string]$Action = 'Status',
     [Parameter(Mandatory = $true)][string]$ResultPath,
     [ValidateSet('core','archviz','full')][string]$Profile = 'archviz',
     [ValidateRange(1,65535)][int]$Port = 47635,
     [switch]$InstallOpenAI,
     [switch]$InstallClaudeCode,
-    [switch]$InstallAntigravity
+    [switch]$InstallAntigravity,
+    [switch]$ConfirmCliInstall
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+# Max can remain open across a client installation; incorporate current persisted PATH in this helper only.
+$env:PATH = $env:PATH + ';' + [Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [Environment]::GetEnvironmentVariable('PATH','User')
 $serverName = 'max-ultra-mcp'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $serverPath = Join-Path $projectRoot 'core\server.js'
-$statusCheckDeadlineUtc = [DateTime]::UtcNow.AddSeconds(30)
+$statusCheckDeadlineUtc = [DateTime]::UtcNow.AddSeconds(15)
 $clientCommandTimeoutMilliseconds = 10000
 $nodeProbeTimeoutMilliseconds = 5000
 $installDeadlineUtc = [DateTime]::UtcNow.AddSeconds(90)
+$script:integrationCancelPath = if ($Action -eq 'InstallCli') { $ResultPath + '.cancel' } else { '' }
 . (Join-Path $PSScriptRoot 'antigravity-integration.ps1')
 
 function ConvertTo-IniValue([object]$Value) {
@@ -110,6 +114,10 @@ function Stop-ExternalCommandProcess([Diagnostics.Process]$CommandProcess) {
 }
 
 function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments, [DateTime]$DeadlineUtc, [int]$MaximumWaitMilliseconds) {
+    $cancelVariable = Get-Variable integrationCancelPath -Scope Script -ErrorAction SilentlyContinue
+    if ($cancelVariable -and $cancelVariable.Value -and (Test-Path -LiteralPath $cancelVariable.Value)) {
+        return @{ ExitCode = -1; Output = ''; TimedOut = $false; InvocationFailed = $false; Cancelled = $true }
+    }
     $waitMilliseconds = Get-RemainingTimeoutMilliseconds $DeadlineUtc $MaximumWaitMilliseconds
     if ($waitMilliseconds -le 0) {
         return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
@@ -123,6 +131,9 @@ function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments, [Dat
             $startInfo.FileName = if ([string]::IsNullOrWhiteSpace($env:ComSpec)) { 'cmd.exe' } else { $env:ComSpec }
             $commandLine = @((ConvertTo-ProcessArgument $CommandPath)) + @($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ })
             $startInfo.Arguments = '/d /s /c call ' + ($commandLine -join ' ')
+        } elseif ($commandExtension -eq '.ps1') {
+            $startInfo.FileName = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $startInfo.Arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (ConvertTo-ProcessArgument $CommandPath) + ' ' + (@($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join ' ')
         } else {
             $startInfo.FileName = $CommandPath
             $startInfo.Arguments = (@($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join ' ')
@@ -140,9 +151,17 @@ function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments, [Dat
         }
         $standardOutputTask = $commandProcess.StandardOutput.ReadToEndAsync()
         $standardErrorTask = $commandProcess.StandardError.ReadToEndAsync()
-        if (-not $commandProcess.WaitForExit($waitMilliseconds)) {
-            Stop-ExternalCommandProcess $commandProcess
-            return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
+        $commandDeadline = [DateTime]::UtcNow.AddMilliseconds($waitMilliseconds)
+        while (-not $commandProcess.WaitForExit(200)) {
+            $cancelVariable = Get-Variable integrationCancelPath -Scope Script -ErrorAction SilentlyContinue
+            if ($cancelVariable -and $cancelVariable.Value -and (Test-Path -LiteralPath $cancelVariable.Value)) {
+                Stop-ExternalCommandProcess $commandProcess
+                return @{ ExitCode = -1; Output = ''; TimedOut = $false; InvocationFailed = $false; Cancelled = $true }
+            }
+            if ([DateTime]::UtcNow -ge $commandDeadline) {
+                Stop-ExternalCommandProcess $commandProcess
+                return @{ ExitCode = -1; Output = ''; TimedOut = $true; InvocationFailed = $false }
+            }
         }
         # Process exit does not guarantee ReadToEndAsync has completed.
         $drainTimeout = Get-RemainingTimeoutMilliseconds $DeadlineUtc $MaximumWaitMilliseconds
@@ -152,7 +171,7 @@ function Invoke-ExternalCommand([string]$CommandPath, [string[]]$Arguments, [Dat
         $outputParts = New-Object System.Collections.Generic.List[string]
         if ($standardOutputTask.IsCompleted -and -not [string]::IsNullOrWhiteSpace($standardOutputTask.Result)) { $outputParts.Add($standardOutputTask.Result) }
         if ($standardErrorTask.IsCompleted -and -not [string]::IsNullOrWhiteSpace($standardErrorTask.Result)) { $outputParts.Add($standardErrorTask.Result) }
-        $outputText = (($outputParts.ToArray() -join ' ') -replace '[\r\n]+', ' ').Trim()
+        $outputText = ($outputParts.ToArray() -join "`n").Trim()
         if ($outputText.Length -gt 65536) { $outputText = $outputText.Substring(0, 65536) }
         return @{ ExitCode = $commandProcess.ExitCode; Output = $outputText; StandardOutput = $standardOutputTask.Result; TimedOut = $false; InvocationFailed = $false }
     } catch {
@@ -228,18 +247,90 @@ function Resolve-NodeRuntime([DateTime]$DeadlineUtc) {
     return @{ State = 'runtime_missing'; Command = ''; Candidate = $candidates[0]; Detail = 'Node.js file is missing: ' + $candidates[0] + '. Reinstall Max Ultra MCP.' }
 }
 
+function Get-DesktopClientStatus([string]$ClientId) {
+    # Read installation evidence only. A CLI, saved configuration, or account is not a desktop app.
+    $desktop = @{ Available = $false; State = 'missing'; Detail = 'Desktop app not found.' }
+    if ($ClientId -eq 'antigravity') {
+        $status = Get-AntigravityStatus
+        $desktop.Available = $status.installed -eq 'true'
+        $desktop.State = if ($desktop.Available) { 'installed' } else { 'missing' }
+        return $desktop
+    }
+    if ($ClientId -notin @('openai','claudeCode')) { throw 'Unsupported desktop client.' }
+    $relativePaths = if ($ClientId -eq 'openai') { @('Programs\Codex\Codex.exe', 'Programs\ChatGPT\ChatGPT.exe') } else { @('AnthropicClaude\claude.exe', 'Programs\Claude\Claude.exe') }
+    if ($env:LOCALAPPDATA) {
+        foreach ($relativePath in $relativePaths) {
+            if (Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA $relativePath) -PathType Leaf) {
+                $desktop.Available = $true; $desktop.State = 'installed'; $desktop.Detail = 'Desktop app found. Sign-in and local tool access are not verified.'
+                return $desktop
+            }
+        }
+    }
+    # Current official Windows package identities. Do not mistake the older Chat-only app for Codex.
+    $packageName = if ($ClientId -eq 'openai') { 'OpenAI.Codex' } else { 'Claude' }
+    try {
+        $packages = @(Get-AppxPackage -Name $packageName -ErrorAction Stop)
+        if ($packages.Count -gt 0) {
+            if (@($packages | Where-Object { [string]$_.Status -eq 'Ok' -and -not $_.IsFramework }).Count -gt 0) {
+                $desktop.Available = $true; $desktop.State = 'installed'; $desktop.Detail = 'Desktop app registered for this Windows user. Sign-in and local tool access are not verified.'
+            } else {
+                $desktop.State = 'check_failed'; $desktop.Detail = 'Desktop app is registered but Windows reports a package problem. Repair or update it through the official installer, then refresh.'
+            }
+        }
+    } catch {
+        $desktop.State = 'check_failed'
+        $desktop.Detail = 'Windows desktop-app discovery failed. Refresh status or use the official desktop installation instructions; a failed check does not prove the app is missing.'
+    }
+    return $desktop
+}
+
+function Add-DesktopClientStatus([hashtable]$Status, $Desktop = $null) {
+    if ($null -eq $Desktop) { $Desktop = Get-DesktopClientStatus $Status.Id }
+    $desktop = $Desktop
+    $Status.DesktopAvailable = $desktop.Available
+    $Status.DesktopState = $desktop.State
+    $Status.DesktopDetail = $desktop.Detail
+    $Status.DesktopInstallUrl = if ($Status.Id -eq 'openai') { 'https://chatgpt.com/features/desktop/' } else { 'https://claude.com/download' }
+    $Status.DesktopInstructions = if ($Status.Id -eq 'openai') {
+        'Open the ChatGPT / Codex desktop app from Start, sign in, and use Codex mode on this Windows computer. Run Test prompt there. The CLI is only used by automatic MCP setup; terminal chat is not required.'
+    } else {
+        'Open Claude from Start, sign in, choose the Code tab and a Local session on this Windows computer, then run Test prompt. Code access requires an eligible account or plan. This setup targets the Code tab, not ordinary Chat, Cowork, Cloud, or WSL. The CLI is only used by automatic MCP setup; terminal chat is not required.'
+    }
+    return $Status
+}
+
+function ConvertTo-ClientResult([hashtable]$Status) {
+    return [ordered]@{
+        cliAvailable = $Status.CliAvailable.ToString().ToLowerInvariant(); configured = $Status.Configured.ToString().ToLowerInvariant()
+        state = $Status.State; detail = $Status.Detail
+        detailKind = if ($Status.ContainsKey('DetailKind')) { $Status.DetailKind } else { '' }
+        desktopAvailable = $Status.DesktopAvailable.ToString().ToLowerInvariant(); desktopState = $Status.DesktopState
+        desktopDetail = $Status.DesktopDetail; desktopInstallUrl = $Status.DesktopInstallUrl; desktopInstructions = $Status.DesktopInstructions
+    }
+}
+
 function Resolve-ClientCommandPath([string]$ClientId, [string]$ExecutableName) {
-    $command = Get-Command $ExecutableName -ErrorAction SilentlyContinue | Select-Object -First 1
+    $command = Get-Command $ExecutableName -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($command -and $command.Source) { return $command.Source }
 
     $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $candidates.Add((Join-Path $env:USERPROFILE ('.local\bin\' + $ExecutableName + '.exe')))
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+        $candidates.Add((Join-Path $env:APPDATA ('npm\' + $ExecutableName + '.cmd')))
+    }
     if ($ClientId -eq 'openai' -and -not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        $candidates.Add((Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin\codex.exe'))
         $codexBinRoot = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
         if (Test-Path -LiteralPath $codexBinRoot -PathType Container) {
             Get-ChildItem -LiteralPath $codexBinRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | ForEach-Object {
                 $candidates.Add((Join-Path $_.FullName 'codex.exe'))
             }
         }
+    }
+    if ($ClientId -eq 'openai' -and -not [string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_DIR)) {
+        $candidates.Add((Join-Path $env:CODEX_INSTALL_DIR 'codex.exe'))
     }
     if ($ClientId -eq 'claudeCode') {
         if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
@@ -252,6 +343,8 @@ function Resolve-ClientCommandPath([string]$ClientId, [string]$ExecutableName) {
     foreach ($candidate in $candidates) {
         if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { return $candidate }
     }
+    $scriptCommand = Get-Command $ExecutableName -CommandType ExternalScript -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($scriptCommand -and $scriptCommand.Source) { return $scriptCommand.Source }
     return $null
 }
 
@@ -304,7 +397,7 @@ function Get-ClientStatus([string]$ClientId, [string]$DisplayName, [string]$Exec
             CliAvailable = $false
             Configured = $configuredWithoutCli
             State = if ($restartRequired) { 'restart_required' } elseif ($configuredWithoutCli) { 'configured' } else { 'cli_missing' }
-            Detail = if ($restartRequired) { "$DisplayName must be restarted or reconnected to reload the MCP host." } elseif ($configuredWithoutCli) { "$DisplayName is configured." } elseif ($ClientId -eq 'openai') { 'Codex CLI not found. Automatic setup needs the Codex command-line tool (CLI). Having ChatGPT Desktop installed does not confirm that this tool is available. Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli . Then click Refresh status. For a client that supports local STDIO, see Manual setup.' } elseif ($ClientId -eq 'claudeCode') { 'Claude Code CLI not found. Automatic setup needs the Claude Code command-line tool (CLI). Having Claude Desktop installed does not confirm that this tool is available. Install Claude Code CLI: https://code.claude.com/docs/en/setup . Then click Refresh status. For a client that supports local STDIO, see Manual setup.' } else { "$DisplayName CLI was not found. Use the manual STDIO values shown in 3ds Max." }
+            Detail = if ($restartRequired) { "$DisplayName must be restarted or reconnected to reload the MCP host." } elseif ($configuredWithoutCli) { "$DisplayName is configured." } elseif ($ClientId -eq 'openai') { 'Codex CLI not found. Automatic setup needs the Codex command-line tool (CLI). Having ChatGPT Desktop installed does not confirm that this tool is available. Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli . Click Install on this card, confirm the official installer, then click Connect separately. Manual setup is also available.' } elseif ($ClientId -eq 'claudeCode') { 'Claude Code CLI not found. Automatic setup needs the Claude Code command-line tool (CLI). Having Claude Desktop installed does not confirm that this tool is available. Install Claude Code CLI: https://code.claude.com/docs/en/setup . Click Install on this card, confirm the official installer, then click Connect separately. Manual setup is also available.' } else { "$DisplayName CLI was not found. Use the manual STDIO values shown in 3ds Max." }
         }
     }
 
@@ -394,28 +487,113 @@ function Install-AntigravityClient($Status, [string]$NodePath, [DateTime]$Deadli
     return $refreshed
 }
 
+function Write-CliInstallProgress([string]$Message, [ValidateSet('info','success','warning')][string]$Kind = 'info') {
+    if (-not (Get-Variable cliInstallStages -Scope Script -ErrorAction SilentlyContinue)) { $script:cliInstallStages = @() }
+    if ($script:cliInstallStages.Count -eq 0) { $script:cliInstallStageKinds = @() }
+    $script:cliInstallStages += $Message
+    $script:cliInstallStageKinds += $Kind
+    Write-IntegrationResult @{ operation = @{ state = 'running'; action = 'installcli'; message = $Message; stages = ($script:cliInstallStages -join '|'); stageKinds = ($script:cliInstallStageKinds -join '|') } }
+}
+
+function Install-ClientCli([hashtable]$Status, [bool]$Confirmed) {
+    # A separate, explicitly confirmed action. Never register MCP from this function.
+    if (-not $Confirmed) { throw 'CLI installation requires explicit confirmation.' }
+    if ($script:integrationCancelPath -and (Test-Path -LiteralPath $script:integrationCancelPath)) {
+        $Status.State = 'cli_install_failed'
+        $Status.Detail = 'CLI installation cancelled. Refresh status before retrying.'
+        $Status.DetailKind = 'warning'
+        return $Status
+    }
+    if ($Status.Id -notin @('openai','claudeCode')) { throw 'Unsupported CLI installer.' }
+    $executableName = if ($Status.Id -eq 'openai') { 'codex' } else { 'claude' }
+    $existingCommand = Resolve-ClientCommandPath $Status.Id $executableName
+    $savedRegistrationWithoutCli = $Status.State -in @('configured','restart_required') -and -not $Status.CliAvailable
+    if (($Status.State -ne 'cli_missing' -and -not $savedRegistrationWithoutCli) -or $existingCommand) {
+        $Status.Detail = 'CLI installation was not started because the client is present or its status is uncertain. Refresh status.'
+        Write-CliInstallProgress $Status.Detail
+        return $Status
+    }
+    $installerUrl = if ($Status.Id -eq 'openai') { 'https://chatgpt.com/codex/install.ps1' } else { 'https://claude.ai/install.ps1' }
+    Write-CliInstallProgress 'Running the official CLI installer (download and installation). Please wait; this may take a few minutes, depending on your connection.'
+    $installerCommand = '$ErrorActionPreference = ''Stop''; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm ' + $installerUrl + ' | iex'
+    if ($Status.Id -eq 'openai') { $installerCommand = '$env:CODEX_NON_INTERACTIVE = ''1''; ' + $installerCommand }
+    $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($installerCommand))
+    $powershellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $install = Invoke-ExternalCommand $powershellPath @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand',$encodedCommand) ([DateTime]::UtcNow.AddSeconds(300)) 300000
+    $Status.State = 'cli_install_failed'
+    if ($install.ContainsKey('Cancelled') -and $install.Cancelled) {
+        $Status.Detail = 'CLI installation cancelled. Some files may have been installed. Refresh status before retrying.'
+        $Status.DetailKind = 'warning'
+        return $Status
+    }
+    if ($install.TimedOut -or $install.InvocationFailed -or $install.ExitCode -ne 0) {
+        $reason = if ($install.TimedOut) { 'timed out after five minutes' } elseif ($install.InvocationFailed) { 'could not start PowerShell' } else { 'failed (exit ' + $install.ExitCode + ')' }
+        $Status.Detail = 'Official CLI installer ' + $reason + '. Check network access and your security software, or use the official instructions: ' + $(if ($Status.Id -eq 'openai') { 'https://learn.chatgpt.com/docs/codex/cli' } else { 'https://code.claude.com/docs/en/setup' }) + '. Refresh status before retrying.'
+        return $Status
+    }
+    # Max may predate a PATH update. Refresh this helper process only, never machine settings.
+    $env:PATH = [Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [Environment]::GetEnvironmentVariable('PATH','User') + ';' + $env:PATH
+    Write-CliInstallProgress 'Installer finished. Rediscovering and verifying the CLI...'
+    $commandPath = Resolve-ClientCommandPath $Status.Id $executableName
+    if (-not $commandPath) {
+        $Status.Detail = 'Installer finished but the CLI was not found. Open a new terminal and check its version, then refresh status. MCP was not registered.'
+        return $Status
+    }
+    $Status.CommandPath = $commandPath
+    $Status.CliAvailable = $true
+    $probe = Invoke-ExternalCommand $commandPath @('--version') ([DateTime]::UtcNow.AddSeconds(15)) 10000
+    if ($probe.TimedOut -or $probe.InvocationFailed -or $probe.ExitCode -ne 0 -or -not $probe.ContainsKey('StandardOutput') -or $probe.StandardOutput -notmatch '\d+\.\d+\.\d+') {
+        return New-ClientCheckFailedStatus $Status.Id $Status.DisplayName $commandPath $probe.TimedOut
+    }
+    $Status.State = if ($Status.Configured) { 'configured' } else { 'not_configured' }
+    Write-CliInstallProgress 'Setup CLI installed and verified.' 'success'
+    $Status.Detail = 'Setup CLI installed and verified. Click Connect to ' + $(if ($Status.Id -eq 'openai') { 'Codex' } else { 'Claude Code' }) + ' to register MCP. Sign in and chat in the desktop app; terminal chat is not required.'
+    return $Status
+}
+
 try {
+    $script:cliInstallStages = @()
+    $script:cliInstallStageKinds = @()
+    if ($Action -eq 'InstallCli') { Write-CliInstallProgress 'Checking installed components...' }
     $runtimeResult = Resolve-NodeRuntime $statusCheckDeadlineUtc
     $nodePath = $runtimeResult.Command
     $antigravity = Get-AntigravityStatus -NodePath $nodePath -ServerPath $serverPath -Profile $Profile -Port $Port
-    $openAI = Get-ClientStatus 'openai' 'ChatGPT Desktop / Codex' 'codex' $statusCheckDeadlineUtc
-    $claudeCode = Get-ClientStatus 'claudeCode' 'Claude Code' 'claude' $statusCheckDeadlineUtc
+    $openAI = Get-ClientStatus 'openai' 'ChatGPT Desktop / Codex' 'codex' ([DateTime]::UtcNow.AddSeconds(22))
+    $claudeCode = Get-ClientStatus 'claudeCode' 'Claude Code' 'claude' ([DateTime]::UtcNow.AddSeconds(22))
+    $openAIDesktop = Get-DesktopClientStatus 'openai'
+    $claudeDesktop = Get-DesktopClientStatus 'claudeCode'
 
-    if ($Action -eq 'Install') {
-        if ($InstallOpenAI) { $openAI = Install-OpenAIClient $openAI $nodePath $installDeadlineUtc }
-        if ($InstallClaudeCode) { $claudeCode = Install-ClaudeCodeClient $claudeCode $nodePath $installDeadlineUtc }
-        if ($InstallAntigravity) { $antigravity = Install-AntigravityClient $antigravity $nodePath $installDeadlineUtc }
+    if ($Action -eq 'InstallCli') {
+        if (-not $ConfirmCliInstall -or $InstallAntigravity -or ($InstallOpenAI -eq $InstallClaudeCode)) { throw 'Confirm installation of exactly one supported CLI.' }
+        if ($InstallOpenAI) { $openAI = Install-ClientCli $openAI $true }
+        if ($InstallClaudeCode) { $claudeCode = Install-ClientCli $claudeCode $true }
+        $openAIDesktop = Get-DesktopClientStatus 'openai'
+        $claudeDesktop = Get-DesktopClientStatus 'claudeCode'
     }
 
+    if ($Action -eq 'Install') {
+        $installDeadlineUtc = [DateTime]::UtcNow.AddSeconds(90)
+        if ($InstallOpenAI -and $openAIDesktop.Available) { $openAI = Install-OpenAIClient $openAI $nodePath $installDeadlineUtc }
+        if ($InstallClaudeCode -and $claudeDesktop.Available) { $claudeCode = Install-ClaudeCodeClient $claudeCode $nodePath $installDeadlineUtc }
+        if ($InstallAntigravity -and $antigravity.installed -eq 'true') { $antigravity = Install-AntigravityClient $antigravity $nodePath $installDeadlineUtc }
+    }
+
+    $openAI = Add-DesktopClientStatus $openAI $openAIDesktop
+    $claudeCode = Add-DesktopClientStatus $claudeCode $claudeDesktop
+    $antigravity['desktopAvailable'] = $antigravity.installed
+    $antigravity['desktopState'] = if ($antigravity.installed -eq 'true') { 'installed' } else { 'missing' }
+    $antigravity['desktopInstallUrl'] = 'https://antigravity.google/download'
+    $antigravity['desktopInstructions'] = 'Install Antigravity 2.0 for Windows from the official page, then open its desktop app and sign in. Refresh status here, click Connect to Antigravity, and run Test prompt in its desktop chat. No separate Antigravity CLI is required.'
     $runtimeReady = -not [string]::IsNullOrWhiteSpace($nodePath) -and (Test-Path -LiteralPath $serverPath -PathType Leaf)
     $message = if ($Action -eq 'Install') { 'Selected integrations were processed. Restart or reconnect the configured AI clients.' } else { 'Integration status was refreshed.' }
+    if ($Action -eq 'InstallCli') { $message = 'CLI installation result is shown on the selected card. Connect is a separate step.' }
     if ($Action -eq 'Install' -and $InstallAntigravity -and -not $InstallOpenAI -and -not $InstallClaudeCode) {
         $message = if ($antigravity.state -eq 'configured') { 'Antigravity settings saved. Run the Test prompt.' } else { 'Antigravity setup needs attention.' }
     }
     Write-IntegrationResult ([ordered]@{
-        operation = [ordered]@{ state = 'complete'; action = $Action.ToLowerInvariant(); message = $message }
-        openai = [ordered]@{ cliAvailable = $openAI.CliAvailable.ToString().ToLowerInvariant(); configured = $openAI.Configured.ToString().ToLowerInvariant(); state = $openAI.State; detail = $openAI.Detail }
-        claudeCode = [ordered]@{ cliAvailable = $claudeCode.CliAvailable.ToString().ToLowerInvariant(); configured = $claudeCode.Configured.ToString().ToLowerInvariant(); state = $claudeCode.State; detail = $claudeCode.Detail }
+        operation = [ordered]@{ state = 'complete'; action = $Action.ToLowerInvariant(); message = $message; stages = ($script:cliInstallStages -join '|'); stageKinds = ($script:cliInstallStageKinds -join '|') }
+        openai = ConvertTo-ClientResult $openAI
+        claudeCode = ConvertTo-ClientResult $claudeCode
         antigravity = $antigravity
         runtime = [ordered]@{ ready = $runtimeReady.ToString().ToLowerInvariant(); state = $runtimeResult.State; detail = $runtimeResult.Detail; candidate = $runtimeResult.Candidate; command = $nodePath; server = $serverPath; arguments = '"' + $serverPath + '" --stdio'; environment = "MAX_ULTRA_MCP_TOOL_PROFILE=$Profile" }
     })

@@ -455,7 +455,7 @@ global MaxUltraMcpActiveClient
 
     rollout MaxUltraMcpOnboardingSetupDialog "" width: 540 height: 478 (
         label lblOnboardingIntro "Connect this 3ds Max bridge to one or more AI clients." pos: [16,8] width: 508 height: 18
-        label lblOnboardingHint "Click a client to configure it, then use the Test prompt." pos: [16,28] width: 508 height: 18
+        label lblOnboardingHint "Install missing components, connect, then chat in the desktop app." pos: [16,28] width: 508 height: 18
 
         dotNetControl btnOpenAI "System.Windows.Forms.Button" pos: [12,56] width: 164 height: 110
         dotNetControl btnClaudeCode "System.Windows.Forms.Button" pos: [188,56] width: 164 height: 110
@@ -463,10 +463,11 @@ global MaxUltraMcpActiveClient
         dotNetControl lblOpenAIStatus "System.Windows.Forms.Label" pos: [12,172] width: 164 height: 24
         dotNetControl lblClaudeCodeStatus "System.Windows.Forms.Label" pos: [188,172] width: 164 height: 24
         dotNetControl lblAntigravityStatus "System.Windows.Forms.Label" pos: [364,172] width: 164 height: 24
-        dotNetControl txtClientDetail "System.Windows.Forms.TextBox" pos: [12,204] width: 516 height: 170
-        label lblManualHint "Agent not listed or setup failed? Try manual setup.\nSee the Manual setup tab for instructions." pos: [12,380] width: 516 height: 32
+        dotNetControl txtClientDetail "System.Windows.Forms.RichTextBox" pos: [12,204] width: 516 height: 158
+        label lblManualHint "Agent not listed or setup failed? Try manual setup.\nSee the Manual setup tab for instructions." pos: [12,368] width: 516 height: 32
 
-        dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [12,414] width: 516 height: 22
+        dotNetControl lblOnboardingOperation "System.Windows.Forms.Label" pos: [12,402] width: 516 height: 18
+        dotNetControl prgCliInstall "System.Windows.Forms.ProgressBar" pos: [12,424] width: 516 height: 10
         dotNetControl btnRefreshAgents "System.Windows.Forms.Button" pos: [12,442] width: 128 height: 28
         dotNetControl btnSetupDonate "System.Windows.Forms.Button" pos: [424,442] width: 104 height: 28
 
@@ -591,6 +592,9 @@ global MaxUltraMcpActiveClient
         integrationAutomaticCheck = false,
         integrationBusy = false,
         integrationActiveClient = "",
+        integrationActionMessage = "",
+        integrationActionFailed = false,
+        integrationActionSteps = #(),
         onboardingClientStates = #(),
         onboardingLogoImages = #(),
         integrationAutomaticCheckPending = false,
@@ -2948,6 +2952,12 @@ global MaxUltraMcpActiveClient
         fn integrationEffectiveState sectionName = (
             local stateValue = toLower (readIntegrationValue sectionName "state" fallbackValue: "not_checked")
             local operationState = toLower (readIntegrationValue "operation" "state" fallbackValue: "")
+            local desktopState = readIntegrationValue sectionName "desktopState" fallbackValue: ""
+            -- Set up the CLI first; a missing desktop must not hide a CLI error or failed install.
+            if (sectionName != "antigravity" and findItem #("cli_missing", "check_failed", "cli_install_failed") stateValue > 0) do return stateValue
+            if (sectionName != "antigravity" and desktopState == "missing" and not (integrationValueIsTrue sectionName "cliAvailable")) do return "cli_missing"
+            if (desktopState == "check_failed") do return "desktop_check_failed"
+            if (desktopState == "missing") do return "desktop_missing"
             -- A failed local probe must not erase a verified client registration.
             if (operationState == "complete" and not (integrationValueIsTrue "runtime" "ready") and stateValue == "not_configured") do return readIntegrationValue "runtime" "state" fallbackValue: "runtime_check_failed"
             return stateValue
@@ -2955,8 +2965,10 @@ global MaxUltraMcpActiveClient
 
         fn integrationStateText sectionName = (
             local stateValue = integrationEffectiveState sectionName
-            if (sectionName == "claudeCode" and stateValue == "cli_missing") do return "Claude Code CLI not found. Automatic setup needs the Claude Code command-line tool (CLI). Having Claude Desktop installed does not confirm that this tool is available. Install Claude Code CLI: https://code.claude.com/docs/en/setup . Then click Refresh status. For a client that supports local STDIO, see Manual setup."
-            if (sectionName == "openai" and stateValue == "cli_missing") do return "Codex CLI not found. Automatic setup needs the Codex command-line tool (CLI). Having ChatGPT Desktop installed does not confirm that this tool is available. Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli . Then click Refresh status. For a client that supports local STDIO, see Manual setup."
+            if (stateValue == "desktop_missing") do return "Desktop app not found. Click Install to open its official download page. Install the app, then Refresh status."
+            if (stateValue == "desktop_check_failed") do return readIntegrationValue sectionName "desktopDetail" fallbackValue: "Desktop app check failed. Refresh status to retry."
+            if (sectionName == "claudeCode" and stateValue == "cli_missing") do return "Claude Code CLI not found. Automatic setup needs the Claude Code command-line tool (CLI). Having Claude Desktop installed does not confirm that this tool is available. Install Claude Code CLI: https://code.claude.com/docs/en/setup . Click Install on this card, confirm the official installer, then click Connect separately. Manual setup is also available."
+            if (sectionName == "openai" and stateValue == "cli_missing") do return "Codex CLI not found. Automatic setup needs the Codex command-line tool (CLI). Having ChatGPT Desktop installed does not confirm that this tool is available. Install Codex CLI: https://learn.chatgpt.com/docs/codex/cli . Click Install on this card, confirm the official installer, then click Connect separately. Manual setup is also available."
             if (matchPattern stateValue pattern: "runtime_*") do return readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry."
             if (sectionName == "antigravity") do (
                 if (stateValue == "configured") do return "Settings saved - connection not verified"
@@ -2968,6 +2980,7 @@ global MaxUltraMcpActiveClient
                 "restart_required": "Restart required - reconnect this AI client"
                 "cli_missing": "Client not found - install it or use manual setup"
                 "runtime_missing": "Runtime missing - portable Node.js is unavailable"
+                "cli_install_failed": "CLI installation did not finish - refresh status before retrying"
                 "install_failed": "Setup failed - refresh status and retry"
                 "check_failed": "Check failed - refresh status to retry"
                 default: "Not checked"
@@ -2981,6 +2994,8 @@ global MaxUltraMcpActiveClient
             if (sectionName == "openai" and stateValue == "cli_missing") do return "Codex CLI not found"
             if (sectionName == "claudeCode" and stateValue == "cli_missing") do return "Claude Code CLI not found"
             case stateValue of (
+                "desktop_missing": "Desktop app not found"
+                "desktop_check_failed": "Desktop check failed"
                 "configured": "MCP ready"
                 "not_configured": "Setup required"
                 "restart_required": "Restart required"
@@ -2991,6 +3006,7 @@ global MaxUltraMcpActiveClient
                 "runtime_unsupported": "Unsupported runtime"
                 "runtime_invalid_response": "Invalid runtime response"
                 "runtime_check_failed": "Runtime check failed"
+                "cli_install_failed": "CLI install failed"
                 "install_failed": "Setup failed"
                 "check_failed": "Check failed"
                 default: "Waiting..."
@@ -3003,11 +3019,14 @@ global MaxUltraMcpActiveClient
             local stateValue = integrationEffectiveState sectionName
             if (matchPattern stateValue pattern: "runtime_*") do return #issue
             case stateValue of (
+                "desktop_missing": #warning
+                "desktop_check_failed": #issue
                 "configured": #pass
                 "not_configured": #warning
                 "restart_required": #warning
-                "cli_missing": #issue
+                "cli_missing": #warning
                 "runtime_missing": #issue
+                "cli_install_failed": #issue
                 "install_failed": #issue
                 "check_failed": #issue
                 default: #neutral
@@ -3055,13 +3074,13 @@ global MaxUltraMcpActiveClient
                 ) else if (restartClientText != "") then (
                     combinedStatusText = restartClientText + " | Restart required"
                     combinedStatusState = #warning
-                ) else if (integrationLastCheckFailed or openAIStateValue == "check_failed" or claudeStateValue == "check_failed" or antigravityStateValue == "check_failed") then (
+                ) else if (integrationLastCheckFailed or (findItem #("check_failed", "desktop_check_failed") openAIStateValue > 0) or (findItem #("check_failed", "desktop_check_failed") claudeStateValue > 0) or (findItem #("check_failed", "desktop_check_failed") antigravityStateValue > 0)) then (
                     combinedStatusText = "AI status | Check failed"
                     combinedStatusState = #issue
                 ) else if (openAIStateValue == "runtime_missing" or claudeStateValue == "runtime_missing" or antigravityStateValue == "runtime_missing") then (
                     combinedStatusText = "AI runtime | Missing"
                     combinedStatusState = #issue
-                ) else if (openAIStateValue == "install_failed" or claudeStateValue == "install_failed") then (
+                ) else if (openAIStateValue == "install_failed" or claudeStateValue == "install_failed" or openAIStateValue == "cli_install_failed" or claudeStateValue == "cli_install_failed") then (
                     combinedStatusText = "AI setup | Failed"
                     combinedStatusState = #issue
                 ) else if (openAIStateValue == "cli_missing" and claudeStateValue == "cli_missing" and antigravityStateValue == "cli_missing") then (
@@ -3098,11 +3117,15 @@ global MaxUltraMcpActiveClient
 
         fn onboardingCardPresentation stateValue availableValue busyValue activeValue failedValue = (
             if (busyValue) do return #((if (activeValue) then "Setting up..." else "Checking..."), #warning, false)
+            if (failedValue) do return #("Error", #issue, false)
+            if (stateValue == "desktop_missing") do return #("Desktop app not found", #neutral, true)
+            if (stateValue == "desktop_check_failed") do return #("Error", #issue, false)
+            if (stateValue == "check_failed" or stateValue == "cli_install_failed") do return #("Error", #issue, false)
             if (failedValue or (matchPattern stateValue pattern: "runtime_*") or findItem #("check_failed", "install_failed") stateValue > 0) do return #("Error", #issue, availableValue)
             if (stateValue == "" or stateValue == "not_checked") do return #("Not checked", #neutral, false)
-            if (not availableValue) do return #("Not found", #neutral, false)
             if (stateValue == "configured") do return #("Configured", #pass, true)
             if (stateValue == "restart_required") do return #("Restart client", #warning, true)
+            if (not availableValue) do return #("Not found", #neutral, false)
             return #("Ready to set up", #neutral, true)
         ),
 
@@ -3154,19 +3177,85 @@ global MaxUltraMcpActiveClient
             return refreshOnboardingManualDialog()
         ),
 
+        fn appendIntegrationStep messageValue kindValue: #info = (
+            if (messageValue == "") do return false
+            local singleLine = substituteString (substituteString messageValue "\r" " ") "\n" " "
+            for existingStep in integrationActionSteps where (existingStep[2] == singleLine) do return false
+            local timestampValue = (dotNetClass "System.DateTime").Now.ToString "HH:mm:ss"
+            append integrationActionSteps #(timestampValue + " > " + singleLine, singleLine, kindValue)
+            if (integrationActionSteps.count > 20) do deleteItem integrationActionSteps 1
+            return true
+        ),
+
+        fn renderIntegrationDetail messageValue errorValue kindValue: #info = (
+            local detailBox = onboardingSetupDialog.txtClientDetail
+            appendIntegrationStep messageValue kindValue: (if (errorValue) then #error else kindValue)
+            local displayText = ""
+            for stepIndex in 1 to integrationActionSteps.count do (
+                if (stepIndex > 1) do displayText += "\n"
+                displayText += integrationActionSteps[stepIndex][1]
+            )
+            if (detailBox.Text != displayText) do (
+                detailBox.Clear()
+                detailBox.ForeColor = MaxUltraMcpTheme.textColor
+                detailBox.Text = displayText
+                local lineStart = 0
+                for stepValue in integrationActionSteps do (
+                    local categoryTag = case stepValue[3] of (
+                        #success: "success"
+                        #error: "error"
+                        #warning: "warning"
+                        default: "info"
+                    )
+                    local lineColor = activityEntryColor (" [" + categoryTag + "]")
+                    detailBox.Select lineStart stepValue[1].count
+                    detailBox.SelectionColor = lineColor
+                    lineStart += stepValue[1].count + 1
+                )
+                detailBox.Select detailBox.TextLength 0
+                detailBox.ScrollToCaret()
+            )
+            detailBox.AccessibleDescription = displayText
+            return true
+        ),
+
+        fn updateIntegrationProgress runningValue = (
+            if (onboardingSetupDialog == undefined) do return false
+            if (not onboardingSetupDialog.open) do return false
+            local progressControl = onboardingSetupDialog.prgCliInstall
+            local desiredAnimationSpeed = if (runningValue) then 30 else 0
+            -- Use native setters: rollout Visible can shadow the WinForms property.
+            -- Do not restart an already-running marquee during status polling.
+            if (progressControl.MarqueeAnimationSpeed != desiredAnimationSpeed) do progressControl.MarqueeAnimationSpeed = desiredAnimationSpeed
+            if (progressControl.get_Visible() != runningValue) do progressControl.set_Visible runningValue
+            return true
+        ),
+
         fn refreshOnboardingDialog = (
+            -- Terminal cleanup must run even if later text rendering fails or another tab is open.
+            updateIntegrationProgress (integrationBusy and integrationOperationName == #installCli)
             local mainStatusRefreshed = refreshAiStatusControls()
             if (onboardingPage == #manual) do return refreshOnboardingManualDialog()
             if (not (onboardingDialogIsOpen()) or onboardingPage != #setup or not onboardingSetupDialog.open) do return mainStatusRefreshed
-            integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
-            integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
+            integrationOpenAIConfigured = (integrationEffectiveState "openai") == "configured"
+            integrationClaudeCodeConfigured = (integrationEffectiveState "claudeCode") == "configured"
             try (
+                if (integrationOperationName == #installCli and integrationActiveClient != "" and (readIntegrationValue "operation" "action" fallbackValue: "") == "installcli") do (
+                    local stageValues = filterString (readIntegrationValue "operation" "stages" fallbackValue: "") "|"
+                    local stageKinds = filterString (readIntegrationValue "operation" "stageKinds" fallbackValue: "") "|"
+                    for stageIndex in 1 to stageValues.count do (
+                        local stageKind = #info
+                        if (stageIndex <= stageKinds.count) do stageKind = case stageKinds[stageIndex] of ("success": #success; "warning": #warning; default: #info)
+                        appendIntegrationStep stageValues[stageIndex] kindValue: stageKind
+                    )
+                )
                 local clientIds = #("openai", "claudeCode", "antigravity")
                 local clientNames = #("Codex", "Claude Code", "Antigravity")
                 local clientButtons = #(onboardingSetupDialog.btnOpenAI, onboardingSetupDialog.btnClaudeCode, onboardingSetupDialog.btnAntigravity)
                 local clientLabels = #(onboardingSetupDialog.lblOpenAIStatus, onboardingSetupDialog.lblClaudeCodeStatus, onboardingSetupDialog.lblAntigravityStatus)
-                local detailMessage = "Configured confirms saved settings. Use Test prompt to verify the live connection."
+                local detailMessage = "Choose a client. Install prepares its setup CLI if needed and opens its official page when the desktop app is missing. Install the desktop app yourself, then Refresh status and Connect. Use Test prompt to verify access."
                 local detailColor = MaxUltraMcpTheme.textColor
+                local detailKind = #info
                 if (onboardingClientStates.count != 3) do onboardingClientStates = #(#(false, "", ""), #(false, "", ""), #(false, "", ""))
                 for clientIndex in 1 to 3 do (
                     local clientId = clientIds[clientIndex]
@@ -3175,17 +3264,26 @@ global MaxUltraMcpActiveClient
                         onboardingClientStates[clientIndex] = #((integrationValueIsTrue clientId availabilityKey), (integrationEffectiveState clientId), (readIntegrationValue clientId "detail" fallbackValue: ""))
                     )
                     local clientState = onboardingClientStates[clientIndex]
-                    local activeClient = integrationOperationName == #install and integrationActiveClient == clientId
+                    local activeClient = (integrationOperationName == #install or (integrationOperationName == #installCli)) and integrationActiveClient == clientId
                     local presentation = onboardingCardPresentation clientState[2] clientState[1] integrationBusy activeClient integrationLastCheckFailed
                     -- Only the selected card says Setting up; other cards retain their previous status.
-                    if (integrationBusy and integrationOperationName == #install and not activeClient) do (
+                    if (integrationBusy and (integrationOperationName == #install or (integrationOperationName == #installCli)) and not activeClient) do (
                         presentation = onboardingCardPresentation clientState[2] clientState[1] false false false
                         presentation[3] = false
                     )
                     if ((clientId == "openai" or clientId == "claudeCode") and clientState[2] == "cli_missing" and presentation[1] == "Not found") do (
                         presentation[1] = if (clientId == "openai") then "Codex CLI not found" else "Claude Code CLI not found"
                         clientState[3] = integrationStateText clientId
+                        presentation[3] = not integrationBusy and not integrationLastCheckFailed
                     )
+                    local buttonCaption = "Connect to " + clientNames[clientIndex]
+                    if (clientState[2] == "desktop_missing") do buttonCaption = "Install " + clientNames[clientIndex]
+                    if (clientIndex < 3 and clientState[2] == "cli_missing") do buttonCaption = "Install " + clientNames[clientIndex]
+                    if (findItem #("configured", "restart_required") clientState[2] > 0) do buttonCaption = clientNames[clientIndex]
+                    clientButtons[clientIndex].Text = buttonCaption
+                    clientButtons[clientIndex].AccessibleName = buttonCaption
+                    clientButtons[clientIndex].AccessibleDescription = clientState[3]
+                    if (integrationBusy and activeClient and (integrationOperationName == #installCli)) do presentation[1] = "Installing..."
                     clientLabels[clientIndex].Text = presentation[1]
                     local statusTextColor = MaxUltraMcpTheme.textColor
                     if (presentation[2] == #pass) do statusTextColor = MaxUltraMcpTheme.bridgePassTextColor
@@ -3195,23 +3293,41 @@ global MaxUltraMcpActiveClient
                     clientLabels[clientIndex].ForeColor = statusTextColor
                     clientLabels[clientIndex].AccessibleDescription = clientState[3]
                     MaxUltraMcpUiKit.updateButtonState clientButtons[clientIndex] presentation[3]
-                    if (presentation[1] != "Error") do detailMessage += "\r\n\r\n" + clientNames[clientIndex] + ": " + presentation[1] + ". " + clientState[3]
-                    if (presentation[1] == "Error") do (
+                    if (clientId == integrationActiveClient and not integrationBusy) do (
+                        detailMessage = clientNames[clientIndex] + ": " + (integrationStateText clientId)
+                        if (integrationOperationName == #install and clientState[2] == "configured") do detailKind = #success
+                    )
+                    if (presentation[1] == "Error" and clientId == integrationActiveClient and not integrationBusy) do (
                         local errorDetail = if (integrationLastCheckFailed) then "Setup or detection did not finish. Refresh status to retry." else clientState[3]
+                        if (clientState[2] == "desktop_check_failed") do errorDetail = readIntegrationValue clientId "desktopDetail" fallbackValue: "Desktop app check failed. Refresh status to retry."
                         if (matchPattern clientState[2] pattern: "runtime_*") do errorDetail = readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry."
-                        detailMessage += "\r\n\r\n" + clientNames[clientIndex] + ": " + errorDetail
+                        local actionLabel = if (integrationOperationName == #installCli) then "CLI installation" else if (integrationOperationName == #install) then "connection setup" else "status check"
+                        detailMessage = clientNames[clientIndex] + " - " + actionLabel + ": " + errorDetail
                         detailColor = MaxUltraMcpTheme.bridgeIssueTextColor
+                        if ((readIntegrationValue clientId "detailKind" fallbackValue: "") == "warning") do (
+                            detailColor = MaxUltraMcpTheme.warningColor
+                            detailKind = #warning
+                        )
                     )
                 )
-                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnRefreshAgents (not integrationBusy)
+                MaxUltraMcpUiKit.updateButtonState onboardingSetupDialog.btnRefreshAgents (not integrationBusy or (integrationOperationName == #installCli))
+                onboardingSetupDialog.btnRefreshAgents.Text = if (integrationBusy and (integrationOperationName == #installCli)) then "Cancel installation" else "Refresh status"
                 if (not integrationBusy and (readIntegrationValue "operation" "state" fallbackValue: "") == "complete" and not (integrationValueIsTrue "runtime" "ready")) do (
-                    detailMessage += "\r\n\r\nRuntime: " + (readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry.")
+                    detailMessage = "Runtime check: " + (readIntegrationValue "runtime" "detail" fallbackValue: "Runtime check failed. Refresh status to retry.")
                     detailColor = MaxUltraMcpTheme.bridgeIssueTextColor
                 )
-                onboardingSetupDialog.txtClientDetail.Text = detailMessage
-                onboardingSetupDialog.txtClientDetail.ForeColor = detailColor
-                onboardingSetupDialog.txtClientDetail.AccessibleDescription = detailMessage
+                if (integrationBusy) do (
+                    detailMessage = if (integrationActiveClient == "") then "Checking installed clients..." else integrationActiveClient + ": " + (if (integrationOperationName == #installCli) then (readIntegrationValue "operation" "message" fallbackValue: "Checking installed components...") else "Configuring the connection...")
+                    if (integrationActionSteps.count > 0) do detailMessage = ""
+                    detailColor = MaxUltraMcpTheme.textColor
+                )
+                if (not integrationBusy and integrationActionMessage != "") do (
+                    detailMessage = integrationActionMessage
+                    detailColor = if (integrationActionFailed) then MaxUltraMcpTheme.bridgeIssueTextColor else MaxUltraMcpTheme.textColor
+                )
+                renderIntegrationDetail detailMessage (detailColor == MaxUltraMcpTheme.bridgeIssueTextColor) kindValue: detailKind
                 onboardingSetupDialog.lblOnboardingOperation.Text = if (integrationBusy) then (if (integrationOperationName == #install) then "Setting up the selected client..." else "Checking installed clients...") else ""
+                if (integrationBusy and (integrationOperationName == #installCli)) do onboardingSetupDialog.lblOnboardingOperation.Text = readIntegrationValue "operation" "message" fallbackValue: "Preparing installation..."
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETUP STATUS ERROR | %\n" (getCurrentException() as string)
                 return false
@@ -3313,7 +3429,8 @@ global MaxUltraMcpActiveClient
                 onboardingSetupDialog.txtClientDetail.Multiline = true
                 onboardingSetupDialog.txtClientDetail.ReadOnly = true
                 onboardingSetupDialog.txtClientDetail.WordWrap = true
-                onboardingSetupDialog.txtClientDetail.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Vertical
+                onboardingSetupDialog.txtClientDetail.ScrollBars = (dotNetClass "System.Windows.Forms.RichTextBoxScrollBars").Vertical
+                onboardingSetupDialog.txtClientDetail.DetectUrls = false
                 onboardingSetupDialog.txtClientDetail.Font = MaxUltraMcpUiKit.messageFont()
                 onboardingSetupDialog.txtClientDetail.BackColor = lighterThemeSurface()
                 onboardingSetupDialog.txtClientDetail.ForeColor = onboardingTextColor
@@ -3324,6 +3441,11 @@ global MaxUltraMcpActiveClient
                 )
                 MaxUltraMcpUiKit.styleLabel onboardingSetupDialog.lblOnboardingOperation backgroundValue: rolloutBackground
                 MaxUltraMcpUiKit.inheritParentBackColor onboardingSetupDialog.lblOnboardingOperation
+                onboardingSetupDialog.prgCliInstall.Style = (dotNetClass "System.Windows.Forms.ProgressBarStyle").Marquee
+                onboardingSetupDialog.prgCliInstall.MarqueeAnimationSpeed = 0
+                onboardingSetupDialog.prgCliInstall.set_Visible false
+                onboardingSetupDialog.prgCliInstall.AccessibleName = "Client installation in progress"
+                onboardingSetupDialog.prgCliInstall.AccessibleDescription = "Indeterminate progress. The vendor installer does not provide a measurable percentage."
                 layoutOnboardingDialog()
             ) catch (
                 format "[3DGROUND | Max Ultra MCP] SETUP LAYOUT ERROR | %\n" (getCurrentException() as string)
@@ -3354,12 +3476,22 @@ global MaxUltraMcpActiveClient
 
         fn startIntegrationOperation actionName installOpenAI: false installClaudeCode: false installAntigravity: false automaticCheck: false = (
             if (isDisposed or integrationBusy) do return false
+            integrationActionMessage = ""
+            integrationActionFailed = false
+            integrationActionSteps = #()
+            if (integrationActiveClient != "") do (
+                local activeClientLabel = case integrationActiveClient of ("openai": "Codex"; "claudeCode": "Claude Code"; default: "Antigravity")
+                appendIntegrationStep ("Starting the " + activeClientLabel + (if (actionName == #installCli) then " CLI installer." else " connection setup.")) kindValue: #info
+            )
+            if (actionName == #install) do appendIntegrationStep "Existing components kept. Configuring the MCP connection..." kindValue: #info
             integrationAutomaticCheckPending = false
             integrationAutomaticCheckDueAt = undefined
             local helperPath = integrationHelperFilePath()
             local resultPath = ensureIntegrationResultFilePath()
             if (helperPath == "" or resultPath == "") do (
                 integrationLastCheckFailed = true
+                integrationActionFailed = true
+                integrationActionMessage = "Setup could not start: the integration helper is missing from this package. Reinstall Max Ultra MCP, then retry."
                 addActivity "error" "AI integration helper was not found below the first-step file"
                 if (onboardingDialogIsOpen() and onboardingPage == #setup and onboardingSetupDialog.open) do onboardingSetupDialog.lblOnboardingOperation.Text = "Setup helper is missing from this package."
                 refreshOnboardingDialog()
@@ -3369,12 +3501,16 @@ global MaxUltraMcpActiveClient
             try (
                 local profileValue = (dotNetClass "System.Environment").GetEnvironmentVariable "MAX_ULTRA_MCP_TOOL_PROFILE"
                 if (profileValue == undefined or findItem #("core", "archviz", "full") (toLower profileValue) == 0) do profileValue = "archviz"
-                local actionValue = if (actionName == #install) then "Install" else "Status"
+                local actionValue = if (actionName == #installCli) then "InstallCli" else if (actionName == #install) then "Install" else "Status"
                 local argumentText = "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + quoteProcessArgument helperPath + " -Action " + actionValue + " -ResultPath " + quoteProcessArgument resultPath + " -Profile " + profileValue
                 argumentText += " -Port " + (hostPort as string)
                 if (installOpenAI) do argumentText += " -InstallOpenAI"
                 if (installClaudeCode) do argumentText += " -InstallClaudeCode"
                 if (installAntigravity) do argumentText += " -InstallAntigravity"
+                if (actionName == #installCli) do (
+                    try (if (doesFileExist (resultPath + ".cancel")) do deleteFile (resultPath + ".cancel")) catch ()
+                    argumentText += " -ConfirmCliInstall"
+                )
                 local startInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
                 startInfo.FileName = resolveWindowsExecutable @"WindowsPowerShell\v1.0\powershell.exe"
                 startInfo.Arguments = argumentText
@@ -3386,7 +3522,7 @@ global MaxUltraMcpActiveClient
                 if (integrationProcess == undefined) do throw "Windows did not start the integration helper"
                 integrationAutomaticCheck = automaticCheck
                 integrationOperationName = actionName
-                integrationOperationTimeoutSeconds = if (actionName == #install) then 90 else 30
+                integrationOperationTimeoutSeconds = if (actionName == #installCli) then 420 else if (actionName == #install) then 180 else 75
                 integrationOperationStartedAt = (dotNetClass "System.DateTime").UtcNow
                 integrationLastCheckFailed = false
                 integrationBusy = true
@@ -3398,6 +3534,8 @@ global MaxUltraMcpActiveClient
                 integrationAutomaticCheck = false
                 integrationOperationStartedAt = undefined
                 integrationLastCheckFailed = true
+                integrationActionFailed = true
+                integrationActionMessage = (if (integrationActiveClient == "") then "Status check" else integrationActiveClient + " - setup") + ": Windows could not start the helper. Refresh status to retry; see the activity log for details."
                 addActivity "error" ("Could not start AI integration setup: " + (getCurrentException() as string))
                 refreshOnboardingDialog()
                 return false
@@ -3405,6 +3543,15 @@ global MaxUltraMcpActiveClient
         ),
 
         fn refreshAgentIntegrationStatus = (
+            if (integrationBusy and (integrationOperationName == #installCli)) do (
+                try (
+                    (dotNetClass "System.IO.File").WriteAllText (integrationResultFilePath + ".cancel") "cancel"
+                    appendIntegrationStep "Cancellation requested. Waiting for the CLI installer to stop; installed files may remain." kindValue: #warning
+                    refreshOnboardingDialog()
+                    onboardingSetupDialog.lblOnboardingOperation.Text = "Cancelling installation; installed files may remain..."
+                    return true
+                ) catch (return false)
+            )
             if (integrationBusy) do return false
             integrationActiveClient = ""
             integrationAutomaticCheckPending = false
@@ -3412,21 +3559,63 @@ global MaxUltraMcpActiveClient
             return startIntegrationOperation #status automaticCheck: false
         ),
 
+        fn openDesktopDownloadPage clientId = (
+            if (integrationBusy) do return false
+            if ((readIntegrationValue clientId "desktopState" fallbackValue: "") != "missing") do return false
+            integrationOperationName = #desktopManualWait
+            updateIntegrationProgress false
+            local clientLabel = case clientId of ("openai": "Codex"; "claudeCode": "Claude Code"; default: "Antigravity")
+            local downloadUrl = case clientId of ("openai": "https://chatgpt.com/features/desktop/"; "claudeCode": "https://claude.com/download"; default: "https://antigravity.google/download")
+            integrationActionFailed = false
+            appendIntegrationStep (clientLabel + ": Opening the official desktop download page...") kindValue: #info
+            try (
+                local opened = shellLaunch downloadUrl ""
+                if (opened == false) do throw "Browser launch failed"
+                integrationActionSteps = #()
+                integrationActionMessage = clientLabel + ": Install the desktop app from the opened browser page. After installation, click Refresh status, then click Connect to " + clientLabel + " on the same card to finish setting up the connection."
+            ) catch (
+                integrationActionFailed = true
+                integrationActionMessage = clientLabel + " - open download page: Windows could not open the browser. Open " + downloadUrl + " yourself, install the app, then Refresh status."
+            )
+            refreshOnboardingDialog()
+            return not integrationActionFailed
+        ),
+
         fn installAgentIntegration clientId = (
             if (integrationBusy or not (onboardingDialogIsOpen())) do return false
             if (findItem #("openai", "claudeCode", "antigravity") clientId == 0) do return false
+            integrationActiveClient = clientId
+            integrationOperationName = #status
+            integrationActionMessage = ""
+            integrationActionFailed = false
+            integrationActionSteps = #()
+            refreshOnboardingDialog()
             if (readIntegrationValue "operation" "state" fallbackValue: "" == "") do (
                 if (not integrationBusy) do refreshAgentIntegrationStatus()
                 try (onboardingSetupDialog.lblOnboardingOperation.Text = "Finish the status check before installing.") catch ()
                 return false
             )
-            local availabilityKey = if (clientId == "antigravity") then "setupAvailable" else "cliAvailable"
-            if (not (integrationValueIsTrue clientId availabilityKey)) do return false
             local clientState = integrationEffectiveState clientId
+            if (clientState == "desktop_missing" and not integrationLastCheckFailed) do (
+                appendIntegrationStep (if (clientId == "antigravity") then "Antigravity: No setup CLI is required." else "Setup CLI found. Keeping the existing CLI.")
+                return openDesktopDownloadPage clientId
+            )
+            if (clientState == "desktop_check_failed") do return false
+            if (clientId != "antigravity" and clientState == "cli_missing" and not integrationLastCheckFailed) do (
+                local clientLabel = if (clientId == "openai") then "Codex" else "Claude Code"
+                local installerUrl = if (clientId == "openai") then "https://chatgpt.com/codex/install.ps1" else "https://claude.ai/install.ps1"
+                local confirmationText = "Install the " + clientLabel + " setup CLI for automatic connection?\n\nExisting apps are kept. You will chat and sign in in the desktop app; terminal chat is not required.\n\nPowerShell will download and run the official CLI installer:\n" + installerUrl + "\n\nInternet access is required. The installer manages CLI files and may update user PATH. No separate Node.js install is needed.\n\nIf the desktop app is missing, its official download page will open after CLI verification. Install the app yourself, then Refresh status and Connect separately. Cancel installation stops the helper but does not undo installed files."
+                if (not (queryBox confirmationText title: ("Install " + clientLabel) beep: false)) do return false
+                integrationActiveClient = clientId
+                return startIntegrationOperation #installCli installOpenAI: (clientId == "openai") installClaudeCode: (clientId == "claudeCode") automaticCheck: false
+            )
+            local availabilityKey = if (clientId == "antigravity") then "setupAvailable" else "cliAvailable"
+            if (clientState == "check_failed" or clientState == "cli_install_failed") do return false
             if (findItem #("configured", "restart_required") clientState > 0) do (
                 onboardingSetupDialog.lblOnboardingOperation.Text = if (clientState == "configured") then "Already configured. Use the Test prompt to verify the connection." else "Restart or reconnect this AI client, then use the Test prompt."
                 return true
             )
+            if (not (integrationValueIsTrue clientId availabilityKey)) do return false
             integrationActiveClient = clientId
             addActivity "info" ("Configuring AI client: " + clientId)
             return startIntegrationOperation #install installOpenAI: (clientId == "openai") installClaudeCode: (clientId == "claudeCode") installAntigravity: (clientId == "antigravity") automaticCheck: false
@@ -3525,6 +3714,7 @@ global MaxUltraMcpActiveClient
 
         fn pollIntegrationOperation = (
             if (integrationProcess == undefined or not integrationBusy) do return true
+            if ((integrationOperationName == #installCli)) do refreshOnboardingDialog()
             local hasExited = false
             try (hasExited = integrationProcess.HasExited) catch (hasExited = true)
             if (not hasExited) do (
@@ -3536,13 +3726,26 @@ global MaxUltraMcpActiveClient
                     )
                 ) catch ()
                 if (not operationTimedOut) do return true
-                try (integrationProcess.Kill()) catch ()
+                -- Stop only the helper tree retained by this operation; never enumerate unrelated processes.
+                try (
+                    local stopInfo = dotNetObject "System.Diagnostics.ProcessStartInfo"
+                    stopInfo.FileName = resolveWindowsExecutable "taskkill.exe"
+                    stopInfo.Arguments = "/PID " + (integrationProcess.Id as string) + " /T /F"
+                    stopInfo.UseShellExecute = false
+                    stopInfo.CreateNoWindow = true
+                    stopInfo.WindowStyle = (dotNetClass "System.Diagnostics.ProcessWindowStyle").Hidden
+                    local stopProcess = (dotNetClass "System.Diagnostics.Process").Start stopInfo
+                    if (stopProcess != undefined) do stopProcess.Dispose()
+                ) catch (try (integrationProcess.Kill()) catch ())
                 try (integrationProcess.Dispose()) catch ()
                 integrationProcess = undefined
                 integrationBusy = false
                 integrationAutomaticCheck = false
                 integrationOperationStartedAt = undefined
                 integrationLastCheckFailed = true
+                integrationActionFailed = true
+                local timedAction = if (integrationOperationName == #installCli) then "CLI installation" else if (integrationOperationName == #install) then "connection setup" else "status check"
+                integrationActionMessage = (if (integrationActiveClient == "") then "AI clients" else integrationActiveClient) + " - " + timedAction + " timed out after " + (integrationOperationTimeoutSeconds as string) + " seconds. Refresh status before retrying; installed files may remain."
                 addActivity "error" ("AI integration " + (if (integrationOperationName == #install) then "setup" else "status check") + " timed out after " + (integrationOperationTimeoutSeconds as string) + " seconds")
                 refreshOnboardingDialog()
                 return true
@@ -3557,21 +3760,35 @@ global MaxUltraMcpActiveClient
             integrationAutomaticCheckPending = false
             integrationAutomaticCheckDueAt = undefined
             integrationOperationStartedAt = undefined
-            integrationOpenAIConfigured = integrationValueIsTrue "openai" "configured"
-            integrationClaudeCodeConfigured = integrationValueIsTrue "claudeCode" "configured"
-            local openAIStateValue = readIntegrationValue "openai" "state" fallbackValue: ""
-            local claudeStateValue = readIntegrationValue "claudeCode" "state" fallbackValue: ""
-            local antigravityStateValue = readIntegrationValue "antigravity" "state" fallbackValue: ""
-            local conclusiveStates = #("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing")
+            integrationOpenAIConfigured = (integrationEffectiveState "openai") == "configured"
+            integrationClaudeCodeConfigured = (integrationEffectiveState "claudeCode") == "configured"
+            local openAIStateValue = integrationEffectiveState "openai"
+            local claudeStateValue = integrationEffectiveState "claudeCode"
+            local antigravityStateValue = integrationEffectiveState "antigravity"
+            local conclusiveStates = #("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing", "desktop_missing")
             local automaticCheckConclusive = (findItem conclusiveStates openAIStateValue) > 0 and (findItem conclusiveStates claudeStateValue) > 0
             automaticCheckConclusive = automaticCheckConclusive and (findItem conclusiveStates antigravityStateValue) > 0
-            integrationLastCheckFailed = helperExitCode != 0 and openAIStateValue == "" and claudeStateValue == ""
-            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured or integrationValueIsTrue "antigravity" "configured") do persistOnboardingDismissed true
+            integrationLastCheckFailed = helperExitCode != 0 and (readIntegrationValue "operation" "state" fallbackValue: "") != "complete"
+            if (integrationLastCheckFailed) do (
+                integrationActionFailed = true
+                integrationActionMessage = (if (integrationActiveClient == "") then "Status check" else integrationActiveClient + " - setup") + ": " + (readIntegrationValue "operation" "message" fallbackValue: "The helper did not finish. Refresh status to retry.")
+            )
+            if (integrationOpenAIConfigured or integrationClaudeCodeConfigured or antigravityStateValue == "configured") do persistOnboardingDismissed true
             refreshOnboardingDialog()
+            if (integrationOperationName == #installCli and helperExitCode == 0 and not integrationLastCheckFailed and integrationActiveClient != "") do (
+                if ((integrationValueIsTrue integrationActiveClient "cliAvailable") and (findItem #("configured", "not_configured", "restart_required") (readIntegrationValue integrationActiveClient "state" fallbackValue: "") > 0)) do (
+                    if ((readIntegrationValue integrationActiveClient "desktopState" fallbackValue: "") == "installed") do (
+                        appendIntegrationStep "Desktop app already installed. Keeping the existing app."
+                        integrationActionMessage = "Setup CLI verified. Existing desktop app kept. After installation, click Refresh status, then click Connect to " + (if (integrationActiveClient == "openai") then "Codex" else "Claude Code") + " on the same card to finish setting up the connection."
+                        refreshOnboardingDialog()
+                    )
+                    openDesktopDownloadPage integrationActiveClient
+                )
+            )
             if (helperExitCode != 0) do addActivity "error" ("AI integration helper failed: " + readIntegrationValue "operation" "message" fallbackValue: "unknown error")
-            if (integrationOperationName == #install and antigravityStateValue == "install_failed") do messageBox (readIntegrationValue "antigravity" "detail" fallbackValue: "Antigravity setup failed. Refresh status and retry.") title: "Antigravity setup"
+            if (integrationOperationName == #install and integrationActiveClient == "antigravity" and antigravityStateValue == "install_failed") do messageBox (readIntegrationValue "antigravity" "detail" fallbackValue: "Antigravity setup failed. Refresh status and retry.") title: "Antigravity setup"
             -- Recheck on every startup even if Setup was dismissed during an earlier run.
-            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not (integrationValueIsTrue "antigravity" "configured")) do showOnboardingDialog refreshStatus: false
+            if (wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive and not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and antigravityStateValue != "configured") do showOnboardingDialog refreshStatus: false
             return true
         ),
 
@@ -5166,6 +5383,7 @@ global MaxUltraMcpActiveClient
             try (if (transportWorker != undefined and transportWorker.IsBusy) do transportWorker.CancelAsync()) catch ()
             try (if (transportClient != undefined) do transportClient.Close()) catch ()
             local integrationProcessFinished = true
+            if (integrationBusy and (integrationOperationName == #installCli) and integrationResultFilePath != "") do try ((dotNetClass "System.IO.File").WriteAllText (integrationResultFilePath + ".cancel") "cancel") catch ()
             try (if (integrationProcess != undefined) do integrationProcessFinished = integrationProcess.HasExited) catch ()
             try (if (integrationProcess != undefined) do integrationProcess.Dispose()) catch ()
             integrationProcess = undefined

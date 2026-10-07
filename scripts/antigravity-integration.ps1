@@ -42,7 +42,7 @@ function Get-AntigravityStatus {
             $status.installed = 'true'
             $status.executable = $candidate
             $status.state = 'not_configured'
-            $status.detail = 'Installed. Select Antigravity and click Install selected.'
+            $status.detail = 'Installed. Click Connect to Antigravity.'
             $status.setupAvailable = 'true'
             try { $status.version = [string](Get-Item -LiteralPath $candidate).VersionInfo.ProductVersion } catch { }
             break
@@ -79,7 +79,7 @@ function Get-AntigravityStatus {
         $entry = Get-AntigravityProperty $servers 'max-ultra-mcp'
         if ($null -eq $entry) { return $status }
         $status.state = 'not_configured'
-        $status.detail = 'Saved settings need updating. Select Antigravity and click Install selected.'
+        $status.detail = 'Saved settings need updating. Click Connect to Antigravity.'
         $command = Get-AntigravityProperty $entry 'command' ''
         $arguments = @(Get-AntigravityProperty $entry 'args' @())
         $environment = Get-AntigravityProperty $entry 'env'

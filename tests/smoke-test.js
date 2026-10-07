@@ -867,6 +867,25 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /Do not run arbitrary MaxScript, change the scene, start a render, or save any file/);
     assert.match(bootstrapSource, /restart or reconnect this AI client so it reloads the MCP host/);
     assert.match(bootstrapSource, /fn onboardingCardPresentation/);
+    assert.match(bootstrapSource, /prgCliInstall\.Style = \(dotNetClass "System.Windows.Forms.ProgressBarStyle"\)\.Marquee/);
+    assert.match(bootstrapSource, /local desiredAnimationSpeed = if \(runningValue\) then 30 else 0/);
+    assert.match(bootstrapSource, /if \(progressControl\.MarqueeAnimationSpeed != desiredAnimationSpeed\) do progressControl\.MarqueeAnimationSpeed = desiredAnimationSpeed/);
+    assert.match(bootstrapSource, /if \(progressControl\.get_Visible\(\) != runningValue\) do progressControl\.set_Visible runningValue/);
+    assert.doesNotMatch(bootstrapSource, /prgCliInstall\.Visible\s*=/);
+    assert.match(bootstrapSource, /dotNetControl txtClientDetail "System\.Windows\.Forms\.RichTextBox"/);
+    const setupAppendBody = sourceSection(bootstrapSource, "fn appendIntegrationStep", "fn renderIntegrationDetail", "timestamped setup events");
+    assert.match(setupAppendBody, /existingStep\[2\] == singleLine[\s\S]*return false[\s\S]*Now\.ToString "HH:mm:ss"/);
+    assert.match(setupAppendBody, /timestampValue \+ " > " \+ singleLine/);
+    assert.match(setupAppendBody, /integrationActionSteps\.count > 20/);
+    const setupRenderBody = sourceSection(bootstrapSource, "fn renderIntegrationDetail", "fn updateIntegrationProgress", "colored setup events");
+    assert.doesNotMatch(setupRenderBody, /DateTime|Now\.ToString/);
+    assert.match(setupRenderBody, /#success: "success"[\s\S]*#error: "error"[\s\S]*#warning: "warning"[\s\S]*default: "info"/);
+    assert.match(setupRenderBody, /activityEntryColor \(" \[" \+ categoryTag \+ "\]"\)/);
+    assert.doesNotMatch(setupRenderBody, /linkColor|#action|integrationBusy/);
+    assert.match(agentIntegrationSource, /Write-CliInstallProgress 'Setup CLI installed and verified\.' 'success'/);
+    assert.match(bootstrapSource, /readIntegrationValue "operation" "stageKinds"[\s\S]*local stageKind = #info/);
+    assert.match(setupRenderBody, /detailBox\.Select lineStart stepValue\[1\]\.count[\s\S]*SelectionColor = lineColor/);
+    assert.match(setupRenderBody, /if \(detailBox\.Text != displayText\)[\s\S]*detailBox\.Select detailBox\.TextLength 0[\s\S]*detailBox\.ScrollToCaret\(\)/);
     assert.match(bootstrapSource, /on MaxUltraMcpOnboardingSetupDialog close[^\n]+releaseOnboardingLogos/);
     for (const logoName of ["codex", "claude", "antigravity"]) {
       const logoBytes = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "client-logos", logoName + ".png"));
@@ -909,7 +928,24 @@ async function runSmokeTest() {
       "AI integration operation startup",
     );
     assert.match(integrationOperationBody, /if \(isDisposed or integrationBusy\) do return false/);
-    assert.match(integrationOperationBody, /integrationOperationTimeoutSeconds = if \(actionName == #install\) then 90 else 30/);
+    assert.match(integrationOperationBody, /integrationOperationTimeoutSeconds = if \(actionName == #installCli\) then 420 else if \(actionName == #install\) then 180 else 75/);
+    assert.match(integrationOperationBody, /queryBox confirmationText[\s\S]*startIntegrationOperation #installCli/);
+    assert.doesNotMatch(integrationOperationBody, /InstallDesktop|ConfirmDesktopInstall|DesktopSetup\.exe|ChatGPT\.msix/);
+    const desktopPageBody = sourceSection(bootstrapSource, "fn openDesktopDownloadPage", "fn installAgentIntegration", "manual desktop browser handoff");
+    assert.match(desktopPageBody, /desktopState[^\n]+!= "missing"\) do return false/);
+    assert.match(desktopPageBody, /shellLaunch downloadUrl ""/);
+    assert.match(desktopPageBody, /if \(integrationBusy\) do return false/);
+    assert.match(desktopPageBody, /integrationOperationName = #desktopManualWait[\s\S]*updateIntegrationProgress false[\s\S]*shellLaunch/);
+    assert.match(desktopPageBody, /After installation, click Refresh status, then click Connect to " \+ clientLabel \+ " on the same card to finish setting up the connection\."/);
+    assert.match(desktopPageBody, /integrationActionFailed = false[\s\S]*integrationActionFailed = true/);
+    const detailBody = sourceSection(bootstrapSource, "fn refreshOnboardingDialog", "fn onboardingTestPromptText", "selected-client error presentation");
+    assert.ok(detailBody.indexOf('updateIntegrationProgress') < detailBody.indexOf('refreshAiStatusControls'), "Progress cleanup must precede fallible presentation work");
+    assert.match(detailBody, /presentation\[1\] == "Error" and clientId == integrationActiveClient and not integrationBusy/);
+    assert.doesNotMatch(detailBody, /detailMessage \+=/);
+    assert.match(detailBody, /if \(integrationBusy\) do \([\s\S]*detailColor = MaxUltraMcpTheme\.textColor/);
+    assert.match(integrationOperationBody, /integrationActionMessage = ""[\s\S]*integrationActionFailed = false/);
+    const effectiveStateBody = sourceSection(bootstrapSource, "fn integrationEffectiveState", "fn integrationStateText", "CLI-first component ordering");
+    assert.ok(effectiveStateBody.indexOf('"cli_missing", "check_failed", "cli_install_failed"') < effectiveStateBody.indexOf('desktopState == "missing"'), "Missing desktop must not hide missing or failed CLI");
     const integrationPollBody = sourceSection(
       bootstrapSource,
       "fn pollIntegrationOperation",
@@ -918,9 +954,10 @@ async function runSmokeTest() {
     );
     assert.match(integrationPollBody, /elapsedTime\.TotalSeconds >= integrationOperationTimeoutSeconds/);
     assert.match(integrationPollBody, /integrationLastCheckFailed = true[\s\S]*timed out after/);
-    assert.match(integrationPollBody, /refreshOnboardingDialog\(\)[\s\S]*if \(wasAutomaticCheck[\s\S]*not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and not \(integrationValueIsTrue "antigravity" "configured"\)\) do showOnboardingDialog refreshStatus: false/);
+    assert.match(integrationPollBody, /refreshOnboardingDialog\(\)[\s\S]*if \(wasAutomaticCheck[\s\S]*not integrationOpenAIConfigured and not integrationClaudeCodeConfigured and antigravityStateValue != "configured"\) do showOnboardingDialog refreshStatus: false/);
     assert.doesNotMatch(integrationPollBody, /loadOnboardingDismissed/);
-    assert.match(integrationPollBody, /local conclusiveStates = #\("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing"\)/);
+    assert.match(integrationPollBody, /integrationOperationName == #installCli and helperExitCode == 0 and not integrationLastCheckFailed[\s\S]*cliAvailable[\s\S]*openDesktopDownloadPage integrationActiveClient/);
+    assert.match(integrationPollBody, /local conclusiveStates = #\("configured", "not_configured", "restart_required", "cli_missing", "runtime_missing", "desktop_missing"\)/);
     assert.match(integrationPollBody, /automaticCheckConclusive[\s\S]*if \(wasAutomaticCheck and helperExitCode == 0 and automaticCheckConclusive/);
     assert.doesNotMatch(integrationPollBody.match(/local conclusiveStates = #[^\n]+/)?.[0] || "", /check_failed/);
     assert.match(bootstrapSource, /fn integrationEffectiveState[\s\S]*stateValue == "not_configured"[\s\S]*return readIntegrationValue "runtime" "state"/);
@@ -932,7 +969,7 @@ async function runSmokeTest() {
     assert.match(bootstrapSource, /CreateNoWindow = true/);
     assert.match(bootstrapSource, /scripts\\agent-integration\.ps1/);
     assert.match(bootstrapSource, /onboardingTabsDialog: MaxUltraMcpOnboardingTabsDialog onboardingSetupDialog: MaxUltraMcpOnboardingSetupDialog onboardingTestDialog: MaxUltraMcpOnboardingTestDialog/);
-    assert.match(agentIntegrationSource, /\[ValidateSet\('Status','Install'\)\]/);
+    assert.match(agentIntegrationSource, /\[ValidateSet\('Status','Install','InstallCli'\)\]/);
     assert.match(agentIntegrationSource, /Get-ClientStatus 'openai' 'ChatGPT Desktop \/ Codex' 'codex'/);
     assert.match(agentIntegrationSource, /Get-ClientStatus 'claudeCode' 'Claude Code' 'claude'/);
     assert.match(agentIntegrationSource, /'mcp','add',\$serverName,'--scope','user'/);

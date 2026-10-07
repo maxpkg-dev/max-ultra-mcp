@@ -9,6 +9,10 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\agent-runtime-test.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\agent-cli-test.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\desktop-discovery-test.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\bridge-lifecycle-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe') -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot '..\tests\transport-stream-test.ps1')
