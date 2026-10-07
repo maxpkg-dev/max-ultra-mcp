@@ -4,7 +4,9 @@
 # Developed by Lukianenko Vasyl
 
 from collections import OrderedDict
+from html import escape
 from pathlib import Path
+import random
 
 from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt
 
@@ -34,6 +36,61 @@ QTabBar::tab:selected { color: #efb577; background: #35312a; border: 1px solid #
 QTabBar::tab:hover { color: #fff0dc; }
 QToolTip { color: #eee8de; background: #39342c; border: 1px solid #8e7455; }
 """
+
+
+class PromotionLink(QtWidgets.QLabel):
+    PROMOTIONS = (
+        ("Discover useful 3ds Max tools on maxpkg.dev.", "Tools on maxpkg.dev", "https://maxpkg.dev"),
+        ("Clean up unwanted scene data with Prune Scene.", "Explore Prune Scene", "https://maxpkg.dev/catalog/prune-scene"),
+        ("Prepare models and assets for delivery with Model Packer.", "Explore Model Packer", "https://maxpkg.dev/catalog/model-packer"),
+        ("Find practical 3ds Max scripts on 3dground.net.", "Scripts on 3dground.net", "https://3dground.net"),
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        self.setTextFormat(Qt.RichText)
+        self.setOpenExternalLinks(False)
+        self.linkActivated.connect(lambda url: QtGui.QDesktopServices.openUrl(QtCore.QUrl(url)))
+        self._remaining = []
+        self._current = None
+        self.timer = QtCore.QTimer(self)
+        self.timer.setInterval(30000)
+        self.timer.timeout.connect(self.rotate)
+        self.rotate()
+
+    def rotate(self):
+        if not self._remaining:
+            self._remaining = list(self.PROMOTIONS)
+            random.shuffle(self._remaining)
+            if self._remaining[-1] == self._current:
+                self._remaining[0], self._remaining[-1] = self._remaining[-1], self._remaining[0]
+        self._current = self._remaining.pop()
+        self.update_text()
+
+    def update_text(self):
+        full, short, url = self._current
+        metrics = self.fontMetrics()
+        available = max(0, self.contentsRect().width() - 2)
+        label = full if metrics.horizontalAdvance(full) <= available else short
+        label = metrics.elidedText(label, Qt.ElideRight, available)
+        self.setText('<a href="{}" style="color:#efa35c">{}</a>'.format(escape(url, quote=True), escape(label)))
+        self.setToolTip(full + "\n" + url)
+        self.setAccessibleName(full)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_text()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update_text()
+        self.timer.start()
+
+    def hideEvent(self, event):
+        self.timer.stop()
+        super().hideEvent(event)
 
 
 def icon(root, name):
@@ -352,11 +409,7 @@ class Panel(Window):
         self.actions.setSpacing(8)
         self.outer.addLayout(self.actions)
         footer = QtWidgets.QHBoxLayout()
-        self.support = QtWidgets.QLabel('<a href="support" style="color:#efa35c">Buy the author a beer and keep development moving.</a>')
-        self.support.setMinimumWidth(0)
-        self.support.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
-        self.support.setToolTip("Buy the author a beer and keep development moving.")
-        self.support.linkActivated.connect(client.donate)
+        self.support = PromotionLink()
         footer.addWidget(self.support, 1)
         self.donate_button = donate_action(client.root, client.donate)
         footer.addWidget(self.donate_button)
@@ -408,7 +461,6 @@ class Panel(Window):
                 button.setToolButtonStyle(Qt.ToolButtonIconOnly if compact else Qt.ToolButtonTextBesideIcon)
             self.hide_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 520 else Qt.ToolButtonTextBesideIcon)
             self.donate_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 400 else Qt.ToolButtonTextBesideIcon)
-            self.support.setText('<a href="support" style="color:#efa35c">' + ("Support development" if self.width() < 520 else "Buy the author a beer and keep development moving.") + '</a>')
             self.update_ai()
 
     def refresh(self):
