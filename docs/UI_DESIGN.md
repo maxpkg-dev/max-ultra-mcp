@@ -82,7 +82,7 @@ The visual direction uses subtle rounded corners rather than large pill shapes:
 | --- | --- |
 | Action buttons | 4 px; 3 px in the smallest mode |
 | Settings groups and checkbox indicators | 3 px |
-| Main journal field | 5 px |
+| Main journal field | 8 px, with a rounded widget mask to clip child backgrounds |
 | Tab content pane | 5 px |
 | Tab upper corners | 4 px |
 | Help code-block container | 4 px |

@@ -54,6 +54,8 @@ def run():
                 application.processEvents()
                 assert panel.width() == width and panel.height() == height
                 assert panel.log.viewport().height() >= 24
+                assert not panel.log.mask().contains(QtCore.QPoint(0, 0))
+                assert panel.log.mask().contains(panel.log.rect().center())
                 expected_points = 18 if width >= 1800 else 14 if width > 1024 else {1024: 11, 640: 11, 480: 10, 320: 9, 280: 8, 240: 8}[width]
                 assert panel.log.itemDelegate().journal_font().pointSize() == expected_points
                 metrics = QtGui.QFontMetrics(panel.log.itemDelegate().journal_font())

@@ -27,7 +27,7 @@ QTreeWidget::item:selected { background: @selection_background; color: @selected
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
 QHeaderView::section { background: @button_background; padding: 4px; border: none; }
 QTableView::item:selected, QListWidget::item:selected { background: @selection_background; color: @list_selected_text; }
-QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; border-radius: 5px; }
+QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; border-radius: 8px; }
 QTextBrowser#setupJournal { border-radius:5px; }
 QScrollBar:vertical { width:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
 QScrollBar:horizontal { height:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
@@ -628,6 +628,11 @@ class JournalView(QtWidgets.QTableView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        # A scroll area's viewport and scrollbar containers are child widgets:
+        # stylesheet rounding alone does not clip their square backgrounds.
+        outline = QtGui.QPainterPath()
+        outline.addRoundedRect(QtCore.QRectF(self.rect()), 8, 8)
+        self.setMask(QtGui.QRegion(outline.toFillPolygon().toPolygon()))
         self.schedule_rows()
 
     def layout_visible_rows(self):
