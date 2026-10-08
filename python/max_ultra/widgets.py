@@ -230,6 +230,12 @@ def configure_close_icon(button, root):
 
 
 class JoinedTabBar(QtWidgets.QTabBar):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # The native standalone tab-bar base adds a second frame in Max's style.
+        # Our paintEvent supplies the shared baseline instead.
+        self.setDrawBase(False)
+
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QtGui.QPainter(self)
@@ -242,6 +248,22 @@ class JoinedTabBar(QtWidgets.QTabBar):
             painter.drawLine(selected.right() - 4, y, self.width() - 1, y)
         else:
             painter.drawLine(0, y, self.width() - 1, y)
+        painter.end()
+
+
+class TabHeading(QtWidgets.QWidget):
+    """Continue a standalone tab bar's baseline across its adjacent controls."""
+    def __init__(self, tabs):
+        super().__init__()
+        self.tabs = tabs
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        origin = self.tabs.mapTo(self, QtCore.QPoint(0, 0))
+        painter = QtGui.QPainter(self)
+        painter.setPen(QtGui.QColor(themes.style('#8e7455')))
+        y = origin.y() + self.tabs.height() - 1
+        painter.drawLine(origin.x() + self.tabs.width(), y, self.width() - 1, y)
         painter.end()
 
 

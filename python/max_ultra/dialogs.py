@@ -11,7 +11,7 @@ import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, JoinedTabBar, ActionButton, action, copy_action, donate_action, COLORS
+from .widgets import Window, JoinedTabBar, TabHeading, ActionButton, action, copy_action, donate_action, COLORS
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -423,13 +423,15 @@ class SkillsWindow(Window):
         category = client.settings.get("skills", "category", "builtin")
         self.source.setCurrentIndex(1 if category == "custom" else 0)
         self.source.currentChanged.connect(self.filter_rows)
-        heading = QtWidgets.QHBoxLayout()
+        tab_heading = TabHeading(self.source)
+        heading = QtWidgets.QHBoxLayout(tab_heading)
+        heading.setContentsMargins(0, 0, 0, 0)
         heading.addWidget(self.source)
         heading.addStretch()
         self.refresh_button = action(client.root, "refresh-cw", "Refresh", lambda: client.skills_operation("list"))
         self.buttons.append(self.refresh_button)
         heading.addWidget(self.refresh_button)
-        self.outer.addLayout(heading)
+        self.outer.addWidget(tab_heading)
         self.splitter = QtWidgets.QSplitter(Qt.Vertical)
         self.list = QtWidgets.QTreeWidget()
         self.list.setColumnCount(2)
@@ -474,9 +476,11 @@ class SkillsWindow(Window):
         self.outer.addWidget(self.status)
         self.controls = QtWidgets.QHBoxLayout()
         for symbol, title, callback in [("circle-question-mark", "How to create and import skills", lambda: self.help("CUSTOM_SKILLS.html")), ("circle-question-mark", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("globe", "Community Skills", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"))), ("heart", "Donate", client.donate)]:
-            if title == "Donate":
+            if title in ("Community Skills", "Donate"):
                 self.controls.addStretch()
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)
+            if title == "Community Skills":
+                themes.set_style(button, "QToolButton { background:#356b43; border-color:#4e8a5d; color:#fff3dc; } QToolButton:hover { background:#427f52; border-color:#78b68a; } QToolButton:disabled { background:#35443a; color:#928f86; border-color:#514b42; }")
             self.buttons.append(button)
             self.controls.addWidget(button)
         self.outer.addLayout(self.controls)
