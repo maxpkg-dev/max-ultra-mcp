@@ -10,7 +10,7 @@ import random
 import weakref
 
 from . import themes
-from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt
+from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt, enable_window_shadow
 
 COLORS = {"info": "@log_info", "system": "@log_system", "success": "@log_success", "warning": "@log_warning", "error": "@log_error", "support": "@support_link", "debug": "@log_debug"}
 DONATE_STYLE = "QToolButton { background:@donate_background; border-color:@donate_border; } QToolButton:hover { background:@donate_hover; }"
@@ -27,7 +27,7 @@ QTreeWidget::item:selected { background: @selection_background; color: @selected
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
 QHeaderView::section { background: @button_background; padding: 4px; border: none; }
 QTableView::item:selected, QListWidget::item:selected { background: @selection_background; color: @list_selected_text; }
-QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; }
+QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; border-radius: 5px; }
 QScrollBar:vertical { width:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
 QScrollBar:horizontal { height:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
 QScrollBar::handle:vertical { background:@scrollbar_thumb; min-height:24px; border-radius:4px; margin:2px; }
@@ -47,6 +47,15 @@ QTabBar::tab:selected { color: @heading_text; background: @active_tab_background
 QTabBar::tab:hover { color: @selected_text; }
 QToolTip { color: @tooltip_text; background: @tooltip_background; border: 1px solid @active_border; }
 QToolButton[ultraCompact="true"], QPushButton[ultraCompact="true"] { font-size:9pt; min-height:0; padding:1px; border-radius:3px; }
+QToolButton[largeControls="true"], QPushButton[largeControls="true"] { font-size:14pt; padding:6px; }
+QLineEdit[largeControls="true"], QComboBox[largeControls="true"] { font-size:14pt; padding:5px; }
+QScrollBar[largeControls="true"]:vertical { width:17px; }
+QScrollBar[largeControls="true"]:horizontal { height:17px; }
+QScrollBar[scrollDensity="compact"]:vertical { width:9px; border-radius:4px; }
+QScrollBar[scrollDensity="compact"]:horizontal { height:9px; border-radius:4px; }
+QScrollBar[scrollDensity="tiny"]:vertical { width:7px; border-radius:3px; }
+QScrollBar[scrollDensity="tiny"]:horizontal { height:7px; border-radius:3px; }
+QScrollBar[scrollDensity="compact"]::handle, QScrollBar[scrollDensity="tiny"]::handle { margin:1px; border-radius:2px; }
 QSlider::groove:horizontal { height:6px; background:@recessed_background; border-radius:3px; }
 QSlider::sub-page:horizontal { background:@accent; border-radius:3px; }
 QSlider::handle:horizontal { width:14px; margin:-5px 0; background:@text; border:1px solid @active_border; border-radius:7px; }
@@ -319,6 +328,7 @@ class Window(QtWidgets.QDialog):
         owner = Window._opacity_owner() if Window._opacity_owner else None
         if owner is not None and owner is not self:
             self.dim_for_settings()
+        enable_window_shadow(self)
         for widget in self.findChildren(QtWidgets.QWidget):
             if isinstance(widget, (QtWidgets.QAbstractButton, QtWidgets.QComboBox)):
                 widget.installEventFilter(self)
@@ -377,6 +387,8 @@ class Window(QtWidgets.QDialog):
         import ctypes
         from ctypes import wintypes
         native = wintypes.MSG.from_address(int(message))
+        if native.message == 0x031E:  # WM_DWMCOMPOSITIONCHANGED
+            enable_window_shadow(self)
         if native.message == 0x84 and self.minimumSize() != self.maximumSize():
             x = ctypes.c_short(native.lParam & 0xffff).value
             y = ctypes.c_short((native.lParam >> 16) & 0xffff).value
@@ -752,37 +764,56 @@ class Panel(Window):
 
     def update_compact_layout(self):
         tiny = self.width() < 300
-        if getattr(self, '_ultra_compact', None) == tiny:
+        large = self.width() > 1024
+        scroll_density = 'tiny' if tiny else 'compact' if self.width() < 520 else 'normal'
+        for scrollbar in (self.log.verticalScrollBar(), self.log.horizontalScrollBar()):
+            if scrollbar.property('scrollDensity') != scroll_density:
+                scrollbar.setProperty('scrollDensity', scroll_density)
+                scrollbar.style().unpolish(scrollbar)
+                scrollbar.style().polish(scrollbar)
+                scrollbar.updateGeometry()
+        mode = 'tiny' if tiny else 'large' if large else 'normal'
+        if getattr(self, '_layout_mode', None) == mode:
             return
+        self._layout_mode = mode
         self._ultra_compact = tiny
-        self.outer.setContentsMargins(*( (4, 3, 4, 3) if tiny else (8, 6, 8, 6) ))
-        self.outer.setSpacing(3 if tiny else 6)
-        self.header.layout().setSpacing(3 if tiny else 6)
-        self.top_row.setSpacing(3 if tiny else 8)
-        self.top_row.itemAt(2).spacerItem().changeSize(2 if tiny else 12, 0)
-        self.actions.setSpacing(3 if tiny else 8)
-        self.footer.setSpacing(3 if tiny else 6)
+        self.outer.setContentsMargins(*((4, 3, 4, 3) if tiny else (12, 9, 12, 9) if large else (8, 6, 8, 6)))
+        self.outer.setSpacing(3 if tiny else 9 if large else 6)
+        self.header.layout().setSpacing(3 if tiny else 9 if large else 6)
+        self.top_row.setSpacing(3 if tiny else 12 if large else 8)
+        self.top_row.itemAt(2).spacerItem().changeSize(2 if tiny else 18 if large else 12, 0)
+        self.actions.setSpacing(3 if tiny else 12 if large else 8)
+        self.footer.setSpacing(3 if tiny else 9 if large else 6)
         for button in self.buttons + [self.ai, self.ai_refresh, self.hide_button, self.donate_button, self.latest]:
             button.setProperty('ultraCompact', tiny)
+            button.setProperty('largeControls', large)
             button.style().unpolish(button)
             button.style().polish(button)
-            button.setMinimumHeight(24 if tiny else 32)
+            button.setMinimumHeight(24 if tiny else 44 if large else 32)
             button.setMaximumHeight(24 if tiny else 16777215)
             if isinstance(button, QtWidgets.QToolButton):
-                button.setMinimumWidth((80 if tiny else 100) if button is self.ai else (24 if tiny else 32))
-                button.setIconSize(QtCore.QSize(14, 14) if tiny else QtCore.QSize(20, 20))
-        self.close_button.setFixedSize(14 if tiny else 18, 14 if tiny else 18)
-        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:@heading_text; background:transparent'.format(9 if tiny else 12))
+                button.setMinimumWidth((80 if tiny else 140 if large else 100) if button is self.ai else (24 if tiny else 44 if large else 32))
+                glyph_size = 14 if tiny else 26 if large else 20
+                button.setIconSize(QtCore.QSize(glyph_size, glyph_size))
+        for control in (self.search, self.categories, self.log.verticalScrollBar(), self.log.horizontalScrollBar()):
+            control.setProperty('largeControls', large)
+            control.style().unpolish(control)
+            control.style().polish(control)
+            control.updateGeometry()
+        close_size = 14 if tiny else 24 if large else 18
+        self.close_button.setFixedSize(close_size, close_size)
+        self.close_button.setIconSize(QtCore.QSize(18, 18) if large else QtCore.QSize(14, 14))
+        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:@heading_text; background:transparent'.format(9 if tiny else 16 if large else 12))
         for label in (self.scene_label, self.support, self.storage_error):
-            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 11) + ('color:@storage_error;' if label is self.storage_error else ''))
+            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 14 if large else 11) + ('color:@storage_error;' if label is self.storage_error else ''))
         self.support.update_text()
         self.top_row.invalidate()
 
     def update_journal_density(self):
         # Window dimensions are logical pixels; point sizes retain DPI scaling.
-        point_size = 8 if self.width() < 300 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
+        point_size = 14 if self.width() > 1024 else 8 if self.width() < 300 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
         delegate = self.log.itemDelegate()
-        padding = {8: 1, 9: 2, 10: 3, 11: 4}[point_size]
+        padding = {8: 1, 9: 2, 10: 3, 11: 4, 14: 6}[point_size]
         row_height = QtGui.QFontMetrics(QtGui.QFont("Consolas", point_size)).height() + padding
         header = self.log.verticalHeader()
         if delegate.point_size == point_size and header.defaultSectionSize() == row_height:

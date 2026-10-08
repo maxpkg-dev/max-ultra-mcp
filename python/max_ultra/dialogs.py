@@ -136,7 +136,7 @@ class SettingsWindow(Window):
             link.setAlignment(Qt.AlignCenter)
             link.setOpenExternalLinks(True)
             links.addWidget(link)
-        about.addSpacing(8)
+        about.addSpacing(16)
         about.addWidget(donate_action(client.root, client.donate), 0, Qt.AlignHCenter)
         self.update_status()
         self.ensurePolished()

@@ -12,6 +12,36 @@ Qt = QtCore.Qt
 _keyboard_guard = None
 
 
+def enable_window_shadow(widget):
+    """Ask Windows to draw the native shadow outside our custom window frame."""
+    import sys
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    from ctypes import wintypes
+
+    class Margins(ctypes.Structure):
+        _fields_ = [(edge, ctypes.c_int) for edge in ("left", "right", "top", "bottom")]
+
+    try:
+        dwm = ctypes.WinDLL("dwmapi")
+        dwm.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+        dwm.DwmSetWindowAttribute.restype = ctypes.c_long
+        dwm.DwmExtendFrameIntoClientArea.argtypes = [wintypes.HWND, ctypes.POINTER(Margins)]
+        dwm.DwmExtendFrameIntoClientArea.restype = ctypes.c_long
+        handle = wintypes.HWND(int(widget.winId()))
+        # DWMWA_NCRENDERING_POLICY / DWMNCRP_ENABLED. Keep the opaque Qt
+        # content and existing hit testing; only a one-pixel frame is extended.
+        policy = ctypes.c_int(2)
+        if dwm.DwmSetWindowAttribute(handle, 2, ctypes.byref(policy), ctypes.sizeof(policy)) < 0:
+            return False
+        return dwm.DwmExtendFrameIntoClientArea(handle, ctypes.byref(Margins(1, 1, 1, 1))) >= 0
+    except (OSError, AttributeError):
+        # Cosmetic only: remote sessions or disabled composition must not
+        # prevent a window from opening.
+        return False
+
+
 def max_parent():
     import qtmax
     return qtmax.GetQMaxMainWindow()
