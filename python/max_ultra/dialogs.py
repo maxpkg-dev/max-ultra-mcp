@@ -66,7 +66,7 @@ class SettingsWindow(Window):
         groups = {}
         for title in ["Appearance", "Autostart", "Server console", "Updates", "AI client integration", "About"]:
             group = QtWidgets.QGroupBox(title)
-            themes.set_style(group, "QGroupBox { border:1px solid #62594c; border-radius:3px; margin-top:12px; padding:12px 10px 8px; } QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; left:10px; padding:0 5px; color:#efb577; }")
+            themes.set_style(group, "QGroupBox { border:1px solid @group_border; border-radius:3px; margin-top:12px; padding:12px 10px 8px; } QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; left:10px; padding:0 5px; color:@heading_text; }")
             groups[title] = QtWidgets.QVBoxLayout(group)
             layout.addWidget(group)
         self.theme_picker = QtWidgets.QComboBox()
@@ -80,11 +80,11 @@ class SettingsWindow(Window):
         for group, label, section, key, default in [("Autostart", "Autostart with 3ds Max", "settings", "autostart", False), ("Server console", "Show server console when starting", "settings", "showServerConsole", False), ("Updates", "Check and install updates automatically", "updates", "automatic", True)]:
             checkbox = QtWidgets.QCheckBox(label)
             checkbox.setMinimumHeight(30)
-            themes.set_style(checkbox, 'QCheckBox { color:#e8e3da; spacing:9px; } '
-                'QCheckBox::indicator { width:20px; height:20px; border:1px solid #a29684; border-radius:3px; background:#191916; } '
-                'QCheckBox::indicator:checked { background:#a35d2c; border-color:#efa35c; image:url("' + check_icon + '"); } '
-                'QCheckBox::indicator:hover { border-color:#ffd09a; } '
-                'QCheckBox:focus { color:#fff0dc; }')
+            themes.set_style(checkbox, 'QCheckBox { color:@text; spacing:9px; } '
+                'QCheckBox::indicator { width:20px; height:20px; border:1px solid @checkbox_border; border-radius:3px; background:@recessed_background; } '
+                'QCheckBox::indicator:checked { background:@donate_background; border-color:@support_link; image:url("' + check_icon + '"); } '
+                'QCheckBox::indicator:hover { border-color:@checkbox_hover_border; } '
+                'QCheckBox:focus { color:@selected_text; }')
             checkbox.setChecked(client.settings.boolean(section, key, default))
             if key == "autostart":
                 checkbox.toggled.connect(client.set_autostart)
@@ -106,7 +106,7 @@ class SettingsWindow(Window):
             groups["About"].addWidget(label)
         for address in ["3dground.net", "maxpkg.dev"]:
             link = QtWidgets.QLabel()
-            themes.set_label(link, '<a href="https://' + address + '" style="color:#efa35c">' + address + '</a>')
+            themes.set_label(link, '<a href="https://' + address + '" style="color:@support_link">' + address + '</a>')
             link.setAlignment(Qt.AlignCenter)
             link.setOpenExternalLinks(True)
             groups["About"].addWidget(link)
@@ -291,7 +291,7 @@ class Onboarding(Window):
                 status_text = ("Checking..." if self.client.integration_action == "Status" else "Setting up...") if active else "Waiting..."
             status_label.setText(status_text)
             status_label.setEnabled(not busy)
-            themes.set_style(status_label, "color:" + ("#81796e" if busy else COLORS["success"] if state == "configured" else COLORS["error"] if state in ("check_failed", "install_failed", "runtime_check_failed") else COLORS["warning"]))
+            themes.set_style(status_label, "color:" + ("@disabled_text" if busy else COLORS["success"] if state == "configured" else COLORS["error"] if state in ("check_failed", "install_failed", "runtime_check_failed") else COLORS["warning"]))
             button.setText(title)
             button.setToolTip(title)
             button.setEnabled(not busy and state in ("configured", "cli_missing", "desktop_missing", "not_configured", "restart_required"))
@@ -360,7 +360,7 @@ class SkillHelpWindow(Window):
             guide, after = guide.split("## Import and use", 1)
             after = "## Import and use" + after
         page = QtWidgets.QWidget()
-        themes.set_style(page, "background:#1c1c1a;")
+        themes.set_style(page, "background:@field_background;")
         page_layout = QtWidgets.QVBoxLayout(page)
         page_layout.setContentsMargins(14, 10, 14, 14)
         page_layout.setSpacing(14)
@@ -376,7 +376,7 @@ class SkillHelpWindow(Window):
         page_layout.addWidget(self.guide)
         content = QtWidgets.QFrame()
         content.setObjectName("helpCodeBlock")
-        themes.set_style(content, "QFrame#helpCodeBlock { background:#302f2b; border:1px solid #62594c; border-radius:4px; } QFrame#helpCodeBlock QLabel { background:transparent; }")
+        themes.set_style(content, "QFrame#helpCodeBlock { background:@journal_background; border:1px solid @group_border; border-radius:4px; } QFrame#helpCodeBlock QLabel { background:transparent; }")
         layout = QtWidgets.QVBoxLayout(content)
         layout.setContentsMargins(10, 8, 10, 10)
         heading = QtWidgets.QHBoxLayout()
@@ -480,7 +480,7 @@ class SkillsWindow(Window):
                 self.controls.addStretch()
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)
             if title == "Community Skills":
-                themes.set_style(button, "QToolButton { background:#356b43; border-color:#4e8a5d; color:#fff3dc; } QToolButton:hover { background:#427f52; border-color:#78b68a; } QToolButton:disabled { background:#35443a; color:#928f86; border-color:#514b42; }")
+                themes.set_style(button, "QToolButton { background:@ready_background; border-color:@community_border; color:@status_button_text; } QToolButton:hover { background:@community_hover; border-color:@community_hover_border; } QToolButton:disabled { background:@community_disabled_background; color:@community_disabled_text; border-color:@border; }")
             self.buttons.append(button)
             self.controls.addWidget(button)
         self.outer.addLayout(self.controls)
@@ -624,7 +624,7 @@ class SkillsWindow(Window):
         # the original square metadata frame in both Qt 5 and Qt 6.
         content = re.sub(
             r'<div class="metadata">(<div class="eyebrow">.*?</div><h1>.*?</h1><p>.*?</p>)</div>',
-            r'<table border="1" cellspacing="0" cellpadding="12" width="100%" style="border:1px solid #777066;"><tr><td>\1</td></tr></table><br>',
+            r'<table border="1" cellspacing="0" cellpadding="12" width="100%" style="border:1px solid @preview_border;"><tr><td>\1</td></tr></table><br>',
             content, count=1, flags=re.DOTALL)
         self.preview.setHtml(content)
         self.preview.verticalScrollBar().setValue(getattr(self, "_restore_scroll", 0))

@@ -16,6 +16,8 @@ import time
 import zipfile
 import runpy
 import types
+import json
+import shutil
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "python"))
@@ -29,6 +31,31 @@ from max_ultra import themes
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_theme_files_reload_and_invalid_palette_is_atomic(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = pathlib.Path(folder)
+            for source in themes.THEME_DIRECTORY.glob('*.json'):
+                shutil.copyfile(str(source), str(directory / source.name))
+            try:
+                with mock.patch.object(themes, 'THEME_DIRECTORY', directory):
+                    themes.select('forest')
+                    filename = directory / 'forest.json'
+                    document = json.loads(filename.read_text())
+                    document['colors']['window_background'] = '#102030'
+                    document['colors']['log_success'] = '#abcdef'
+                    filename.write_text(json.dumps(document))
+                    themes.select('forest')
+                    self.assertEqual(themes.style('@window_background @log_success'), '#102030 #abcdef')
+                    self.assertEqual(themes.style('#242320 #78e196'), '#102030 #abcdef')
+                    document['colors']['window_background'] = 'not-a-color'
+                    filename.write_text(json.dumps(document))
+                    with self.assertRaises(ValueError):
+                        themes.select('forest')
+                    self.assertEqual(themes.style('@window_background'), '#102030')
+                    self.assertEqual(themes.current, 'forest')
+            finally:
+                themes.select('graphite')
+
     def test_max_theme_reads_user_colors_without_writing_them(self):
         before = dict(themes.max_colors)
         previous_palette = themes.THEMES['max']

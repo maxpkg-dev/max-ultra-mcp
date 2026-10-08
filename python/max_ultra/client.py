@@ -54,7 +54,11 @@ class Client:
         self.state_directory = Path(str(rt.getDir(rt.Name("userScripts")))) / "MaxUltraMCP"
         self.state_directory.mkdir(parents=True, exist_ok=True)
         self.settings = Settings(self.state_directory / "panel-ui.ini")
-        themes.select(self.settings.get("appearance", "theme", "graphite"))
+        theme_error = None
+        try:
+            themes.select(self.settings.get("appearance", "theme", "graphite"))
+        except (OSError, ValueError) as error:
+            theme_error = str(error)
         if themes.current == "max":
             themes.read_max_colors(self.rt)
         self.update_applying = False
@@ -111,6 +115,8 @@ class Client:
         self.reconnect_pending = False
         self.start_transport(restart=restart)
         self.log("system", "Initializing Max Ultra MCP services")
+        if theme_error:
+            self.log("error", "Could not load saved color theme: " + theme_error)
         if self.update_message:
             self.log("error" if self.update_message.startswith("Update could not complete:") else "info", self.update_message)
         QtWidgets.QApplication.instance().aboutToQuit.connect(self.close)
@@ -352,9 +358,14 @@ class Client:
         self.show_dialog("settings", SettingsWindow)
 
     def set_theme(self, identifier):
+        try:
+            document = themes.load(identifier)
+        except (OSError, ValueError) as error:
+            self.log("error", "Could not load color theme: " + str(error))
+            return False
         if identifier not in themes.THEMES or not self.save_setting("appearance", {"theme": identifier}):
             return False
-        themes.select(identifier)
+        themes.select(identifier, document)
         if identifier == "max":
             themes.read_max_colors(self.rt)
         self.apply_theme()

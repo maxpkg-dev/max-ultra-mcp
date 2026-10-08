@@ -11,31 +11,40 @@ import random
 from . import themes
 from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt
 
-COLORS = {"info": "#8ed0e0", "system": "#bea5ff", "success": "#78e196", "warning": "#ffc350", "error": "#ff7d7d", "support": "#efa35c", "debug": "#bebe8c"}
-DONATE_STYLE = "QToolButton { background:#a35d2c; border-color:#d38d50; } QToolButton:hover { background:#b56b34; }"
+COLORS = {"info": "@log_info", "system": "@log_system", "success": "@log_success", "warning": "@log_warning", "error": "@log_error", "support": "@support_link", "debug": "@log_debug"}
+DONATE_STYLE = "QToolButton { background:@donate_background; border-color:@donate_border; } QToolButton:hover { background:@donate_hover; }"
 STYLE = """
-QWidget { background: #242320; color: #e8e3da; font-family: 'Segoe UI'; font-size: 11pt; }
-QDialog { border: 1px solid #514b42; }
-QToolButton, QPushButton { background: #302e29; border: 1px solid #514b42; border-radius: 4px; padding: 4px; min-height: 20px; }
-QToolButton:hover, QPushButton:hover { background: #41382d; border-color: #dc9b57; }
-QToolButton:focus, QPushButton:focus, QLineEdit:focus { border: 1px solid #e3a363; }
-QToolButton:disabled, QPushButton:disabled { color: #81796e; border-color: #39352f; }
-QLineEdit, QPlainTextEdit, QTextBrowser, QTableView, QTreeWidget, QListWidget, QComboBox { background: #1c1c1a; border: 1px solid #49453e; padding: 3px; selection-background-color: #705137; }
+QWidget { background: @window_background; color: @text; font-family: 'Segoe UI'; font-size: 11pt; }
+QDialog { border: 1px solid @border; }
+QToolButton, QPushButton { background: @button_background; border: 1px solid @border; border-radius: 4px; padding: 4px; min-height: 20px; }
+QToolButton:hover, QPushButton:hover { background: @button_hover; border-color: @accent; }
+QToolButton:focus, QPushButton:focus, QLineEdit:focus { border: 1px solid @focus_border; }
+QToolButton:disabled, QPushButton:disabled { color: @disabled_text; border-color: @disabled_border; }
+QLineEdit, QPlainTextEdit, QTextBrowser, QTableView, QTreeWidget, QListWidget, QComboBox { background: @field_background; border: 1px solid @field_border; padding: 3px; selection-background-color: @selection_background; }
 QTreeWidget::item { padding: 3px; }
-QTreeWidget::item:selected { background: #705137; color: #fff0dc; }
-QTreeWidget::item:selected { background: #705137; color: #fff0dc; }
-QHeaderView::section { background: #302e29; padding: 4px; border: none; }
-QTableView::item:selected, QListWidget::item:selected { background: #705137; color: #fff0df; }
-QTableView#activityJournal { background: #302f2b; border: 1px solid #5a554b; }
-QScrollBar:vertical { width: 13px; background: #242320; }
-QScrollBar::handle:vertical { background: #615647; min-height: 22px; border-radius: 4px; }
-QProgressBar { border: 1px solid #514b42; height: 8px; text-align: center; }
-QProgressBar::chunk { background: #dc9b57; }
-QTabWidget::pane { border: 1px solid #8e7455; border-radius: 5px; top: -1px; background: #292823; }
-QTabBar::tab { padding: 8px 12px; margin-right: 4px; margin-top: 3px; border: 1px solid #4b463e; border-bottom: 1px solid #8e7455; border-top-left-radius: 4px; border-top-right-radius: 4px; background: #1e1e1b; color: #b8b0a3; }
-QTabBar::tab:selected { color: #efb577; background: #35312a; border: 1px solid #8e7455; border-bottom-color: #35312a; margin-top: 0; padding-top: 11px; }
-QTabBar::tab:hover { color: #fff0dc; }
-QToolTip { color: #eee8de; background: #39342c; border: 1px solid #8e7455; }
+QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
+QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
+QHeaderView::section { background: @button_background; padding: 4px; border: none; }
+QTableView::item:selected, QListWidget::item:selected { background: @selection_background; color: @list_selected_text; }
+QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; }
+QScrollBar:vertical { width:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
+QScrollBar:horizontal { height:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
+QScrollBar::handle:vertical { background:@scrollbar_thumb; min-height:24px; border-radius:4px; margin:2px; }
+QScrollBar::handle:horizontal { background:@scrollbar_thumb; min-width:24px; border-radius:4px; margin:2px; }
+QScrollBar::handle:hover { background:@scrollbar_hover; }
+QScrollBar::handle:pressed { background:@text; }
+QScrollBar::add-page, QScrollBar::sub-page { background:none; border:none; }
+QScrollBar::add-line, QScrollBar::sub-line { background:none; border:none; width:0; height:0; }
+QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow { image:none; width:0; height:0; }
+QWidget#qt_scrollarea_vcontainer, QWidget#qt_scrollarea_hcontainer { background:transparent; border:none; }
+QAbstractScrollArea::corner { background:transparent; border:none; }
+QProgressBar { border: 1px solid @border; height: 8px; text-align: center; }
+QProgressBar::chunk { background: @accent; }
+QTabWidget::pane { border: 1px solid @active_border; border-radius: 5px; top: -1px; background: @tab_pane_background; }
+QTabBar::tab { padding: 8px 12px; margin-right: 4px; margin-top: 3px; border: 1px solid @tab_border; border-bottom: 1px solid @active_border; border-top-left-radius: 4px; border-top-right-radius: 4px; background: @tab_background; color: @muted_text; }
+QTabBar::tab:selected { color: @heading_text; background: @active_tab_background; border: 1px solid @active_border; border-bottom-color: @active_tab_background; margin-top: 0; padding-top: 11px; }
+QTabBar::tab:hover { color: @selected_text; }
+QToolTip { color: @tooltip_text; background: @tooltip_background; border: 1px solid @active_border; }
 QToolButton[ultraCompact="true"], QPushButton[ultraCompact="true"] { font-size:9pt; min-height:0; padding:1px; border-radius:3px; }
 """
 
@@ -77,7 +86,7 @@ class PromotionLink(QtWidgets.QLabel):
         available = max(0, self.contentsRect().width() - 2)
         label = full if metrics.horizontalAdvance(full) <= available else short
         label = metrics.elidedText(label, Qt.ElideRight, available)
-        themes.set_label(self, '<a href="{}" style="color:#efa35c">{}</a>'.format(escape(url, quote=True), escape(label)))
+        themes.set_label(self, '<a href="{}" style="color:@support_link">{}</a>'.format(escape(url, quote=True), escape(label)))
         self.setToolTip(full + "\n" + url)
         self.setAccessibleName(full)
 
@@ -102,9 +111,6 @@ def icon(root, name):
 class ActionButton(QtWidgets.QToolButton):
     def paint_glyph(self, painter, glyph, rectangle, renderer=None):
         mode = QtGui.QIcon.Normal if self.isEnabled() else QtGui.QIcon.Disabled
-        if themes.current != 'max':
-            glyph.paint(painter, rectangle, Qt.AlignCenter, mode)
-            return
         ratio = self.devicePixelRatioF()
         size = QtCore.QSize(max(1, round(rectangle.width() * ratio)), max(1, round(rectangle.height() * ratio)))
         if renderer is None:
@@ -142,13 +148,7 @@ class ActionButton(QtWidgets.QToolButton):
             # Render the original Lucide vector directly at the device DPI. This
             # avoids cached tiny icon pixmaps and keeps both diagonals centered.
             edge = min(14, self.width() - 4, self.height() - 4)
-            if themes.current == 'max':
-                self.paint_glyph(painter, glyph, QtCore.QRect((self.width() - edge) // 2, (self.height() - edge) // 2, edge, edge), close_svg)
-                return
-            painter.setRenderHint(QtGui.QPainter.Antialiasing)
-            painter.setOpacity(1.0 if self.isEnabled() else 0.45)
-            close_svg.render(painter, QtCore.QRectF((self.width() - edge) / 2.0,
-                                                  (self.height() - edge) / 2.0, edge, edge))
+            self.paint_glyph(painter, glyph, QtCore.QRect((self.width() - edge) // 2, (self.height() - edge) // 2, edge, edge), close_svg)
             return
         edge = min(self.iconSize().width(), max(0, self.height() - 4))
         caption = self.text() if self.toolButtonStyle() != Qt.ToolButtonIconOnly else ""
@@ -235,11 +235,17 @@ class JoinedTabBar(QtWidgets.QTabBar):
         # The native standalone tab-bar base adds a second frame in Max's style.
         # Our paintEvent supplies the shared baseline instead.
         self.setDrawBase(False)
+        self.setMouseTracking(True)
+
+    def mouseMoveEvent(self, event):
+        index = self.tabAt(event.pos())
+        self.setCursor(Qt.PointingHandCursor if index >= 0 and self.isTabEnabled(index) else Qt.ArrowCursor)
+        super().mouseMoveEvent(event)
 
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QtGui.QPainter(self)
-        painter.setPen(QtGui.QColor(themes.style('#8e7455')))
+        painter.setPen(QtGui.QColor(themes.style('@active_border')))
         selected = self.tabRect(self.currentIndex())
         y = self.height() - 1
         # The 4 px trailing tab margin belongs to the continuous baseline too.
@@ -261,7 +267,7 @@ class TabHeading(QtWidgets.QWidget):
         super().paintEvent(event)
         origin = self.tabs.mapTo(self, QtCore.QPoint(0, 0))
         painter = QtGui.QPainter(self)
-        painter.setPen(QtGui.QColor(themes.style('#8e7455')))
+        painter.setPen(QtGui.QColor(themes.style('@active_border')))
         y = origin.y() + self.tabs.height() - 1
         painter.drawLine(origin.x() + self.tabs.width(), y, self.width() - 1, y)
         painter.end()
@@ -285,7 +291,7 @@ class Window(QtWidgets.QDialog):
         self.caption = QtWidgets.QLabel(title)
         self.caption.setMinimumWidth(0)
         self.caption.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
-        themes.set_style(self.caption, "font-size: 12pt; font-weight: 600; color: #efb577; background:transparent")
+        themes.set_style(self.caption, "font-size: 12pt; font-weight: 600; color: @heading_text; background:transparent")
         self.caption.setToolTip(title)
         heading.addWidget(self.caption, 1)
         self.close_button = action(root, "close", "Close", self.close)
@@ -299,7 +305,16 @@ class Window(QtWidgets.QDialog):
         self.header.installEventFilter(self)
         self.caption.installEventFilter(self)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        for widget in self.findChildren(QtWidgets.QWidget):
+            if isinstance(widget, (QtWidgets.QAbstractButton, QtWidgets.QComboBox)):
+                widget.installEventFilter(self)
+                widget.setCursor(Qt.PointingHandCursor if widget.isEnabled() else Qt.ArrowCursor)
+
     def eventFilter(self, watched, event):
+        if event.type() == QtCore.QEvent.EnabledChange and isinstance(watched, (QtWidgets.QAbstractButton, QtWidgets.QComboBox)):
+            watched.setCursor(Qt.PointingHandCursor if watched.isEnabled() else Qt.ArrowCursor)
         if watched in (self.header, self.caption):
             if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 self._drag = event.globalPos() - self.frameGeometry().topLeft()
@@ -436,7 +451,7 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         painter.save()
         painter.setClipRect(option.rect)
         if option.state & QtWidgets.QStyle.State_Selected:
-            painter.fillRect(option.rect, QtGui.QColor(themes.style("#493b2c")))
+            painter.fillRect(option.rect, QtGui.QColor(themes.style("@journal_selection")))
         color = QtGui.QColor(themes.style(COLORS.get(record[2], COLORS["info"])))
         font = self.journal_font()
         painter.setFont(font)
@@ -459,7 +474,7 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         inset = 1 if self.point_size < 11 else 2
         badge_rect = QtCore.QRect(x, rect.top() + inset, badge_width, line_height - inset * 2)
         painter.fillRect(badge_rect, color)
-        painter.setPen(QtGui.QColor(themes.style("#29232c")))
+        painter.setPen(QtGui.QColor(themes.style("@log_badge_text")))
         painter.drawText(badge_rect, Qt.AlignCenter, badge)
         x += badge_width + 8
         font.setBold(False)
@@ -487,6 +502,7 @@ class JournalView(QtWidgets.QTableView):
         self._layout_width = None
         self._layout_font = None
         self._sized_rows = set()
+        self.setMouseTracking(True)
         self._relayout = QtCore.QTimer(self)
         self._relayout.setSingleShot(True)
         self._relayout.timeout.connect(self.layout_visible_rows)
@@ -494,6 +510,14 @@ class JournalView(QtWidgets.QTableView):
 
     def schedule_rows(self, *args):
         self._relayout.start(0)
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        index = self.indexAt(event.pos())
+        link = QtCore.QRect()
+        if index.isValid() and isinstance(self.itemDelegate(), JournalDelegate):
+            link = self.itemDelegate().donate_rect(self.visualRect(index), self.model().record(index.row()))
+        self.viewport().setCursor(Qt.PointingHandCursor if link.contains(event.pos()) else Qt.ArrowCursor)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -601,7 +625,7 @@ class Panel(Window):
         self.outer.addWidget(self.log, 1)
         self.storage_error = QtWidgets.QLabel()
         self.storage_error.setWordWrap(True)
-        themes.set_style(self.storage_error, "color: #e48a82")
+        themes.set_style(self.storage_error, "color: @storage_error")
         self.storage_error.hide()
         self.outer.addWidget(self.storage_error)
         self.latest = QtWidgets.QPushButton("Go to latest")
@@ -663,8 +687,8 @@ class Panel(Window):
         label, state = self.client.ai_status()
         self.ai.setText(label if self.width() >= 520 else "Setup AI Client")
         self.ai.setToolTip(label + " — open AI Client Setup")
-        background = {"ready": "#356b43", "issue": "#864f3b", "checking": "#685735"}.get(state, "#805f35")
-        themes.set_style(self.ai, "QToolButton { background:" + background + "; border-color:" + background + "; color:#fff3dc; } QToolButton:hover { border-color:#efb577; }")
+        background = {"ready": "@ready_background", "issue": "@issue_background", "checking": "@checking_background"}.get(state, "@setup_background")
+        themes.set_style(self.ai, "QToolButton { background:" + background + "; border-color:" + background + "; color:@status_button_text; } QToolButton:hover { border-color:@heading_text; }")
         self.ai_refresh.setEnabled(self.client.integration is None)
 
     def resizeEvent(self, event):
@@ -702,9 +726,9 @@ class Panel(Window):
                 button.setMinimumWidth((80 if tiny else 100) if button is self.ai else (24 if tiny else 32))
                 button.setIconSize(QtCore.QSize(14, 14) if tiny else QtCore.QSize(20, 20))
         self.close_button.setFixedSize(14 if tiny else 18, 14 if tiny else 18)
-        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:#efb577; background:transparent'.format(9 if tiny else 12))
+        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:@heading_text; background:transparent'.format(9 if tiny else 12))
         for label in (self.scene_label, self.support, self.storage_error):
-            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 11) + ('color:#e48a82;' if label is self.storage_error else ''))
+            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 11) + ('color:@storage_error;' if label is self.storage_error else ''))
         self.support.update_text()
         self.top_row.invalidate()
 
@@ -817,7 +841,7 @@ class MiniPanel(Window):
         self.close_button.setParent(self)
         self.close_button.setMinimumSize(0, 0)
         self.close_button.setFixedSize(22, 24)
-        compact_style = "QToolButton { font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:#41382d; }"
+        compact_style = "QToolButton { font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:@button_hover; }"
         themes.set_style(self.button, compact_style)
         themes.set_style(self.close_button, compact_style)
         row.addWidget(self.button, 1)
@@ -836,13 +860,13 @@ class MiniPanel(Window):
             return
         self._status_color = state
         background, border, hover = {
-            "ready": ("#356b42", "#78a780", "#427e50"),
-            "error": ("#873c38", "#d17a70", "#a04842"),
-            "warning": ("#945b27", "#dc9b57", "#aa6b30"),
-        }.get(state, ("#945b27", "#dc9b57", "#aa6b30"))
+            "ready": ("@mini_ready_background", "@mini_ready_border", "@mini_ready_hover"),
+            "error": ("@mini_error_background", "@mini_error_border", "@mini_error_hover"),
+            "warning": ("@mini_warning_background", "@accent", "@mini_warning_hover"),
+        }.get(state, ("@mini_warning_background", "@accent", "@mini_warning_hover"))
         self.setObjectName("miniStatus")
         themes.set_style(self, STYLE + "\nQDialog#miniStatus { background:" + background + "; border:1px solid " + border + "; }")
-        style = "QToolButton { color:#fff3dc; font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:" + hover + "; }"
+        style = "QToolButton { color:@status_button_text; font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:" + hover + "; }"
         themes.set_style(self.button, style)
         themes.set_style(self.close_button, style)
 

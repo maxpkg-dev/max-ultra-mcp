@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added: Deep Teal and Burgundy interface color schemes.
+- Changed: Each interface theme now loads its complete editable JSON palette on selection, including status, journal, button and scrollbar colors.
 - Improved: AI setup headings and spacing, continuous tab borders, and rounded Settings groups.
 - Improved: Panels narrower than 300 logical pixels use smaller controls, text and spacing to prioritize the journal, with a 240 x 180 minimum window size.
 - Improved: Wide activity journals wrap full messages with continuation lines below the timestamp; compact panels retain single-line elision.

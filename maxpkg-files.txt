@@ -186,3 +186,12 @@ assets/icons/book-open.svg
 assets/icons/globe.svg
 assets/icons/check.svg
 assets/icons/circle-question-mark.svg
+assets/themes/bindings.json
+assets/themes/graphite.json
+assets/themes/forest.json
+assets/themes/plum.json
+assets/themes/coffee.json
+assets/themes/max.json
+assets/themes/teal.json
+assets/themes/burgundy.json
+docs/THEMES.md

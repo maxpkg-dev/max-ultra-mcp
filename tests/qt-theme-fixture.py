@@ -40,7 +40,7 @@ picker.hidePopup()
 def invalid_update(*args):
     raise AssertionError('Do not call item-view update() without an index')
 picker.view().update = invalid_update
-for identifier in ('plum', 'max', 'forest', 'coffee', 'graphite'):
+for identifier in ('plum', 'max', 'forest', 'coffee', 'teal', 'burgundy', 'graphite'):
     picker.setCurrentIndex(picker.findData(identifier))
     app.processEvents()
     for window in windows:
