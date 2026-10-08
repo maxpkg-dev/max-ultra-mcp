@@ -99,17 +99,19 @@ class SettingsWindow(Window):
         update_row.addWidget(self.check_updates)
         groups["Updates"].addLayout(update_row)
         groups["AI client integration"].addWidget(action(client.root, "settings", "Open AI client setup...", self.open_ai_setup))
-        for text in ["3DGROUND - Max Ultra MCP", "Version " + client.version, "Lukianenko Vasyl"]:
+        for text in ["3DGROUND - Max Ultra MCP", client.version, "Lukianenko Vasyl"]:
             label = QtWidgets.QLabel(text)
             label.setWordWrap(True)
             label.setAlignment(Qt.AlignCenter)
             groups["About"].addWidget(label)
+        groups["About"].addSpacing(8)
         for address in ["3dground.net", "maxpkg.dev"]:
             link = QtWidgets.QLabel()
             themes.set_label(link, '<a href="https://' + address + '" style="color:@support_link">' + address + '</a>')
             link.setAlignment(Qt.AlignCenter)
             link.setOpenExternalLinks(True)
             groups["About"].addWidget(link)
+        groups["About"].addSpacing(8)
         groups["About"].addWidget(donate_action(client.root, client.donate), 0, Qt.AlignHCenter)
         self.update_status()
         self.ensurePolished()
