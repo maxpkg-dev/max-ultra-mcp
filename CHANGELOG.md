@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Improved: AI setup headings and spacing, continuous tab borders, and rounded Settings groups.
+- Improved: Panels narrower than 300 logical pixels use smaller controls, text and spacing to prioritize the journal, with a 240 x 180 minimum window size.
+- Improved: Wide activity journals wrap full messages with continuation lines below the timestamp; compact panels retain single-line elision.
+- Improved: All Copy buttons show Copied with a Lucide check for two seconds, including AI Client Setup prompts and JSON configuration.
+- Changed: Both Skills help buttons use the original Lucide circle-question-mark SVG.
+- Fixed: Theme switching updates all open windows together without calling the incompatible PySide6 item-view update overload.
+- Improved: The activity log uses smaller console text and tighter rows in small windows, restoring normal sizing when expanded.
+- Added: Four persistent Qt color themes with live switching in Settings: Warm Graphite, Forest, Muted Plum, and Coffee.
+- Added: A 3ds Max theme that follows the user's colorMan colors across all windows, including readable SVG icons and log categories with light palettes.
 - Fixed: Pending Qt-client updates are revalidated on launch; installer failures restart the surviving client without an automatic retry loop.
 - Fixed: Python reloads bind to the launching package instead of importing an older installed copy from another search path.
 - Fixed: Manual AI setup follows detected runtime paths and the current port, and autostart status is reconciled with its startup file.

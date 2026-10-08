@@ -8,6 +8,7 @@ from html import escape
 from pathlib import Path
 import random
 
+from . import themes
 from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt
 
 COLORS = {"info": "#8ed0e0", "system": "#bea5ff", "success": "#78e196", "warning": "#ffc350", "error": "#ff7d7d", "support": "#efa35c", "debug": "#bebe8c"}
@@ -30,11 +31,12 @@ QScrollBar:vertical { width: 13px; background: #242320; }
 QScrollBar::handle:vertical { background: #615647; min-height: 22px; border-radius: 4px; }
 QProgressBar { border: 1px solid #514b42; height: 8px; text-align: center; }
 QProgressBar::chunk { background: #dc9b57; }
-QTabWidget::pane { border: 1px solid #60574a; top: -1px; background: #292823; }
-QTabBar::tab { padding: 8px 12px; margin-right: 4px; margin-top: 3px; border: 1px solid #4b463e; border-bottom: 1px solid #60574a; border-top-left-radius: 4px; border-top-right-radius: 4px; background: #1e1e1b; color: #b8b0a3; }
+QTabWidget::pane { border: 1px solid #8e7455; border-radius: 5px; top: -1px; background: #292823; }
+QTabBar::tab { padding: 8px 12px; margin-right: 4px; margin-top: 3px; border: 1px solid #4b463e; border-bottom: 1px solid #8e7455; border-top-left-radius: 4px; border-top-right-radius: 4px; background: #1e1e1b; color: #b8b0a3; }
 QTabBar::tab:selected { color: #efb577; background: #35312a; border: 1px solid #8e7455; border-bottom-color: #35312a; margin-top: 0; padding-top: 11px; }
 QTabBar::tab:hover { color: #fff0dc; }
 QToolTip { color: #eee8de; background: #39342c; border: 1px solid #8e7455; }
+QToolButton[ultraCompact="true"], QPushButton[ultraCompact="true"] { font-size:9pt; min-height:0; padding:1px; border-radius:3px; }
 """
 
 
@@ -75,7 +77,7 @@ class PromotionLink(QtWidgets.QLabel):
         available = max(0, self.contentsRect().width() - 2)
         label = full if metrics.horizontalAdvance(full) <= available else short
         label = metrics.elidedText(label, Qt.ElideRight, available)
-        self.setText('<a href="{}" style="color:#efa35c">{}</a>'.format(escape(url, quote=True), escape(label)))
+        themes.set_label(self, '<a href="{}" style="color:#efa35c">{}</a>'.format(escape(url, quote=True), escape(label)))
         self.setToolTip(full + "\n" + url)
         self.setAccessibleName(full)
 
@@ -98,6 +100,31 @@ def icon(root, name):
 
 
 class ActionButton(QtWidgets.QToolButton):
+    def paint_glyph(self, painter, glyph, rectangle, renderer=None):
+        mode = QtGui.QIcon.Normal if self.isEnabled() else QtGui.QIcon.Disabled
+        if themes.current != 'max':
+            glyph.paint(painter, rectangle, Qt.AlignCenter, mode)
+            return
+        ratio = self.devicePixelRatioF()
+        size = QtCore.QSize(max(1, round(rectangle.width() * ratio)), max(1, round(rectangle.height() * ratio)))
+        if renderer is None:
+            pixmap = glyph.pixmap(size, mode)
+        else:
+            pixmap = QtGui.QPixmap(size)
+            pixmap.fill(Qt.transparent)
+            vector_painter = QtGui.QPainter(pixmap)
+            renderer.render(vector_painter, QtCore.QRectF(0, 0, size.width(), size.height()))
+            vector_painter.end()
+        if pixmap.isNull():
+            return
+        tint = QtGui.QPainter(pixmap)
+        tint.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
+        group = QtGui.QPalette.Active if self.isEnabled() else QtGui.QPalette.Disabled
+        tint.fillRect(pixmap.rect(), self.palette().color(group, QtGui.QPalette.ButtonText))
+        tint.end()
+        pixmap.setDevicePixelRatio(ratio)
+        painter.drawPixmap(rectangle, pixmap)
+
     def paintEvent(self, event):
         # Max's proxy style can offset tool-button icons. Center the shared SVG
         # canvas ourselves while letting Qt draw the styled border/background.
@@ -115,6 +142,9 @@ class ActionButton(QtWidgets.QToolButton):
             # Render the original Lucide vector directly at the device DPI. This
             # avoids cached tiny icon pixmaps and keeps both diagonals centered.
             edge = min(14, self.width() - 4, self.height() - 4)
+            if themes.current == 'max':
+                self.paint_glyph(painter, glyph, QtCore.QRect((self.width() - edge) // 2, (self.height() - edge) // 2, edge, edge), close_svg)
+                return
             painter.setRenderHint(QtGui.QPainter.Antialiasing)
             painter.setOpacity(1.0 if self.isEnabled() else 0.45)
             close_svg.render(painter, QtCore.QRectF((self.width() - edge) / 2.0,
@@ -126,7 +156,7 @@ class ActionButton(QtWidgets.QToolButton):
             metrics = self.fontMetrics()
             caption = metrics.elidedText(caption, Qt.ElideRight, self.width() - 16)
             top = max(4, (self.height() - edge - metrics.height() - 10) // 2)
-            glyph.paint(painter, QtCore.QRect((self.width() - edge) // 2, top, edge, edge), Qt.AlignCenter, QtGui.QIcon.Normal if self.isEnabled() else QtGui.QIcon.Disabled)
+            self.paint_glyph(painter, glyph, QtCore.QRect((self.width() - edge) // 2, top, edge, edge))
             painter.setPen(option.palette.color(QtGui.QPalette.Active if self.isEnabled() else QtGui.QPalette.Disabled, QtGui.QPalette.ButtonText))
             painter.drawText(QtCore.QRect(8, top + edge + 10, self.width() - 16, metrics.height()), Qt.AlignCenter, caption)
             return
@@ -136,7 +166,7 @@ class ActionButton(QtWidgets.QToolButton):
         total = edge + gap + self.fontMetrics().horizontalAdvance(caption)
         x = max(0 if not caption else 2, (self.width() - total) // 2)
         rectangle = QtCore.QRect(x, (self.height() - edge) // 2, edge, edge)
-        glyph.paint(painter, rectangle, Qt.AlignCenter, QtGui.QIcon.Normal if self.isEnabled() else QtGui.QIcon.Disabled)
+        self.paint_glyph(painter, glyph, rectangle)
         if caption:
             group = QtGui.QPalette.Active if self.isEnabled() else QtGui.QPalette.Disabled
             painter.setPen(option.palette.color(group, QtGui.QPalette.ButtonText))
@@ -159,7 +189,34 @@ def action(root, name, label, callback, parent=None):
 
 def donate_action(root, callback):
     button = action(root, "heart", "Donate", callback)
-    button.setStyleSheet(DONATE_STYLE)
+    themes.set_style(button, DONATE_STYLE)
+    return button
+
+
+def copy_action(root, label, text):
+    """Copy the current value and give consistent, restartable feedback."""
+    button = action(root, "copy", label, lambda: None)
+    original_icon = QtGui.QIcon(button.icon())
+    check_icon = icon(root, "check")
+    timer = QtCore.QTimer(button)
+    timer.setSingleShot(True)
+    timer.setInterval(2000)
+
+    def reset():
+        button.setText(label)
+        button.setAccessibleName(label)
+        button.setIcon(original_icon)
+
+    def copy():
+        QtWidgets.QApplication.clipboard().setText(text() if callable(text) else text)
+        button.setText("Copied")
+        button.setAccessibleName("Copied")
+        button.setIcon(check_icon)
+        timer.start()
+
+    timer.timeout.connect(reset)
+    button.clicked.connect(copy)
+    button.copy_reset = timer
     return button
 
 
@@ -172,11 +229,27 @@ def configure_close_icon(button, root):
     button.update()
 
 
+class JoinedTabBar(QtWidgets.QTabBar):
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QtGui.QPainter(self)
+        painter.setPen(QtGui.QColor(themes.style('#8e7455')))
+        selected = self.tabRect(self.currentIndex())
+        y = self.height() - 1
+        # The 4 px trailing tab margin belongs to the continuous baseline too.
+        if selected.isValid():
+            painter.drawLine(0, y, selected.left(), y)
+            painter.drawLine(selected.right() - 4, y, self.width() - 1, y)
+        else:
+            painter.drawLine(0, y, self.width() - 1, y)
+        painter.end()
+
+
 class Window(QtWidgets.QDialog):
     def __init__(self, root, title, parent):
         super().__init__(parent, Qt.Tool | Qt.FramelessWindowHint)
         self.setWindowTitle(title)
-        self.setStyleSheet(STYLE)
+        themes.set_style(self, STYLE)
         self.setSizeGripEnabled(True)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
         self._drag = None
@@ -184,12 +257,13 @@ class Window(QtWidgets.QDialog):
         self.outer.setContentsMargins(8, 6, 8, 6)
         self.outer.setSpacing(6)
         self.header = QtWidgets.QWidget()
+        self.header.setObjectName("windowHeader")
         heading = QtWidgets.QHBoxLayout(self.header)
         heading.setContentsMargins(0, 0, 0, 0)
         self.caption = QtWidgets.QLabel(title)
         self.caption.setMinimumWidth(0)
         self.caption.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
-        self.caption.setStyleSheet("font-size: 12pt; font-weight: 600; color: #efb577")
+        themes.set_style(self.caption, "font-size: 12pt; font-weight: 600; color: #efb577; background:transparent")
         self.caption.setToolTip(title)
         heading.addWidget(self.caption, 1)
         self.close_button = action(root, "close", "Close", self.close)
@@ -197,7 +271,7 @@ class Window(QtWidgets.QDialog):
         self.close_button.setMinimumSize(0, 0)
         self.close_button.setFixedSize(18, 18)
         configure_close_icon(self.close_button, root)
-        self.close_button.setStyleSheet("QToolButton { min-height:0; padding:0; border-radius:2px; }")
+        themes.set_style(self.close_button, "QToolButton { min-height:0; padding:0; border-radius:2px; }")
         heading.addWidget(self.close_button)
         self.outer.addWidget(self.header)
         self.header.installEventFilter(self)
@@ -267,7 +341,7 @@ class JournalModel(QtCore.QAbstractTableModel):
         if role in (Qt.DisplayRole, Qt.ToolTipRole, Qt.AccessibleTextRole):
             return "{}  [{}]  {}".format(record[1][11:19], record[2].upper(), record[3])
         if role == Qt.ForegroundRole:
-            return QtGui.QColor(COLORS.get(record[2], COLORS["info"]))
+            return QtGui.QColor(themes.style(COLORS.get(record[2], COLORS["info"])))
         return None
 
     def refresh(self, search=None, category=None):
@@ -291,11 +365,38 @@ class JournalModel(QtCore.QAbstractTableModel):
 
 class JournalDelegate(QtWidgets.QStyledItemDelegate):
     donateActivated = QtCore.Signal()
+    point_size = 11
+
+    def journal_font(self):
+        return QtGui.QFont("Consolas", self.point_size)
+
+    def wrapped_layout(self, record, width):
+        font = self.journal_font()
+        metrics = QtGui.QFontMetrics(font)
+        font.setBold(True)
+        prefix = 5 + metrics.horizontalAdvance(record[1][11:19]) + 10 + QtGui.QFontMetrics(font).horizontalAdvance("[ {} ]".format(record[2].lower())) + 16
+        reserve = metrics.horizontalAdvance("Donate") + 24 if record[2] == "support" and "Donate" in record[3] else 4
+        layout = QtGui.QTextLayout("> " + record[3].replace('\n', '\u2028'), self.journal_font())
+        option = QtGui.QTextOption()
+        option.setWrapMode(QtGui.QTextOption.WrapAtWordBoundaryOrAnywhere)
+        layout.setTextOption(option)
+        layout.beginLayout()
+        height = 0
+        while True:
+            line = layout.createLine()
+            if not line.isValid():
+                break
+            left = prefix if height == 0 else 5
+            line.setLineWidth(max(1, width - left - reserve))
+            line.setPosition(QtCore.QPointF(left, height))
+            height += line.height()
+        layout.endLayout()
+        return layout, prefix, int(height + 4)
 
     def donate_rect(self, rect, record):
         if record is None or record[2] != "support" or "Donate" not in record[3]:
             return QtCore.QRect()
-        metrics = QtGui.QFontMetrics(QtGui.QFont("Consolas", 11))
+        metrics = QtGui.QFontMetrics(self.journal_font())
         width = metrics.horizontalAdvance("Donate") + 8
         return QtCore.QRect(rect.right() - width - 4, rect.top(), width, rect.height())
 
@@ -313,13 +414,15 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         painter.save()
         painter.setClipRect(option.rect)
         if option.state & QtWidgets.QStyle.State_Selected:
-            painter.fillRect(option.rect, QtGui.QColor("#493b2c"))
-        color = QtGui.QColor(COLORS.get(record[2], COLORS["info"]))
-        font = QtGui.QFont("Consolas", 11)
+            painter.fillRect(option.rect, QtGui.QColor(themes.style("#493b2c")))
+        color = QtGui.QColor(themes.style(COLORS.get(record[2], COLORS["info"])))
+        font = self.journal_font()
         painter.setFont(font)
         metrics = QtGui.QFontMetrics(font)
         rect = option.rect.adjusted(5, 0, -4, 0)
-        baseline = rect.top() + (rect.height() + metrics.ascent() - metrics.descent()) // 2
+        wrapped = self.parent().viewport().width() >= 600
+        line_height = metrics.height() + 4 if wrapped else rect.height()
+        baseline = rect.top() + (line_height + metrics.ascent() - metrics.descent()) // 2
         timestamp = record[1][11:19]
         painter.setPen(color)
         font.setBold(True)
@@ -331,9 +434,10 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         painter.setFont(font)
         badge = "[ {} ]".format(record[2].lower())
         badge_width = QtGui.QFontMetrics(font).horizontalAdvance(badge) + 8
-        badge_rect = QtCore.QRect(x, rect.top() + 2, badge_width, rect.height() - 4)
+        inset = 1 if self.point_size < 11 else 2
+        badge_rect = QtCore.QRect(x, rect.top() + inset, badge_width, line_height - inset * 2)
         painter.fillRect(badge_rect, color)
-        painter.setPen(QtGui.QColor("#29232c"))
+        painter.setPen(QtGui.QColor(themes.style("#29232c")))
         painter.drawText(badge_rect, Qt.AlignCenter, badge)
         x += badge_width + 8
         font.setBold(False)
@@ -342,7 +446,11 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         content = "> " + record[3].replace("\n", "  ")
         link_rect = self.donate_rect(option.rect, record)
         right = link_rect.left() - 8 if not link_rect.isNull() else rect.right()
-        painter.drawText(x, baseline, metrics.elidedText(content, Qt.ElideRight, max(0, right - x)))
+        if wrapped:
+            layout, prefix, height = self.wrapped_layout(record, option.rect.width())
+            layout.draw(painter, QtCore.QPointF(option.rect.left(), rect.top() + 2))
+        else:
+            painter.drawText(x, baseline, metrics.elidedText(content, Qt.ElideRight, max(0, right - x)))
         if not link_rect.isNull():
             font.setUnderline(True)
             painter.setFont(font)
@@ -350,11 +458,66 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         painter.restore()
 
 
+class JournalView(QtWidgets.QTableView):
+    """Measure visible rows only, keeping large disk-backed histories responsive."""
+    def __init__(self):
+        super().__init__()
+        self._layout_width = None
+        self._layout_font = None
+        self._sized_rows = set()
+        self._relayout = QtCore.QTimer(self)
+        self._relayout.setSingleShot(True)
+        self._relayout.timeout.connect(self.layout_visible_rows)
+        self.verticalScrollBar().valueChanged.connect(self.schedule_rows)
+
+    def schedule_rows(self, *args):
+        self._relayout.start(0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.schedule_rows()
+
+    def layout_visible_rows(self):
+        model, delegate = self.model(), self.itemDelegate()
+        if model is None or not isinstance(delegate, JournalDelegate):
+            return
+        width = self.viewport().width()
+        bar = self.verticalScrollBar()
+        following, position = bar.value() >= bar.maximum() - 1, bar.value()
+        if (width, delegate.point_size) != (self._layout_width, self._layout_font):
+            for row in self._sized_rows:
+                self.setRowHeight(row, self.verticalHeader().defaultSectionSize())
+            self._sized_rows.clear()
+            self._layout_width, self._layout_font = width, delegate.point_size
+        if width >= 600:
+            first = max(0, self.rowAt(0))
+            count = self.viewport().height() // max(1, self.verticalHeader().minimumSectionSize()) + 2
+            # Include the last screen before following the bottom; no full-history scan.
+            if following:
+                first = max(0, model.rowCount() - count)
+            for row in range(first, min(model.rowCount(), first + count)):
+                record = model.record(row)
+                if record is not None:
+                    height = delegate.wrapped_layout(record, self.columnWidth(0))[2]
+                    if self.rowHeight(row) != height:
+                        self.setRowHeight(row, height)
+                    self._sized_rows.add(row)
+            if len(self._sized_rows) > 512:
+                stale = {row for row in self._sized_rows if not first <= row < first + count}
+                for row in stale:
+                    self.setRowHeight(row, self.verticalHeader().defaultSectionSize())
+                self._sized_rows.difference_update(stale)
+        if following:
+            self.scrollToBottom()
+        else:
+            bar.setValue(position)
+
+
 class Panel(Window):
     def __init__(self, client, parent):
         super().__init__(client.root, "3DGROUND - Max Ultra MCP " + client.version, parent)
         self.client = client
-        self.setMinimumSize(320, 240)
+        self.setMinimumSize(240, 180)
         self.resize(640, 480)
         self.outer.setSpacing(6)
         self.ai = action(client.root, "settings", "Setup AI Client", client.show_onboarding)
@@ -366,6 +529,7 @@ class Panel(Window):
         self.ai_refresh.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.hide_button = action(client.root, "panel-top-close", "Hide panel", client.hide_panel)
         top_row = QtWidgets.QHBoxLayout()
+        self.top_row = top_row
         top_row.setSpacing(8)
         top_row.addWidget(self.ai, 1)
         top_row.addWidget(self.ai_refresh)
@@ -392,20 +556,20 @@ class Panel(Window):
         self.outer.addWidget(self.filters)
         self.filters.hide()
         self.model = JournalModel(client.journal, self)
-        self.log = QtWidgets.QTableView()
+        self.log = JournalView()
         self.log.setObjectName("activityJournal")
         self.log.setMinimumHeight(24)
         self.log.setModel(self.model)
         delegate = JournalDelegate(self.log)
         delegate.donateActivated.connect(client.donate)
         self.log.setItemDelegate(delegate)
+        self.model.rowsInserted.connect(self.log.schedule_rows)
+        self.model.modelReset.connect(self.log.schedule_rows)
         self.log.setAccessibleName("Complete session activity journal")
         self.log.horizontalHeader().hide()
         self.log.verticalHeader().hide()
         self.log.horizontalHeader().setStretchLastSection(True)
-        row_height = max(22, QtGui.QFontMetrics(QtGui.QFont("Consolas", 11)).height() + 4)
-        self.log.verticalHeader().setMinimumSectionSize(row_height)
-        self.log.verticalHeader().setDefaultSectionSize(row_height)
+        self.update_journal_density()
         self.log.setWordWrap(False)
         self.log.setShowGrid(False)
         self.log.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
@@ -415,7 +579,7 @@ class Panel(Window):
         self.outer.addWidget(self.log, 1)
         self.storage_error = QtWidgets.QLabel()
         self.storage_error.setWordWrap(True)
-        self.storage_error.setStyleSheet("color: #e48a82")
+        themes.set_style(self.storage_error, "color: #e48a82")
         self.storage_error.hide()
         self.outer.addWidget(self.storage_error)
         self.latest = QtWidgets.QPushButton("Go to latest")
@@ -433,6 +597,7 @@ class Panel(Window):
         self.actions.setSpacing(8)
         self.outer.addLayout(self.actions)
         footer = QtWidgets.QHBoxLayout()
+        self.footer = footer
         self.support = PromotionLink()
         footer.addWidget(self.support, 1)
         self.donate_button = donate_action(client.root, client.donate)
@@ -477,12 +642,13 @@ class Panel(Window):
         self.ai.setText(label if self.width() >= 520 else "Setup AI Client")
         self.ai.setToolTip(label + " — open AI Client Setup")
         background = {"ready": "#356b43", "issue": "#864f3b", "checking": "#685735"}.get(state, "#805f35")
-        self.ai.setStyleSheet("QToolButton { background:" + background + "; border-color:" + background + "; color:#fff3dc; } QToolButton:hover { border-color:#efb577; }")
+        themes.set_style(self.ai, "QToolButton { background:" + background + "; border-color:" + background + "; color:#fff3dc; } QToolButton:hover { border-color:#efb577; }")
         self.ai_refresh.setEnabled(self.client.integration is None)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "buttons"):
+            self.update_compact_layout()
             required = sum(button.fontMetrics().horizontalAdvance(button.text()) + 48 for button in self.buttons) + 42
             compact = self.width() < required
             for button in self.buttons:
@@ -490,6 +656,57 @@ class Panel(Window):
             self.hide_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 520 else Qt.ToolButtonTextBesideIcon)
             self.donate_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 400 else Qt.ToolButtonTextBesideIcon)
             self.update_ai()
+            self.update_journal_density()
+
+    def update_compact_layout(self):
+        tiny = self.width() < 300
+        if getattr(self, '_ultra_compact', None) == tiny:
+            return
+        self._ultra_compact = tiny
+        self.outer.setContentsMargins(*( (4, 3, 4, 3) if tiny else (8, 6, 8, 6) ))
+        self.outer.setSpacing(3 if tiny else 6)
+        self.header.layout().setSpacing(3 if tiny else 6)
+        self.top_row.setSpacing(3 if tiny else 8)
+        self.top_row.itemAt(2).spacerItem().changeSize(2 if tiny else 12, 0)
+        self.actions.setSpacing(3 if tiny else 8)
+        self.footer.setSpacing(3 if tiny else 6)
+        for button in self.buttons + [self.ai, self.ai_refresh, self.hide_button, self.donate_button, self.latest]:
+            button.setProperty('ultraCompact', tiny)
+            button.style().unpolish(button)
+            button.style().polish(button)
+            button.setMinimumHeight(24 if tiny else 32)
+            button.setMaximumHeight(24 if tiny else 16777215)
+            if isinstance(button, QtWidgets.QToolButton):
+                button.setMinimumWidth((80 if tiny else 100) if button is self.ai else (24 if tiny else 32))
+                button.setIconSize(QtCore.QSize(14, 14) if tiny else QtCore.QSize(20, 20))
+        self.close_button.setFixedSize(14 if tiny else 18, 14 if tiny else 18)
+        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:#efb577; background:transparent'.format(9 if tiny else 12))
+        for label in (self.scene_label, self.support, self.storage_error):
+            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 11) + ('color:#e48a82;' if label is self.storage_error else ''))
+        self.support.update_text()
+        self.top_row.invalidate()
+
+    def update_journal_density(self):
+        # Window dimensions are logical pixels; point sizes retain DPI scaling.
+        point_size = 8 if self.width() < 300 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
+        delegate = self.log.itemDelegate()
+        padding = {8: 1, 9: 2, 10: 3, 11: 4}[point_size]
+        row_height = QtGui.QFontMetrics(QtGui.QFont("Consolas", point_size)).height() + padding
+        header = self.log.verticalHeader()
+        if delegate.point_size == point_size and header.defaultSectionSize() == row_height:
+            return
+        scrollbar = self.log.verticalScrollBar()
+        following = scrollbar.value() >= scrollbar.maximum() - 1
+        position = scrollbar.value()
+        delegate.point_size = point_size
+        header.setMinimumSectionSize(row_height)
+        header.setDefaultSectionSize(row_height)
+        if following:
+            self.log.scrollToBottom()
+        else:
+            scrollbar.setValue(position)
+        self.log.viewport().update()
+        self.log.schedule_rows()
 
     def refresh(self):
         scrollbar = self.log.verticalScrollBar()
@@ -579,8 +796,8 @@ class MiniPanel(Window):
         self.close_button.setMinimumSize(0, 0)
         self.close_button.setFixedSize(22, 24)
         compact_style = "QToolButton { font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:#41382d; }"
-        self.button.setStyleSheet(compact_style)
-        self.close_button.setStyleSheet(compact_style)
+        themes.set_style(self.button, compact_style)
+        themes.set_style(self.close_button, compact_style)
         row.addWidget(self.button, 1)
         row.addWidget(self.close_button)
         self.outer.addLayout(row)
@@ -602,10 +819,10 @@ class MiniPanel(Window):
             "warning": ("#945b27", "#dc9b57", "#aa6b30"),
         }.get(state, ("#945b27", "#dc9b57", "#aa6b30"))
         self.setObjectName("miniStatus")
-        self.setStyleSheet(STYLE + "\nQDialog#miniStatus { background:" + background + "; border:1px solid " + border + "; }")
+        themes.set_style(self, STYLE + "\nQDialog#miniStatus { background:" + background + "; border:1px solid " + border + "; }")
         style = "QToolButton { color:#fff3dc; font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:" + hover + "; }"
-        self.button.setStyleSheet(style)
-        self.close_button.setStyleSheet(style)
+        themes.set_style(self.button, style)
+        themes.set_style(self.close_button, style)
 
     def install_screen_constraints(self):
         if getattr(self, "_screen_constraints", False):

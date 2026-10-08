@@ -172,6 +172,7 @@ python/max_ultra/qt.py
 python/max_ultra/settings.py
 python/max_ultra/transport.py
 python/max_ultra/widgets.py
+python/max_ultra/themes.py
 python/max_ultra/wire.py
 python/max_ultra/updates.py
 python/max_ultra/tasks.py
@@ -184,3 +185,4 @@ assets/icons/send.svg
 assets/icons/book-open.svg
 assets/icons/globe.svg
 assets/icons/check.svg
+assets/icons/circle-question-mark.svg

@@ -14,7 +14,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 from max_ultra import client as module
-from max_ultra.qt import QtWidgets
+from max_ultra.qt import QtWidgets, QtGui
 from max_ultra.wire import BoundedQueue, encode, decode
 from max_ultra.settings import Settings
 from max_ultra.updates import GUID
@@ -61,6 +61,42 @@ def run():
                 instance.show_dialog("skills", module.SkillsWindow)
                 QtWidgets.QApplication.processEvents()
                 assert len(instance.dialogs) == 3
+                from max_ultra import themes
+                picker = instance.dialogs['settings'].theme_picker
+                picker.showPopup()
+                QtWidgets.QApplication.processEvents()
+                picker.hidePopup()
+                for identifier in list(themes.THEMES) + ['max', 'plum', 'forest', 'graphite']:
+                    with mock.patch.object(QtWidgets.QApplication, 'topLevelWidgets', return_value=[]):
+                        picker.setCurrentIndex(picker.findData(identifier))
+                        QtWidgets.QApplication.processEvents()
+                    assert themes.current == identifier
+                    assert instance.settings.get('appearance', 'theme') == identifier
+                    assert themes.THEMES[identifier][1][0] in instance.panel.styleSheet()
+                    assert themes.THEMES[identifier][1][0] in instance.dialogs['settings'].styleSheet()
+                    assert themes.THEMES[identifier][1][0] in instance.dialogs['skills'].styleSheet()
+                    assert themes.THEMES[identifier][1][0] in instance.dialogs['onboarding'].styleSheet()
+                    assert themes.THEMES[identifier][1][0] in instance.mini.styleSheet()
+                    for window in [instance.panel, instance.mini] + list(instance.dialogs.values()):
+                        assert window.palette().color(QtGui.QPalette.Window).name() == themes.THEMES[identifier][1][0]
+                        assert window.updatesEnabled()
+                    if identifier == 'max':
+                        assert themes.max_colors['background'] == themes.color_hex(instance.rt.colorMan.getColor(instance.rt.Name('background')))
+                    QtWidgets.QApplication.processEvents()
+                    instance.panel.grab().save(str(ROOT / 'dist/qt-fixture' / ('theme-' + identifier + '.png')))
+                    instance.dialogs['settings'].grab().save(str(ROOT / 'dist/qt-fixture' / ('settings-theme-' + identifier + '.png')))
+                    instance.dialogs['skills'].grab().save(str(ROOT / 'dist/qt-fixture' / ('skills-theme-' + identifier + '.png')))
+                instance.set_theme('max')
+                def light_color(name):
+                    value = {'background': .84, 'window': .96, 'text': .12, 'windowText': .1,
+                             'shadow': .5, 'hilight': .9, 'rollupTitleFace': .75,
+                             'rollupTitleText': .1, 'itemHilight': .7, 'hilightText': .1}[name]
+                    return types.SimpleNamespace(x=value, y=value, z=value)
+                themes.read_max_colors(types.SimpleNamespace(Name=lambda name: name, colorMan=types.SimpleNamespace(getColor=light_color)))
+                instance.apply_theme()
+                QtWidgets.QApplication.processEvents()
+                instance.panel.grab().save(str(ROOT / 'dist/qt-fixture/theme-max-light.png'))
+                assert instance.set_theme('graphite')
                 instance.log("info", "Synthetic controller fixture")
                 instance.panel.refresh()
                 instance.api.request.return_value = (True, '{"synthetic":true}')

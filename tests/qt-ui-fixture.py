@@ -48,16 +48,27 @@ def run():
             mini.hide()
             panel.show()
             panel.refresh()
-            for width, height in [(640, 480), (320, 240)]:
+            normal_small_log_height = None
+            for width, height in [(640, 480), (480, 360), (320, 240), (280, 240), (240, 180), (640, 480)]:
                 panel.resize(width, height)
                 application.processEvents()
                 assert panel.width() == width and panel.height() == height
                 assert panel.log.viewport().height() >= 24
+                expected_points = {640: 11, 480: 10, 320: 9, 280: 8, 240: 8}[width]
+                assert panel.log.itemDelegate().journal_font().pointSize() == expected_points
+                metrics = QtGui.QFontMetrics(panel.log.itemDelegate().journal_font())
+                assert panel.log.verticalHeader().defaultSectionSize() == metrics.height() + {8: 1, 9: 2, 10: 3, 11: 4}[expected_points]
                 assert not bool(panel.windowFlags() & Qt.WindowStaysOnTopHint)
                 for button in panel.buttons:
-                    assert button.width() >= 32
+                    assert button.width() >= (24 if width < 300 else 32)
+                    if width < 300:
+                        assert button.height() == 24, (width, button.text(), button.height(), button.minimumHeight(), button.maximumHeight())
                     assert not button.icon().isNull()
                     assert panel.rect().contains(button.mapTo(panel, QtCore.QPoint(button.width() - 1, button.height() - 1)))
+                if width == 320:
+                    normal_small_log_height = panel.log.viewport().height()
+                if width == 280:
+                    assert panel.log.viewport().height() > normal_small_log_height
                 panel.grab().save(str(output / ("panel-{}x{}.png".format(width, height))))
             assert panel.model.total == 5
             panel.model.refresh(search="diagnostic")

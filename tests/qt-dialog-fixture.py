@@ -37,7 +37,7 @@ def run():
         donate=lambda: None, refresh_agents=lambda: None, cancel_integration=lambda: None,
         integration=None, integration_steps=[], integration_result=None, integration_message="Fixture status",
         version="Fixture", update_helper=None, set_autostart=lambda *args: None, sync_autostart=lambda: False,
-        check_updates=lambda: None, show_onboarding=lambda: None,
+        check_updates=lambda: None, show_onboarding=lambda: None, set_theme=lambda identifier: True,
         client_state=lambda identifier: "configured",
         manual_setup=lambda: '{"mcpServers":{"max-ultra-mcp":{"command":"node","args":[],"env":{}}}}')
     skills = SkillsWindow(client, max_parent())
@@ -47,7 +47,7 @@ def run():
     try:
         settings.show()
         application.processEvents()
-        assert [group.title() for group in settings.findChildren(QtWidgets.QGroupBox)] == ['Autostart', 'Server console', 'Updates', 'AI client integration', 'About']
+        assert [group.title() for group in settings.findChildren(QtWidgets.QGroupBox)] == ['Appearance', 'Autostart', 'Server console', 'Updates', 'AI client integration', 'About']
         checkboxes = settings.findChildren(QtWidgets.QCheckBox)
         assert len(checkboxes) == 3
         assert [box.isChecked() for box in checkboxes] == [False, False, True]
@@ -155,15 +155,17 @@ def run():
             else:
                 assert help_window.copy_text == (ROOT / 'docs/SKILL_CREATION_PROMPT.md').read_text(encoding='utf-8-sig')
             clipboard = Mock()
+            original_icon = help_window.copy_button.icon().cacheKey()
             with patch.object(QtWidgets.QApplication, 'clipboard', return_value=clipboard):
                 help_window.copy_button.click()
             clipboard.setText.assert_called_once_with(help_window.copy_text)
             assert help_window.copy_button.text() == 'Copied'
-            assert help_window.copy_button.icon().cacheKey() == help_window.copied_icon.cacheKey()
-            assert help_window.copy_reset.isActive() and help_window.copy_reset.interval() == 2000
-            help_window.copy_reset.timeout.emit()
+            assert help_window.copy_button.icon().cacheKey() != original_icon
+            timer = help_window.copy_button.copy_reset
+            assert timer.isActive() and timer.interval() == 2000
+            timer.timeout.emit()
             assert help_window.copy_button.text() == help_window.copy_label
-            assert help_window.copy_button.icon().cacheKey() == help_window.copy_icon.cacheKey()
+            assert help_window.copy_button.icon().cacheKey() == original_icon
             help_window.resize(320, 300)
             application.processEvents()
             assert help_window.width() == 320

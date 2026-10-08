@@ -9,8 +9,9 @@ import json
 import re
 import time
 
+from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, ActionButton, action, donate_action, COLORS
+from .widgets import Window, JoinedTabBar, ActionButton, action, copy_action, donate_action, COLORS
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -18,6 +19,14 @@ TEST_PROMPT = "Use Max Ultra MCP to list connected 3ds Max instances. If exactly
 
 
 class PassiveBrowser(QtWidgets.QTextBrowser):
+    def clear(self):
+        self._theme_html = None
+        super().clear()
+
+    def setHtml(self, content):
+        self._theme_html = content
+        super().setHtml(themes.html(content))
+
     def loadResource(self, resource_type, url):
         # Imported documents cannot fetch network or local resources implicitly.
         return QtCore.QByteArray()
@@ -28,7 +37,7 @@ class InlineHelpBrowser(PassiveBrowser):
         super().__init__()
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setStyleSheet("QTextBrowser { border:none; padding:0; background:transparent; }")
+        themes.set_style(self, "QTextBrowser { border:none; padding:0; background:transparent; }")
         self.document().documentLayout().documentSizeChanged.connect(self.fit_height)
 
     def fit_height(self, *args):
@@ -55,17 +64,23 @@ class SettingsWindow(Window):
         scroll.setWidget(content)
         self.outer.addWidget(scroll)
         groups = {}
-        for title in ["Autostart", "Server console", "Updates", "AI client integration", "About"]:
+        for title in ["Appearance", "Autostart", "Server console", "Updates", "AI client integration", "About"]:
             group = QtWidgets.QGroupBox(title)
-            group.setStyleSheet("QGroupBox { border:1px solid #62594c; border-radius:0; margin-top:12px; padding:12px 10px 8px; } QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; left:10px; padding:0 5px; color:#efb577; }")
+            themes.set_style(group, "QGroupBox { border:1px solid #62594c; border-radius:3px; margin-top:12px; padding:12px 10px 8px; } QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; left:10px; padding:0 5px; color:#efb577; }")
             groups[title] = QtWidgets.QVBoxLayout(group)
             layout.addWidget(group)
+        self.theme_picker = QtWidgets.QComboBox()
+        self.theme_picker.setAccessibleName("Color theme")
+        for identifier, (label, _) in themes.THEMES.items():
+            self.theme_picker.addItem(label, identifier)
+        self.theme_picker.setCurrentIndex(self.theme_picker.findData(themes.current))
+        self.theme_picker.currentIndexChanged.connect(self.change_theme)
+        groups["Appearance"].addWidget(self.theme_picker)
         check_icon = (client.root / "assets/icons/check.svg").as_posix()
         for group, label, section, key, default in [("Autostart", "Autostart with 3ds Max", "settings", "autostart", False), ("Server console", "Show server console when starting", "settings", "showServerConsole", False), ("Updates", "Check and install updates automatically", "updates", "automatic", True)]:
             checkbox = QtWidgets.QCheckBox(label)
             checkbox.setMinimumHeight(30)
-            checkbox.setStyleSheet(
-                'QCheckBox { color:#e8e3da; spacing:9px; } '
+            themes.set_style(checkbox, 'QCheckBox { color:#e8e3da; spacing:9px; } '
                 'QCheckBox::indicator { width:20px; height:20px; border:1px solid #a29684; border-radius:3px; background:#191916; } '
                 'QCheckBox::indicator:checked { background:#a35d2c; border-color:#efa35c; image:url("' + check_icon + '"); } '
                 'QCheckBox::indicator:hover { border-color:#ffd09a; } '
@@ -90,7 +105,8 @@ class SettingsWindow(Window):
             label.setAlignment(Qt.AlignCenter)
             groups["About"].addWidget(label)
         for address in ["3dground.net", "maxpkg.dev"]:
-            link = QtWidgets.QLabel('<a href="https://' + address + '" style="color:#efa35c">' + address + '</a>')
+            link = QtWidgets.QLabel()
+            themes.set_label(link, '<a href="https://' + address + '" style="color:#efa35c">' + address + '</a>')
             link.setAlignment(Qt.AlignCenter)
             link.setOpenExternalLinks(True)
             groups["About"].addWidget(link)
@@ -111,6 +127,12 @@ class SettingsWindow(Window):
         self.close()
         self.client.show_onboarding()
 
+    def change_theme(self, index):
+        if not self.client.set_theme(self.theme_picker.itemData(index)):
+            self.theme_picker.blockSignals(True)
+            self.theme_picker.setCurrentIndex(self.theme_picker.findData(themes.current))
+            self.theme_picker.blockSignals(False)
+
     def update_status(self):
         busy = self.client.update_helper is not None
         self.check_updates.setEnabled(not busy)
@@ -124,6 +146,7 @@ class Onboarding(Window):
         self.resize(670, 570)
         self.setMinimumSize(320, 320)
         self.tabs = QtWidgets.QTabWidget()
+        self.tabs.setTabBar(JoinedTabBar())
         self.outer.addWidget(self.tabs)
         setup = QtWidgets.QWidget()
         setup_layout = QtWidgets.QVBoxLayout(setup)
@@ -160,7 +183,7 @@ class Onboarding(Window):
         self.card_grid.setVerticalSpacing(10)
         self.detail = PassiveBrowser()
         self.detail.setReadOnly(True)
-        self.detail.setStyleSheet("QTextBrowser { font-family:Consolas; font-size:11pt; }")
+        themes.set_style(self.detail, "QTextBrowser { font-family:Consolas; font-size:11pt; }")
         self.detail.setMinimumHeight(90)
         self.detail.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         setup_layout.addWidget(self.detail, 1)
@@ -194,11 +217,12 @@ class Onboarding(Window):
             box = QtWidgets.QPlainTextEdit(content)
             box.setReadOnly(True)
             layout.addWidget(box)
-            copy_button = action(client.root, "copy", "Copy", lambda checked=False, text=content: QtWidgets.QApplication.clipboard().setText(text))
+            copy_button = copy_action(client.root, "Copy", content)
             layout.addWidget(copy_button)
             self.tabs.addTab(page, title)
         manual = QtWidgets.QWidget()
         manual_layout = QtWidgets.QVBoxLayout(manual)
+        manual_layout.setContentsMargins(12, 12, 12, 12)
         explanation = QtWidgets.QLabel("For clients configured manually, use these STDIO values. Automatic setup is available on the Setup tab.")
         explanation.setWordWrap(True)
         manual_layout.addWidget(explanation)
@@ -209,7 +233,7 @@ class Onboarding(Window):
             field = QtWidgets.QPlainTextEdit()
             field.setReadOnly(True)
             field.setAccessibleName(label)
-            field.setStyleSheet("font-family:Consolas; font-size:11pt;")
+            themes.set_style(field, "font-family:Consolas; font-size:11pt;")
             field.setMaximumHeight(70)
             manual_layout.addWidget(field)
             self.manual_fields.append(field)
@@ -218,7 +242,7 @@ class Onboarding(Window):
         manual_layout.addWidget(self.runtime_status)
         manual_layout.addWidget(action(client.root, "refresh-cw", "Refresh status", client.refresh_agents))
         manual_layout.addStretch()
-        manual_layout.addWidget(action(client.root, "copy", "Copy JSON configuration", lambda: QtWidgets.QApplication.clipboard().setText(client.manual_setup())))
+        manual_layout.addWidget(copy_action(client.root, "Copy JSON configuration", client.manual_setup))
         manual_scroll = QtWidgets.QScrollArea()
         manual_scroll.setWidgetResizable(True)
         manual_scroll.setWidget(manual)
@@ -267,7 +291,7 @@ class Onboarding(Window):
                 status_text = ("Checking..." if self.client.integration_action == "Status" else "Setting up...") if active else "Waiting..."
             status_label.setText(status_text)
             status_label.setEnabled(not busy)
-            status_label.setStyleSheet("color:" + ("#81796e" if busy else COLORS["success"] if state == "configured" else COLORS["error"] if state in ("check_failed", "install_failed", "runtime_check_failed") else COLORS["warning"]))
+            themes.set_style(status_label, "color:" + ("#81796e" if busy else COLORS["success"] if state == "configured" else COLORS["error"] if state in ("check_failed", "install_failed", "runtime_check_failed") else COLORS["warning"]))
             button.setText(title)
             button.setToolTip(title)
             button.setEnabled(not busy and state in ("configured", "cli_missing", "desktop_missing", "not_configured", "restart_required"))
@@ -277,7 +301,7 @@ class Onboarding(Window):
         parser = self.client.integration_result
         if parser is not None and not busy:
             for identifier, label, _, _ in CLIENTS:
-                blocks.append("<p><b>{}</b><br>{}<br>{}</p>".format(label, html.escape(parser.get(identifier, "detail", fallback="")), html.escape(parser.get(identifier, "desktopinstructions", fallback=""))))
+                blocks.append('<p style="margin-top:18px; margin-bottom:6px; font-size:14pt; font-weight:700">{}</p><p style="margin-top:0; margin-bottom:0">{}<br>{}</p>'.format(label, html.escape(parser.get(identifier, "detail", fallback="")), html.escape(parser.get(identifier, "desktopinstructions", fallback=""))))
         content = "".join(blocks)
         if content != getattr(self, "_detail_html", None):
             scrollbar = self.detail.verticalScrollBar()
@@ -336,7 +360,7 @@ class SkillHelpWindow(Window):
             guide, after = guide.split("## Import and use", 1)
             after = "## Import and use" + after
         page = QtWidgets.QWidget()
-        page.setStyleSheet("background:#1c1c1a;")
+        themes.set_style(page, "background:#1c1c1a;")
         page_layout = QtWidgets.QVBoxLayout(page)
         page_layout.setContentsMargins(14, 10, 14, 14)
         page_layout.setSpacing(14)
@@ -352,25 +376,19 @@ class SkillHelpWindow(Window):
         page_layout.addWidget(self.guide)
         content = QtWidgets.QFrame()
         content.setObjectName("helpCodeBlock")
-        content.setStyleSheet("QFrame#helpCodeBlock { background:#302f2b; border:1px solid #62594c; border-radius:4px; } QFrame#helpCodeBlock QLabel { background:transparent; }")
+        themes.set_style(content, "QFrame#helpCodeBlock { background:#302f2b; border:1px solid #62594c; border-radius:4px; } QFrame#helpCodeBlock QLabel { background:transparent; }")
         layout = QtWidgets.QVBoxLayout(content)
         layout.setContentsMargins(10, 8, 10, 10)
         heading = QtWidgets.QHBoxLayout()
         heading.addWidget(QtWidgets.QLabel("Mail template" if submit else "Skill creation prompt"))
         heading.addStretch()
         self.copy_label = "Copy Template" if submit else "Copy Prompt"
-        self.copy_button = action(client.root, "copy", self.copy_label, self.copy_content)
-        self.copy_icon = QtGui.QIcon(self.copy_button.icon())
-        self.copied_icon = QtGui.QIcon(str(client.root / "assets/icons/check.svg"))
-        self.copy_reset = QtCore.QTimer(self)
-        self.copy_reset.setSingleShot(True)
-        self.copy_reset.setInterval(2000)
-        self.copy_reset.timeout.connect(self.reset_copy_button)
+        self.copy_button = copy_action(client.root, self.copy_label, lambda: self.copy_text)
         heading.addWidget(self.copy_button)
         layout.addLayout(heading)
         self.text = QtWidgets.QPlainTextEdit(self.copy_text)
         self.text.setReadOnly(True)
-        self.text.setStyleSheet("font-family:Consolas; font-size:11pt;")
+        themes.set_style(self.text, "font-family:Consolas; font-size:11pt;")
         self.text.setFixedHeight(180)
         layout.addWidget(self.text)
         page_layout.addWidget(content)
@@ -382,16 +400,6 @@ class SkillHelpWindow(Window):
             remainder.setMarkdown(after)
             page_layout.addWidget(remainder)
         page_layout.addStretch()
-
-    def copy_content(self):
-        QtWidgets.QApplication.clipboard().setText(self.copy_text)
-        self.copy_button.setText("Copied")
-        self.copy_button.setIcon(self.copied_icon)
-        self.copy_reset.start()
-
-    def reset_copy_button(self):
-        self.copy_button.setText(self.copy_label)
-        self.copy_button.setIcon(self.copy_icon)
 
     def open_link(self, url):
         if url.scheme() in ("https", "http", "mailto"):
@@ -408,7 +416,7 @@ class SkillsWindow(Window):
         self.current_document = None
         self.busy = False
         self.buttons = []
-        self.source = QtWidgets.QTabBar()
+        self.source = JoinedTabBar()
         self.source.addTab("Built-in")
         self.source.addTab("Custom")
         self.source.setExpanding(False)
@@ -465,7 +473,7 @@ class SkillsWindow(Window):
         self.status.setWordWrap(True)
         self.outer.addWidget(self.status)
         self.controls = QtWidgets.QHBoxLayout()
-        for symbol, title, callback in [("book-open", "How to create and import skills", lambda: self.help("CUSTOM_SKILLS.html")), ("send", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("globe", "Community Skills", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"))), ("heart", "Donate", client.donate)]:
+        for symbol, title, callback in [("circle-question-mark", "How to create and import skills", lambda: self.help("CUSTOM_SKILLS.html")), ("circle-question-mark", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("globe", "Community Skills", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"))), ("heart", "Donate", client.donate)]:
             if title == "Donate":
                 self.controls.addStretch()
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)

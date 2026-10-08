@@ -13,6 +13,7 @@ import datetime
 import sys
 
 from .qt import QtCore, QtWidgets, QtGui, max_parent, protect_keyboard, release_keyboard
+from . import themes
 from .widgets import Panel, MiniPanel
 from .dialogs import SettingsWindow, Onboarding, SkillsWindow, CLIENTS
 from .settings import Settings, read_ini
@@ -53,6 +54,9 @@ class Client:
         self.state_directory = Path(str(rt.getDir(rt.Name("userScripts")))) / "MaxUltraMCP"
         self.state_directory.mkdir(parents=True, exist_ok=True)
         self.settings = Settings(self.state_directory / "panel-ui.ini")
+        themes.select(self.settings.get("appearance", "theme", "graphite"))
+        if themes.current == "max":
+            themes.read_max_colors(self.rt)
         self.update_applying = False
         self.automatic_update_suppressed = False
         self.update_message = self.settings.get("updates", "lastStatus")
@@ -295,6 +299,8 @@ class Client:
             now = time.monotonic()
             self.poll_support_reminder(now)
             if now - self.last_status > 1:
+                if themes.current == "max" and themes.read_max_colors(self.rt):
+                    self.apply_theme()
                 if self.transport.connection is not None:
                     self.send_status()
                 self.panel.refresh()
@@ -344,6 +350,20 @@ class Client:
 
     def show_settings(self):
         self.show_dialog("settings", SettingsWindow)
+
+    def set_theme(self, identifier):
+        if identifier not in themes.THEMES or not self.save_setting("appearance", {"theme": identifier}):
+            return False
+        themes.select(identifier)
+        if identifier == "max":
+            themes.read_max_colors(self.rt)
+        self.apply_theme()
+        return True
+
+    def apply_theme(self):
+        # Use the controller's actual objects, including hidden dialogs. Qt's
+        # top-level enumeration can return base wrappers after module reloads.
+        themes.apply_all([self.panel, self.mini] + list(self.dialogs.values()))
 
     def show_skills(self):
         self.show_dialog("skills", SkillsWindow)

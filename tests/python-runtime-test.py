@@ -25,9 +25,49 @@ from max_ultra.settings import Settings
 from max_ultra.transport import Transport, probe
 from max_ultra.updates import verify_package, staged_version, GUID
 from max_ultra.processes import launch_helper
+from max_ultra import themes
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_max_theme_reads_user_colors_without_writing_them(self):
+        before = dict(themes.max_colors)
+        previous_palette = themes.THEMES['max']
+        try:
+            def read(name):
+                value = .1 if name in ('text', 'windowText', 'rollupTitleText') else .9
+                return types.SimpleNamespace(x=value, y=value, z=value)
+            manager = types.SimpleNamespace(getColor=read)
+            runtime = types.SimpleNamespace(colorMan=manager, Name=lambda name: name)
+            themes.select('max')
+            self.assertTrue(themes.read_max_colors(runtime))
+            self.assertFalse(themes.read_max_colors(runtime))
+            self.assertEqual(themes.style('#242320'), '#e6e6e6')
+            self.assertEqual(themes.style('#e8e3da'), '#1a1a1a')
+            self.assertTrue(themes.max_is_light())
+            self.assertEqual(themes.style('#78e196'), '#246d37')
+            self.assertEqual(themes.color_hex(types.SimpleNamespace(x=68,y=68,z=68)), '#444444')
+        finally:
+            themes.max_colors = before
+            themes.THEMES['max'] = previous_palette
+            themes.select('graphite')
+
+    def test_theme_selection_and_persistence(self):
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                filename = pathlib.Path(folder) / 'settings.ini'
+                for identifier in themes.THEMES:
+                    Settings(filename).set_many('appearance', {'theme': identifier})
+                    self.assertEqual(themes.select(Settings(filename).get('appearance', 'theme')), identifier)
+                    self.assertEqual(themes.style('#242320'), themes.THEMES[identifier][1][0])
+                    self.assertEqual(themes.style('#78e196 #efa35c'), '#78e196 #efa35c')
+                    content = '<style>body { background:rgb(28,28,26); }</style><code>#242320</code>'
+                    self.assertIn('<code>#242320</code>', themes.html(content))
+                    if identifier != 'graphite':
+                        self.assertIn(themes.THEMES[identifier][1][1], themes.html(content))
+                self.assertEqual(themes.select('unknown'), 'graphite')
+        finally:
+            themes.select('graphite')
+
     def test_bootstrap_uses_its_own_package_with_another_copy_loaded(self):
         root = pathlib.Path(__file__).resolve().parents[1]
         source = (root / 'python/bootstrap.py').read_text(encoding='utf-8')
