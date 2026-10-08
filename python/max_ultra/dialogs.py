@@ -11,7 +11,7 @@ import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, JoinedTabBar, TabHeading, ActionButton, action, copy_action, donate_action, COLORS
+from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, copy_action, donate_action, COLORS
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -545,6 +545,7 @@ class SkillsWindow(Window):
             self.buttons.append(button)
             self.controls.addWidget(button)
         self.outer.addLayout(self.controls)
+        self.loading_overlay = LoadingOverlay(self)
         self.update_actions()
 
     def filter_rows(self):
@@ -570,17 +571,28 @@ class SkillsWindow(Window):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, "loading_overlay"):
+            self.position_loading_overlay()
         if hasattr(self, "buttons"):
             for button in self.buttons:
                 button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 900 else Qt.ToolButtonTextBesideIcon)
+
+    def position_loading_overlay(self):
+        top = self.header.geometry().bottom() + 1
+        self.loading_overlay.setGeometry(1, top, max(0, self.width() - 2), max(0, self.height() - top - 1))
 
     def set_busy(self, busy):
         self.busy = busy
         self.list.setEnabled(not busy)
         self.source.setEnabled(not busy)
+        self.preview.setEnabled(not busy)
         for button in self.buttons:
             button.setEnabled(not busy)
         self.update_actions()
+        self.position_loading_overlay()
+        self.loading_overlay.setVisible(busy)
+        if busy:
+            self.loading_overlay.raise_()
 
     def read_selected(self, current, previous):
         if current:

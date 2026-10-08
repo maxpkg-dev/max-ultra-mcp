@@ -407,6 +407,50 @@ class Window(QtWidgets.QDialog):
         return super().nativeEvent(event_type, message)
 
 
+class LoadingOverlay(QtWidgets.QWidget):
+    """Non-blocking loading veil; its parent retains the accessible title bar."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_NoSystemBackground)
+        self.setAccessibleName("Loading skills")
+        self.setCursor(Qt.WaitCursor)
+        self.angle = 0
+        self.timer = QtCore.QTimer(self)
+        self.timer.setInterval(40)
+        self.timer.timeout.connect(self.advance)
+        self.hide()
+
+    def advance(self):
+        self.angle = (self.angle + 12) % 360
+        self.update()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.timer.start()
+
+    def hideEvent(self, event):
+        self.timer.stop()
+        super().hideEvent(event)
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        veil = QtGui.QColor(themes.style("@recessed_background"))
+        veil.setAlpha(175)
+        painter.fillRect(self.rect(), veil)
+        center = self.rect().center()
+        ring = QtCore.QRectF(center.x() - 22, center.y() - 22, 44, 44)
+        track = QtGui.QColor(themes.style("@text"))
+        track.setAlpha(65)
+        painter.setPen(QtGui.QPen(track, 4))
+        painter.drawEllipse(ring)
+        pen = QtGui.QPen(QtGui.QColor(themes.style("@accent")), 4)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        painter.drawArc(ring, -self.angle * 16, 100 * 16)
+        painter.end()
+
+
 class JournalModel(QtCore.QAbstractTableModel):
     def __init__(self, journal, parent=None):
         super().__init__(parent)
