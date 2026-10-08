@@ -73,8 +73,21 @@ def run():
         settings.show()
         application.processEvents()
         settings.opacity_slider.setValue(60)
-        assert abs(skills.windowOpacity() - 0.3) < 0.01
+        assert abs(skills.windowOpacity() - 0.6) < 0.01
+        assert settings.opacity_save.interval() == 1000
+        def wait_opacity(milliseconds):
+            loop = QtCore.QEventLoop()
+            QtCore.QTimer.singleShot(milliseconds, loop.quit)
+            loop.exec_()
+        wait_opacity(650)
+        settings.opacity_slider.setValue(70)
+        wait_opacity(650)
+        assert abs(skills.windowOpacity() - 0.7) < 0.01
+        wait_opacity(500)
+        assert abs(skills.windowOpacity() - 0.35) < 0.01
+        settings.opacity_slider.setValue(60)
         settings.close()
+        wait_opacity(1100)
         assert abs(skills.windowOpacity() - 0.6) < 0.01
         client.save_setting.assert_called_with('appearance', {'panelOpacity': 60})
         settings.show()

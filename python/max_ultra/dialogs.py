@@ -90,7 +90,7 @@ class SettingsWindow(Window):
         self.opacity_value.setText("{}%".format(self.opacity_slider.value()))
         self.opacity_save = QtCore.QTimer(self)
         self.opacity_save.setSingleShot(True)
-        self.opacity_save.setInterval(300)
+        self.opacity_save.setInterval(1000)
         self.opacity_save.timeout.connect(self.save_opacity)
         self.opacity_slider.valueChanged.connect(self.change_opacity)
         groups["Appearance"].addWidget(self.opacity_slider)
@@ -169,6 +169,9 @@ class SettingsWindow(Window):
     def change_opacity(self, value):
         self.opacity_value.setText("{}%".format(value))
         self.client.set_panel_opacity(value)
+        # Preview the actual selected opacity while retaining the base value
+        # that Settings must restore on close. The timer reapplies dimming.
+        self.client.panel.setWindowOpacity(self.client.panel_opacity / 100.0)
         self.opacity_save.start()
 
     def save_opacity(self):
