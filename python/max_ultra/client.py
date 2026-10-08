@@ -193,7 +193,7 @@ class Client:
         self.save_geometry()
         self.mini.hide()
         self.panel.showNormal()
-        self.panel.ai.setFocus(QtCore.Qt.OtherFocusReason)
+        self.panel.donate_button.setFocus(QtCore.Qt.OtherFocusReason)
         self.save_setting("panel", {"hidden": False})
         return True
 

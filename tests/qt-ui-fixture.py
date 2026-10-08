@@ -49,20 +49,20 @@ def run():
             panel.show()
             panel.refresh()
             normal_small_log_height = None
-            for width, height in [(640, 480), (480, 360), (320, 240), (280, 240), (240, 180), (1024, 600), (1025, 600), (1280, 720), (1024, 600), (280, 240), (640, 480)]:
+            for width, height in [(640, 480), (480, 360), (320, 240), (280, 240), (240, 180), (1024, 600), (1025, 600), (1280, 720), (1799, 720), (1800, 800), (1920, 900), (1799, 720), (1024, 600), (280, 240), (640, 480)]:
                 panel.resize(width, height)
                 application.processEvents()
                 assert panel.width() == width and panel.height() == height
                 assert panel.log.viewport().height() >= 24
-                expected_points = 14 if width > 1024 else {1024: 11, 640: 11, 480: 10, 320: 9, 280: 8, 240: 8}[width]
+                expected_points = 18 if width >= 1800 else 14 if width > 1024 else {1024: 11, 640: 11, 480: 10, 320: 9, 280: 8, 240: 8}[width]
                 assert panel.log.itemDelegate().journal_font().pointSize() == expected_points
                 metrics = QtGui.QFontMetrics(panel.log.itemDelegate().journal_font())
-                assert panel.log.verticalHeader().defaultSectionSize() == metrics.height() + {8: 1, 9: 2, 10: 3, 11: 4, 14: 6}[expected_points]
-                assert panel.ai.iconSize().width() == (26 if width > 1024 else 14 if width < 300 else 20)
-                assert panel.ai.font().pointSize() == (14 if width > 1024 else 9 if width < 300 else 11)
-                assert panel.caption.font().pointSize() == (16 if width > 1024 else 9 if width < 300 else 12)
-                assert panel.support.font().pointSize() == (14 if width > 1024 else 8 if width < 300 else 11)
-                scroll_width = 7 if width < 300 else 9 if width < 520 else 17 if width > 1024 else 13
+                assert panel.log.verticalHeader().defaultSectionSize() == metrics.height() + {8: 1, 9: 2, 10: 3, 11: 4, 14: 6, 18: 8}[expected_points]
+                assert panel.ai.iconSize().width() == (34 if width >= 1800 else 26 if width > 1024 else 14 if width < 300 else 20)
+                assert panel.ai.font().pointSize() == (18 if width >= 1800 else 14 if width > 1024 else 9 if width < 300 else 11)
+                assert panel.caption.font().pointSize() == (20 if width >= 1800 else 16 if width > 1024 else 9 if width < 300 else 12)
+                assert panel.support.font().pointSize() == (18 if width >= 1800 else 14 if width > 1024 else 8 if width < 300 else 11)
+                scroll_width = 7 if width < 300 else 9 if width < 520 else 21 if width >= 1800 else 17 if width > 1024 else 13
                 assert panel.log.verticalScrollBar().sizeHint().width() == scroll_width
                 assert panel.log.horizontalScrollBar().sizeHint().height() == scroll_width
                 assert not bool(panel.windowFlags() & Qt.WindowStaysOnTopHint)

@@ -51,6 +51,10 @@ QToolButton[largeControls="true"], QPushButton[largeControls="true"] { font-size
 QLineEdit[largeControls="true"], QComboBox[largeControls="true"] { font-size:14pt; padding:5px; }
 QScrollBar[largeControls="true"]:vertical { width:17px; }
 QScrollBar[largeControls="true"]:horizontal { height:17px; }
+QToolButton[extraLargeControls="true"], QPushButton[extraLargeControls="true"] { font-size:18pt; padding:8px; }
+QLineEdit[extraLargeControls="true"], QComboBox[extraLargeControls="true"] { font-size:18pt; padding:7px; }
+QScrollBar[extraLargeControls="true"]:vertical { width:21px; }
+QScrollBar[extraLargeControls="true"]:horizontal { height:21px; }
 QScrollBar[scrollDensity="compact"]:vertical { width:9px; border-radius:4px; }
 QScrollBar[scrollDensity="compact"]:horizontal { height:9px; border-radius:4px; }
 QScrollBar[scrollDensity="tiny"]:vertical { width:7px; border-radius:3px; }
@@ -626,7 +630,6 @@ class Panel(Window):
         self.outer.setSpacing(6)
         self.ai = action(client.root, "settings", "Setup AI Client", client.show_onboarding)
         self.ai.setFocusPolicy(Qt.StrongFocus)
-        self.setFocusProxy(self.ai)
         self.ai.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
         self.ai.setMinimumWidth(100)
         self.ai_refresh = action(client.root, "refresh-cw", "Refresh AI client status", client.refresh_agents)
@@ -705,6 +708,10 @@ class Panel(Window):
         self.support = PromotionLink()
         footer.addWidget(self.support, 1)
         self.donate_button = donate_action(client.root, client.donate)
+        self.donate_button.setFocusPolicy(Qt.StrongFocus)
+        self.setFocusProxy(self.donate_button)
+        # If Refresh becomes disabled during a check, Qt advances focus here.
+        self.setTabOrder(self.ai_refresh, self.donate_button)
         footer.addWidget(self.donate_button)
         self.outer.addLayout(footer)
         self.search_timer = QtCore.QTimer(self)
@@ -724,7 +731,7 @@ class Panel(Window):
         self.log.customContextMenuRequested.connect(self.journal_menu)
         self._unread = 0
         self.update_ai()
-        self.ai.setFocus(Qt.OtherFocusReason)
+        self.donate_button.setFocus(Qt.OtherFocusReason)
 
     def show_search(self):
         self.filters.show()
@@ -765,6 +772,7 @@ class Panel(Window):
     def update_compact_layout(self):
         tiny = self.width() < 300
         large = self.width() > 1024
+        extra_large = self.width() >= 1800
         scroll_density = 'tiny' if tiny else 'compact' if self.width() < 520 else 'normal'
         for scrollbar in (self.log.verticalScrollBar(), self.log.horizontalScrollBar()):
             if scrollbar.property('scrollDensity') != scroll_density:
@@ -772,48 +780,54 @@ class Panel(Window):
                 scrollbar.style().unpolish(scrollbar)
                 scrollbar.style().polish(scrollbar)
                 scrollbar.updateGeometry()
-        mode = 'tiny' if tiny else 'large' if large else 'normal'
+        mode = 'tiny' if tiny else 'extra_large' if extra_large else 'large' if large else 'normal'
         if getattr(self, '_layout_mode', None) == mode:
             return
         self._layout_mode = mode
         self._ultra_compact = tiny
-        self.outer.setContentsMargins(*((4, 3, 4, 3) if tiny else (12, 9, 12, 9) if large else (8, 6, 8, 6)))
-        self.outer.setSpacing(3 if tiny else 9 if large else 6)
-        self.header.layout().setSpacing(3 if tiny else 9 if large else 6)
-        self.top_row.setSpacing(3 if tiny else 12 if large else 8)
-        self.top_row.itemAt(2).spacerItem().changeSize(2 if tiny else 18 if large else 12, 0)
-        self.actions.setSpacing(3 if tiny else 12 if large else 8)
-        self.footer.setSpacing(3 if tiny else 9 if large else 6)
+        self.outer.setContentsMargins(*((4, 3, 4, 3) if tiny else (16, 12, 16, 12) if extra_large else (12, 9, 12, 9) if large else (8, 6, 8, 6)))
+        spacing = 3 if tiny else 12 if extra_large else 9 if large else 6
+        action_spacing = 3 if tiny else 16 if extra_large else 12 if large else 8
+        self.outer.setSpacing(spacing)
+        self.header.layout().setSpacing(spacing)
+        self.top_row.setSpacing(action_spacing)
+        self.top_row.itemAt(2).spacerItem().changeSize(2 if tiny else 24 if extra_large else 18 if large else 12, 0)
+        self.actions.setSpacing(action_spacing)
+        self.footer.setSpacing(spacing)
+        button_size = 24 if tiny else 56 if extra_large else 44 if large else 32
         for button in self.buttons + [self.ai, self.ai_refresh, self.hide_button, self.donate_button, self.latest]:
             button.setProperty('ultraCompact', tiny)
             button.setProperty('largeControls', large)
+            button.setProperty('extraLargeControls', extra_large)
             button.style().unpolish(button)
             button.style().polish(button)
-            button.setMinimumHeight(24 if tiny else 44 if large else 32)
+            button.setMinimumHeight(button_size)
             button.setMaximumHeight(24 if tiny else 16777215)
             if isinstance(button, QtWidgets.QToolButton):
-                button.setMinimumWidth((80 if tiny else 140 if large else 100) if button is self.ai else (24 if tiny else 44 if large else 32))
-                glyph_size = 14 if tiny else 26 if large else 20
+                button.setMinimumWidth((80 if tiny else 180 if extra_large else 140 if large else 100) if button is self.ai else button_size)
+                glyph_size = 14 if tiny else 34 if extra_large else 26 if large else 20
                 button.setIconSize(QtCore.QSize(glyph_size, glyph_size))
         for control in (self.search, self.categories, self.log.verticalScrollBar(), self.log.horizontalScrollBar()):
             control.setProperty('largeControls', large)
+            control.setProperty('extraLargeControls', extra_large)
             control.style().unpolish(control)
             control.style().polish(control)
             control.updateGeometry()
-        close_size = 14 if tiny else 24 if large else 18
+        close_size = 14 if tiny else 30 if extra_large else 24 if large else 18
         self.close_button.setFixedSize(close_size, close_size)
-        self.close_button.setIconSize(QtCore.QSize(18, 18) if large else QtCore.QSize(14, 14))
-        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:@heading_text; background:transparent'.format(9 if tiny else 16 if large else 12))
+        close_glyph = 22 if extra_large else 18 if large else 14
+        self.close_button.setIconSize(QtCore.QSize(close_glyph, close_glyph))
+        themes.set_style(self.caption, 'font-size:{}pt; font-weight:600; color:@heading_text; background:transparent'.format(9 if tiny else 20 if extra_large else 16 if large else 12))
         for label in (self.scene_label, self.support, self.storage_error):
-            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 14 if large else 11) + ('color:@storage_error;' if label is self.storage_error else ''))
+            themes.set_style(label, 'font-size:{}pt;'.format(8 if tiny else 18 if extra_large else 14 if large else 11) + ('color:@storage_error;' if label is self.storage_error else ''))
         self.support.update_text()
         self.top_row.invalidate()
 
     def update_journal_density(self):
         # Window dimensions are logical pixels; point sizes retain DPI scaling.
-        point_size = 14 if self.width() > 1024 else 8 if self.width() < 300 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
+        point_size = 18 if self.width() >= 1800 else 14 if self.width() > 1024 else 8 if self.width() < 300 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
         delegate = self.log.itemDelegate()
-        padding = {8: 1, 9: 2, 10: 3, 11: 4, 14: 6}[point_size]
+        padding = {8: 1, 9: 2, 10: 3, 11: 4, 14: 6, 18: 8}[point_size]
         row_height = QtGui.QFontMetrics(QtGui.QFont("Consolas", point_size)).height() + padding
         header = self.log.verticalHeader()
         if delegate.point_size == point_size and header.defaultSectionSize() == row_height:
