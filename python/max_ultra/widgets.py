@@ -28,6 +28,7 @@ QTreeWidget::item:selected { background: @selection_background; color: @selected
 QHeaderView::section { background: @button_background; padding: 4px; border: none; }
 QTableView::item:selected, QListWidget::item:selected { background: @selection_background; color: @list_selected_text; }
 QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; border-radius: 5px; }
+QTextBrowser#setupJournal { border-radius:5px; }
 QScrollBar:vertical { width:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
 QScrollBar:horizontal { height:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
 QScrollBar::handle:vertical { background:@scrollbar_thumb; min-height:24px; border-radius:4px; margin:2px; }
@@ -39,8 +40,8 @@ QScrollBar::add-line, QScrollBar::sub-line { background:none; border:none; width
 QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow { image:none; width:0; height:0; }
 QWidget#qt_scrollarea_vcontainer, QWidget#qt_scrollarea_hcontainer { background:transparent; border:none; }
 QAbstractScrollArea::corner { background:transparent; border:none; }
-QProgressBar { border: 1px solid @border; height: 8px; text-align: center; }
-QProgressBar::chunk { background: @accent; }
+QProgressBar { background:@recessed_background; border:1px solid @border; border-radius:6px; min-height:10px; max-height:10px; padding:0; text-align:center; }
+QProgressBar::chunk { background:@accent; border-radius:5px; }
 QTabWidget::pane { border: 1px solid @active_border; border-radius: 5px; top: -1px; background: @tab_pane_background; }
 QTabBar::tab { padding: 8px 12px; margin-right: 4px; margin-top: 3px; border: 1px solid @tab_border; border-bottom: 1px solid @active_border; border-top-left-radius: 4px; border-top-right-radius: 4px; background: @tab_background; color: @muted_text; }
 QTabBar::tab:selected { color: @heading_text; background: @active_tab_background; border: 1px solid @active_border; border-bottom-color: @active_tab_background; margin-top: 0; padding-top: 11px; }
