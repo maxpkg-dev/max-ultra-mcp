@@ -1,5 +1,7 @@
 # Editing interface themes
 
+For responsive sizes, icons, window behavior and component styling, see [Qt interface design](UI_DESIGN.md).
+
 Each palette is an independent UTF-8 JSON file in `assets/themes`:
 
 - `graphite.json`: Warm Graphite

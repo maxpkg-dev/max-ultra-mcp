@@ -195,3 +195,4 @@ assets/themes/max.json
 assets/themes/teal.json
 assets/themes/burgundy.json
 docs/THEMES.md
+docs/UI_DESIGN.md
