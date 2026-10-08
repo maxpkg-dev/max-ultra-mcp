@@ -76,6 +76,24 @@ class SettingsWindow(Window):
         self.theme_picker.setCurrentIndex(self.theme_picker.findData(themes.current))
         self.theme_picker.currentIndexChanged.connect(self.change_theme)
         groups["Appearance"].addWidget(self.theme_picker)
+        opacity_row = QtWidgets.QHBoxLayout()
+        opacity_row.addWidget(QtWidgets.QLabel("Main window opacity"))
+        self.opacity_value = QtWidgets.QLabel()
+        opacity_row.addStretch()
+        opacity_row.addWidget(self.opacity_value)
+        groups["Appearance"].addLayout(opacity_row)
+        self.opacity_slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(20, 100)
+        self.opacity_slider.setValue(getattr(client, "panel_opacity", 100))
+        self.opacity_slider.setAccessibleName("Main window opacity, 20 to 100 percent")
+        self.opacity_slider.setCursor(Qt.PointingHandCursor)
+        self.opacity_value.setText("{}%".format(self.opacity_slider.value()))
+        self.opacity_save = QtCore.QTimer(self)
+        self.opacity_save.setSingleShot(True)
+        self.opacity_save.setInterval(300)
+        self.opacity_save.timeout.connect(self.save_opacity)
+        self.opacity_slider.valueChanged.connect(self.change_opacity)
+        groups["Appearance"].addWidget(self.opacity_slider)
         check_icon = (client.root / "assets/icons/check.svg").as_posix()
         for group, label, section, key, default in [("Autostart", "Autostart with 3ds Max", "settings", "autostart", False), ("Server console", "Show server console when starting", "settings", "showServerConsole", False), ("Updates", "Check and install updates automatically", "updates", "automatic", True)]:
             checkbox = QtWidgets.QCheckBox(label)
@@ -99,20 +117,28 @@ class SettingsWindow(Window):
         update_row.addWidget(self.check_updates)
         groups["Updates"].addLayout(update_row)
         groups["AI client integration"].addWidget(action(client.root, "settings", "Open AI client setup...", self.open_ai_setup))
+        about = groups["About"]
+        about.setSpacing(0)
+        details = QtWidgets.QVBoxLayout()
+        details.setSpacing(4)
+        about.addLayout(details)
         for text in ["3DGROUND - Max Ultra MCP", client.version, "Lukianenko Vasyl"]:
             label = QtWidgets.QLabel(text)
             label.setWordWrap(True)
             label.setAlignment(Qt.AlignCenter)
-            groups["About"].addWidget(label)
-        groups["About"].addSpacing(8)
+            details.addWidget(label)
+        about.addSpacing(8)
+        links = QtWidgets.QVBoxLayout()
+        links.setSpacing(4)
+        about.addLayout(links)
         for address in ["3dground.net", "maxpkg.dev"]:
             link = QtWidgets.QLabel()
             themes.set_label(link, '<a href="https://' + address + '" style="color:@support_link">' + address + '</a>')
             link.setAlignment(Qt.AlignCenter)
             link.setOpenExternalLinks(True)
-            groups["About"].addWidget(link)
-        groups["About"].addSpacing(8)
-        groups["About"].addWidget(donate_action(client.root, client.donate), 0, Qt.AlignHCenter)
+            links.addWidget(link)
+        about.addSpacing(8)
+        about.addWidget(donate_action(client.root, client.donate), 0, Qt.AlignHCenter)
         self.update_status()
         self.ensurePolished()
         layout.activate()
@@ -128,6 +154,25 @@ class SettingsWindow(Window):
     def open_ai_setup(self):
         self.close()
         self.client.show_onboarding()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.set_settings_dimming(True)
+
+    def hideEvent(self, event):
+        if self.opacity_save.isActive():
+            self.opacity_save.stop()
+            self.save_opacity()
+        self.set_settings_dimming(False)
+        super().hideEvent(event)
+
+    def change_opacity(self, value):
+        self.opacity_value.setText("{}%".format(value))
+        self.client.set_panel_opacity(value)
+        self.opacity_save.start()
+
+    def save_opacity(self):
+        self.client.set_panel_opacity(self.opacity_slider.value(), persist=True)
 
     def change_theme(self, index):
         if not self.client.set_theme(self.theme_picker.itemData(index)):

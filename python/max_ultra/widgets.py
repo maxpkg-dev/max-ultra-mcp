@@ -7,6 +7,7 @@ from collections import OrderedDict
 from html import escape
 from pathlib import Path
 import random
+import weakref
 
 from . import themes
 from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt
@@ -46,6 +47,9 @@ QTabBar::tab:selected { color: @heading_text; background: @active_tab_background
 QTabBar::tab:hover { color: @selected_text; }
 QToolTip { color: @tooltip_text; background: @tooltip_background; border: 1px solid @active_border; }
 QToolButton[ultraCompact="true"], QPushButton[ultraCompact="true"] { font-size:9pt; min-height:0; padding:1px; border-radius:3px; }
+QSlider::groove:horizontal { height:6px; background:@recessed_background; border-radius:3px; }
+QSlider::sub-page:horizontal { background:@accent; border-radius:3px; }
+QSlider::handle:horizontal { width:14px; margin:-5px 0; background:@text; border:1px solid @active_border; border-radius:7px; }
 """
 
 
@@ -274,8 +278,13 @@ class TabHeading(QtWidgets.QWidget):
 
 
 class Window(QtWidgets.QDialog):
+    _windows = weakref.WeakSet()
+    _dimmed = weakref.WeakKeyDictionary()
+    _opacity_owner = None
+
     def __init__(self, root, title, parent):
         super().__init__(parent, Qt.Tool | Qt.FramelessWindowHint)
+        Window._windows.add(self)
         self.setWindowTitle(title)
         themes.set_style(self, STYLE)
         self.setSizeGripEnabled(True)
@@ -307,10 +316,47 @@ class Window(QtWidgets.QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
+        owner = Window._opacity_owner() if Window._opacity_owner else None
+        if owner is not None and owner is not self:
+            self.dim_for_settings()
         for widget in self.findChildren(QtWidgets.QWidget):
             if isinstance(widget, (QtWidgets.QAbstractButton, QtWidgets.QComboBox)):
                 widget.installEventFilter(self)
                 widget.setCursor(Qt.PointingHandCursor if widget.isEnabled() else Qt.ArrowCursor)
+
+    def dim_for_settings(self):
+        if self not in Window._dimmed:
+            Window._dimmed[self] = self.windowOpacity()
+            self.setWindowOpacity(self.windowOpacity() * 0.5)
+
+    def set_base_opacity(self, opacity):
+        if self in Window._dimmed:
+            Window._dimmed[self] = opacity
+            self.setWindowOpacity(opacity * 0.5)
+        else:
+            self.setWindowOpacity(opacity)
+
+    def set_settings_dimming(self, enabled):
+        if enabled:
+            Window._opacity_owner = weakref.ref(self)
+            for window in list(Window._windows):
+                try:
+                    if window is not self and window.isVisible():
+                        window.dim_for_settings()
+                except RuntimeError:
+                    # Qt may already have destroyed a deferred-delete wrapper.
+                    continue
+        else:
+            owner = Window._opacity_owner() if Window._opacity_owner else None
+            if owner is not self:
+                return
+            Window._opacity_owner = None
+            for window, opacity in list(Window._dimmed.items()):
+                try:
+                    window.setWindowOpacity(opacity)
+                except RuntimeError:
+                    pass
+            Window._dimmed.clear()
 
     def eventFilter(self, watched, event):
         if event.type() == QtCore.QEvent.EnabledChange and isinstance(watched, (QtWidgets.QAbstractButton, QtWidgets.QComboBox)):

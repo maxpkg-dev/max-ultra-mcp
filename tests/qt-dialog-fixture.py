@@ -33,7 +33,7 @@ def run():
     assert Client.mini_status(status_client)[0] == 'warning'
     calls = []
     client = SimpleNamespace(root=ROOT, settings=SimpleNamespace(get=lambda *args: "builtin", boolean=lambda section, key, default: default),
-        save_setting=lambda *args: None, skills_operation=lambda *args: calls.append(args),
+        save_setting=Mock(return_value=True), skills_operation=lambda *args: calls.append(args),
         donate=lambda: None, refresh_agents=lambda: None, cancel_integration=lambda: None,
         integration=None, integration_steps=[], integration_result=None, integration_message="Fixture status",
         version="Fixture", update_helper=None, set_autostart=lambda *args: None, sync_autostart=lambda: False,
@@ -43,10 +43,48 @@ def run():
     skills = SkillsWindow(client, max_parent())
     onboarding = Onboarding(client, max_parent())
     settings = SettingsWindow(client, max_parent())
+    client.panel = skills
+    client.set_panel_opacity = lambda value, persist=False: Client.set_panel_opacity(client, value, persist)
     help_windows = []
     try:
+        skills.show()
+        onboarding.setWindowOpacity(0.8)
+        original_opacity = onboarding.windowOpacity()
+        onboarding.show()
         settings.show()
         application.processEvents()
+        assert abs(skills.windowOpacity() - 0.5) < 0.01
+        assert abs(onboarding.windowOpacity() - original_opacity * 0.5) < 0.01
+        assert settings.windowOpacity() == 1.0
+        settings.show()
+        assert abs(skills.windowOpacity() - 0.5) < 0.01
+        from max_ultra.widgets import Window
+        late_window = Window(ROOT, 'Synthetic late window', None)
+        late_window.show()
+        assert abs(late_window.windowOpacity() - 0.5) < 0.01
+        settings.close()
+        application.processEvents()
+        assert skills.windowOpacity() == 1.0
+        assert abs(onboarding.windowOpacity() - original_opacity) < 0.01
+        assert late_window.windowOpacity() == 1.0
+        late_window.close()
+        late_window.deleteLater()
+        onboarding.setWindowOpacity(1.0)
+        settings.show()
+        application.processEvents()
+        settings.opacity_slider.setValue(60)
+        assert abs(skills.windowOpacity() - 0.3) < 0.01
+        settings.close()
+        assert abs(skills.windowOpacity() - 0.6) < 0.01
+        client.save_setting.assert_called_with('appearance', {'panelOpacity': 60})
+        settings.show()
+        settings.opacity_slider.setValue(0)
+        assert settings.opacity_slider.value() == 20
+        assert skills.windowOpacity() > 0
+        settings.opacity_slider.setValue(100)
+        settings.close()
+        assert skills.windowOpacity() == 1.0
+        settings.show()
         assert [group.title() for group in settings.findChildren(QtWidgets.QGroupBox)] == ['Appearance', 'Autostart', 'Server console', 'Updates', 'AI client integration', 'About']
         checkboxes = settings.findChildren(QtWidgets.QCheckBox)
         assert len(checkboxes) == 3

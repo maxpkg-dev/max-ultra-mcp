@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added: A persistent 20-100% main-window opacity slider, preserving the selected value when Settings temporarily dims other script windows.
 - Added: Deep Teal and Burgundy interface color schemes.
 - Changed: Each interface theme now loads its complete editable JSON palette on selection, including status, journal, button and scrollbar colors.
 - Improved: AI setup headings and spacing, continuous tab borders, and rounded Settings groups.

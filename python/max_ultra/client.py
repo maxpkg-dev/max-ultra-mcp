@@ -97,6 +97,8 @@ class Client:
         self.dialogs = {}
         parent = max_parent()
         self.panel = Panel(self, parent)
+        self.panel_opacity = max(20, min(100, self.settings.integer("appearance", "panelOpacity", 100)))
+        self.panel.set_base_opacity(self.panel_opacity / 100.0)
         self.mini = MiniPanel(self, parent)
         protect_keyboard(self.panel)
         protect_keyboard(self.mini)
@@ -356,6 +358,13 @@ class Client:
 
     def show_settings(self):
         self.show_dialog("settings", SettingsWindow)
+
+    def set_panel_opacity(self, value, persist=False):
+        self.panel_opacity = max(20, min(100, int(value)))
+        self.panel.set_base_opacity(self.panel_opacity / 100.0)
+        if persist:
+            return self.save_setting("appearance", {"panelOpacity": self.panel_opacity})
+        return True
 
     def set_theme(self, identifier):
         try:
