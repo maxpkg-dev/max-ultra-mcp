@@ -290,6 +290,22 @@ class JournalModel(QtCore.QAbstractTableModel):
 
 
 class JournalDelegate(QtWidgets.QStyledItemDelegate):
+    donateActivated = QtCore.Signal()
+
+    def donate_rect(self, rect, record):
+        if record is None or record[2] != "support" or "Donate" not in record[3]:
+            return QtCore.QRect()
+        metrics = QtGui.QFontMetrics(QtGui.QFont("Consolas", 11))
+        width = metrics.horizontalAdvance("Donate") + 8
+        return QtCore.QRect(rect.right() - width - 4, rect.top(), width, rect.height())
+
+    def editorEvent(self, event, model, option, index):
+        if event.type() == QtCore.QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            if self.donate_rect(option.rect, model.record(index.row())).contains(event.pos()):
+                self.donateActivated.emit()
+                return True
+        return super().editorEvent(event, model, option, index)
+
     def paint(self, painter, option, index):
         record = index.model().record(index.row())
         if record is None:
@@ -324,7 +340,13 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         painter.setFont(font)
         painter.setPen(color)
         content = "> " + record[3].replace("\n", "  ")
-        painter.drawText(x, baseline, metrics.elidedText(content, Qt.ElideRight, max(0, rect.right() - x)))
+        link_rect = self.donate_rect(option.rect, record)
+        right = link_rect.left() - 8 if not link_rect.isNull() else rect.right()
+        painter.drawText(x, baseline, metrics.elidedText(content, Qt.ElideRight, max(0, right - x)))
+        if not link_rect.isNull():
+            font.setUnderline(True)
+            painter.setFont(font)
+            painter.drawText(link_rect, Qt.AlignCenter, "Donate")
         painter.restore()
 
 
@@ -374,7 +396,9 @@ class Panel(Window):
         self.log.setObjectName("activityJournal")
         self.log.setMinimumHeight(24)
         self.log.setModel(self.model)
-        self.log.setItemDelegate(JournalDelegate(self.log))
+        delegate = JournalDelegate(self.log)
+        delegate.donateActivated.connect(client.donate)
+        self.log.setItemDelegate(delegate)
         self.log.setAccessibleName("Complete session activity journal")
         self.log.horizontalHeader().hide()
         self.log.verticalHeader().hide()
@@ -439,6 +463,10 @@ class Panel(Window):
 
     def journal_menu(self, position):
         menu = QtWidgets.QMenu(self)
+        index = self.log.indexAt(position)
+        record = self.model.record(index.row()) if index.isValid() else None
+        if record and record[2] == "support" and "Donate" in record[3]:
+            menu.addAction(icon(self.client.root, "heart"), "Donate", self.client.donate)
         for symbol, label, callback in [("search", "Search / filter (Ctrl+F)", self.show_search), ("copy", "Copy selected (Ctrl+C)", self.copy_selected), ("download", "Export (Ctrl+E)", self.export), ("expand", "Go to latest", self.go_latest)]:
             item = menu.addAction(icon(self.client.root, symbol), label)
             item.triggered.connect(callback)
@@ -489,6 +517,9 @@ class Panel(Window):
         layout.setReadOnly(True)
         layout.setPlainText(self.model.data(index))
         dialog.outer.addWidget(layout)
+        record = self.model.record(index.row())
+        if record and record[2] == "support" and "Donate" in record[3]:
+            dialog.outer.addWidget(donate_action(self.client.root, self.client.donate))
         dialog.resize(560, 300)
         self._message = dialog
         dialog.show()

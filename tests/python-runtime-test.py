@@ -14,17 +14,62 @@ import socket
 import threading
 import time
 import zipfile
+import runpy
+import types
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "python"))
 from max_ultra.journal import Journal
 from max_ultra.wire import FrameReader, BoundedQueue, encode, decode, MAX_FRAME
 from max_ultra.settings import Settings
 from max_ultra.transport import Transport, probe
-from max_ultra.updates import verify_package, GUID
+from max_ultra.updates import verify_package, staged_version, GUID
 from max_ultra.processes import launch_helper
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_bootstrap_uses_its_own_package_with_another_copy_loaded(self):
+        root = pathlib.Path(__file__).resolve().parents[1]
+        source = (root / 'python/bootstrap.py').read_text(encoding='utf-8')
+        saved = {key: value for key, value in sys.modules.items() if key == 'max_ultra' or key.startswith('max_ultra.') or key in ('pymxs', '_max_ultra_session')}
+        previous_path = list(sys.path)
+        previous_bytecode = sys.dont_write_bytecode
+        scheduled, errors = [], []
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                copies = [pathlib.Path(folder) / name / 'python' for name in ('current', 'old')]
+                for copy in copies:
+                    package = copy / 'max_ultra'
+                    package.mkdir(parents=True)
+                    (package / '__init__.py').write_text('')
+                (copies[0] / 'bootstrap.py').write_text(source, encoding='utf-8')
+                (copies[0] / 'max_ultra/client.py').write_text('class Client:\n    def __init__(self, *args, **kwargs): self.resumed = False\n    def resume_pending_update(self): self.resumed = True\n')
+                (copies[1] / 'max_ultra/client.py').write_text('class Client:\n    def __init__(self, *args, **kwargs): pass\n')
+                # Reproduce a source tree already in sys.path behind an older
+                # installed package, with the old package cached as well.
+                sys.path[:0] = [str(copies[1]), str(copies[0])]
+                for key in list(sys.modules):
+                    if key == 'max_ultra' or key.startswith('max_ultra.') or key == '_max_ultra_session':
+                        del sys.modules[key]
+                __import__('max_ultra.client')
+                qt = types.ModuleType('max_ultra.qt')
+                qt.QtCore = types.SimpleNamespace(QTimer=types.SimpleNamespace(singleShot=lambda delay, callback: scheduled.append(callback)))
+                qt.QtWidgets = types.SimpleNamespace(QMessageBox=types.SimpleNamespace(critical=lambda *args: errors.append(args)))
+                rt = types.SimpleNamespace(globalVars=types.SimpleNamespace(isGlobal=lambda name: False), Name=lambda name: name)
+                with mock.patch.dict(sys.modules, {'max_ultra.qt': qt, 'pymxs': types.SimpleNamespace(runtime=rt)}):
+                    runpy.run_path(str(copies[0] / 'bootstrap.py'))
+                    scheduled.pop()()
+                    self.assertEqual(errors, [])
+                    self.assertTrue(sys.modules['_max_ultra_session'].client.resumed)
+                    self.assertEqual(pathlib.Path(sys.modules['max_ultra.client'].__file__).parent, copies[0] / 'max_ultra')
+        finally:
+            sys.path[:] = previous_path
+            sys.dont_write_bytecode = previous_bytecode
+            for key in list(sys.modules):
+                if key == 'max_ultra' or key.startswith('max_ultra.') or key in ('pymxs', '_max_ultra_session'):
+                    del sys.modules[key]
+            sys.modules.update(saved)
+
     def test_all_python_sources_parse(self):
         root = pathlib.Path(__file__).resolve().parents[1]
         for filename in list((root / "python").rglob("*.py")) + [root / "scripts/maxpkg-uninstall.py"]:
@@ -49,6 +94,9 @@ class RuntimeTests(unittest.TestCase):
             checksum = pathlib.Path(str(package) + ".sha256")
             checksum.write_text(hashlib.sha256(package.read_bytes()).hexdigest() + "  " + package.name)
             self.assertEqual(verify_package(package, staging, "1.5.0"), package)
+            self.assertEqual(staged_version(package), "1.5.0")
+            with self.assertRaises(ValueError):
+                staged_version(staging / "unrelated.mzp")
             with self.assertRaises(ValueError):
                 verify_package(package, staging, "1.5.1")
             with self.assertRaises(ValueError):

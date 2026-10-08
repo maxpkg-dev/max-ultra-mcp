@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed: Pending Qt-client updates are revalidated on launch; installer failures restart the surviving client without an automatic retry loop.
+- Fixed: Python reloads bind to the launching package instead of importing an older installed copy from another search path.
+- Fixed: Manual AI setup follows detected runtime paths and the current port, and autostart status is reconciled with its startup file.
+- Fixed: Restored Donate links in support log entries, Skills Back scroll positions, and in-document anchor navigation.
+
 ## 1.4.7 - 2026-10-07
 
 - Improved: AI Client Setup installs missing Codex and Claude Code CLIs through confirmed official installers, verifies them, and keeps MCP connection setup as a separate action.

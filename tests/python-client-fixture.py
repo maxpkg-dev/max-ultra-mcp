@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 import tempfile
 import time
+import types
+import configparser
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +17,7 @@ from max_ultra import client as module
 from max_ultra.qt import QtWidgets
 from max_ultra.wire import BoundedQueue, encode, decode
 from max_ultra.settings import Settings
+from max_ultra.updates import GUID
 
 
 class FakeTransport:
@@ -84,6 +87,52 @@ def run():
                     assert dialog.width() == 320
                 instance.storage_failure("Synthetic disk failure")
                 assert instance.panel.storage_error.isVisible()
+                instance.integration_result = configparser.ConfigParser()
+                instance.integration_result['runtime'] = {'command': 'detected-node', 'server': 'example/server.js', 'environment': 'MAX_ULTRA_MCP_TOOL_PROFILE=core'}
+                assert 'detected-node' in instance.manual_setup()
+                assert 'core' in instance.manual_setup()
+                original_rt = instance.rt
+                fake_rt = mock.Mock()
+                instance.rt = fake_rt
+                try:
+                    fake_rt.getDir.return_value = folder
+                    instance.settings.set_many('settings', {'autostart': True})
+                    assert not instance.sync_autostart()
+                    instance.autostart_file().write_text('-- synthetic startup')
+                    assert instance.sync_autostart()
+                    # Legacy pending settings have no pendingVersion; infer it
+                    # from the validated package name before verification.
+                    package = str(Path(folder) / ('max-ultra-mcp@1.5.0@' + GUID + '.mzp'))
+                    instance.settings.set_many('updates', {'pendingPackage': package, 'pendingVersion': ''})
+                    with mock.patch.object(instance, 'stage_update_package') as stage:
+                        instance.resume_pending_update()
+                        stage.assert_called_once_with(package, '1.5.0')
+                    callbacks = []
+                    with mock.patch.object(instance.tasks, 'submit', side_effect=lambda operation, completed, failed: callbacks.append((operation, completed, failed))):
+                        instance.stage_update_package(package, '1.5.0')
+                        instance.stage_update_package(package, '1.5.0')
+                    assert len(callbacks) == 1
+                    callbacks[0][2](ValueError('Synthetic checksum failure'))
+                    assert not instance.disposed and not instance.update_applying
+                    assert instance.settings.get('updates', 'pendingPackage') == package
+                    anchor = types.ModuleType('_max_ultra_session')
+                    fake_rt.fileIn.side_effect = [RuntimeError('Synthetic installer failure'), None]
+                    with mock.patch.dict(sys.modules, {'_max_ultra_session': anchor}):
+                        instance.install_update(package, '1.5.0')
+                        assert anchor.skip_pending_once
+                    assert fake_rt.fileIn.call_count == 2
+                    assert str(fake_rt.fileIn.call_args[0][0]).endswith('01_START_MAX_ULTRA_MCP_FIRST.ms')
+                    assert instance.settings.get('updates', 'pendingPackage') == package
+                    assert 'Synthetic installer failure' in instance.settings.get('updates', 'lastStatus')
+                    fake_rt.fileIn.side_effect = None
+                    installed = configparser.ConfigParser()
+                    installed['package'] = {'version': '1.5.0'}
+                    with mock.patch.object(module, 'read_ini', return_value=installed):
+                        instance.install_update(package, '1.5.0')
+                    assert instance.settings.get('updates', 'pendingPackage') == ''
+                    assert instance.settings.get('updates', 'lastStatus') == 'Installed version 1.5.0'
+                finally:
+                    instance.rt = original_rt
             finally:
                 if instance:
                     instance.close(reload=True)

@@ -10,6 +10,7 @@ from pathlib import Path
 import time
 import uuid
 import datetime
+import sys
 
 from .qt import QtCore, QtWidgets, QtGui, max_parent, protect_keyboard, release_keyboard
 from .widgets import Panel, MiniPanel
@@ -22,7 +23,7 @@ from .transport import Transport
 from .helpers import Helper
 from .wire import encode, decode
 from .tasks import BackgroundTasks
-from .updates import verify_package
+from .updates import verify_package, staged_version
 
 
 class Client:
@@ -52,6 +53,10 @@ class Client:
         self.state_directory = Path(str(rt.getDir(rt.Name("userScripts")))) / "MaxUltraMCP"
         self.state_directory.mkdir(parents=True, exist_ok=True)
         self.settings = Settings(self.state_directory / "panel-ui.ini")
+        self.update_applying = False
+        self.automatic_update_suppressed = False
+        self.update_message = self.settings.get("updates", "lastStatus")
+        self.sync_autostart()
         manifest = self.root / "manifest.ini"
         versions = read_ini(manifest if manifest.exists() else self.root / "version.ini")
         self.version = versions.get("package", "version", fallback="") or versions.get("MaxUltraMCP", "Version", fallback="development")
@@ -102,12 +107,23 @@ class Client:
         self.reconnect_pending = False
         self.start_transport(restart=restart)
         self.log("system", "Initializing Max Ultra MCP services")
+        if self.update_message:
+            self.log("error" if self.update_message.startswith("Update could not complete:") else "info", self.update_message)
         QtWidgets.QApplication.instance().aboutToQuit.connect(self.close)
         callback_id = rt.Name("MaxUltraMcpPythonLifecycle")
         rt.callbacks.removeScripts(id=callback_id)
         for event in ("systemPreReset", "systemPreNew", "filePreOpen"):
             rt.callbacks.addScript(rt.Name(event), self.invalidate_scene, id=callback_id, persistent=False)
         rt.callbacks.addScript(rt.Name("preSystemShutdown"), self.close, id=callback_id, persistent=False)
+
+    def resume_pending_update(self):
+        package = self.settings.get("updates", "pendingPackage")
+        if package and not self.disposed:
+            try:
+                version = self.settings.get("updates", "pendingVersion") or staged_version(package)
+                self.stage_update_package(package, version)
+            except Exception as error:
+                self.update_failed(error)
 
     def invalidate_scene(self):
         self.layer_scene_epoch = uuid.uuid4().hex
@@ -287,7 +303,7 @@ class Client:
             if self.automatic_due and now >= self.automatic_due:
                 self.automatic_due = 0
                 self.start_integration("Status", automatic=True)
-                if (self.launch_count - 1) % 3 == 0 and self.settings.boolean("updates", "automatic", True):
+                if not self.automatic_update_suppressed and (self.launch_count - 1) % 3 == 0 and self.settings.boolean("updates", "automatic", True):
                     self.check_updates()
             self.poll_helpers()
             self.tasks.poll()
@@ -334,8 +350,19 @@ class Client:
         self.skills_operation("list")
 
     def manual_setup(self):
-        node = self.root / "runtime/win-x64/node.exe"
-        return json.dumps({"mcpServers": {"max-ultra-mcp": {"command": str(node), "args": [str(self.root / "core/server.js"), "--stdio"], "env": {"MAX_ULTRA_MCP_TOOL_PROFILE": "archviz", "MAX_ULTRA_MCP_PORT": str(self.port)}}}}, indent=2)
+        parser = self.integration_result
+        node = str(self.root / "runtime/win-x64/node.exe")
+        server = str(self.root / "core/server.js")
+        environment = {"MAX_ULTRA_MCP_TOOL_PROFILE": "archviz"}
+        if parser is not None:
+            node = parser.get("runtime", "command", fallback="") or node
+            server = parser.get("runtime", "server", fallback="") or server
+            for line in parser.get("runtime", "environment", fallback="").splitlines():
+                key, separator, value = line.partition("=")
+                if separator and key.strip():
+                    environment[key.strip()] = value
+        environment["MAX_ULTRA_MCP_PORT"] = str(self.port)
+        return json.dumps({"mcpServers": {"max-ultra-mcp": {"command": node, "args": [server, "--stdio"], "env": environment}}}, indent=2)
 
     def client_state(self, identifier):
         if self.integration_failed:
@@ -399,7 +426,7 @@ class Client:
         return True
 
     def check_updates(self):
-        if self.update_helper or self.disposed:
+        if self.update_helper or self.disposed or self.update_applying:
             return
         self.update_helper = Helper(self.root, self.state_directory, "update-manager.ps1", ["-Action", "CheckAndStage", "-ProjectRoot", str(self.root)], "-ResultFile", 300)
         self.log("info", "Checking for updates")
@@ -481,10 +508,31 @@ class Client:
     def stage_update(self, result):
         package = result.get("update", "packagepath")
         version = result.get("update", "latestversion")
+        self.stage_update_package(package, version)
+
+    def update_failed(self, error):
+        self.update_applying = False
+        self.update_message = "Update could not complete: " + str(error)
+        self.save_setting("updates", {"lastStatus": self.update_message})
+        if not self.disposed:
+            self.log("error", self.update_message)
+
+    def stage_update_package(self, package, version):
+        if self.update_applying or self.disposed:
+            return
+        self.update_applying = True
+        self.update_message = "Verifying staged update " + version
         def verified(filename):
+            if self.disposed:
+                return
             if self.save_setting("updates", {"pendingPackage": str(filename), "pendingVersion": version}):
                 QtCore.QTimer.singleShot(0, self.apply_update)
-        self.tasks.submit(lambda: verify_package(package, self.state_directory / "updates", version), verified, lambda error: self.log("error", str(error)))
+            else:
+                self.update_failed("Could not save the pending update")
+        try:
+            self.tasks.submit(lambda: verify_package(package, self.state_directory / "updates", version), verified, self.update_failed)
+        except Exception as error:
+            self.update_failed(error)
 
     def apply_update(self):
         package = self.settings.get("updates", "pendingPackage")
@@ -496,7 +544,7 @@ class Client:
         def install_when_stopped():
             if self.transport.thread.is_alive():
                 if time.monotonic() > deadline:
-                    QtWidgets.QMessageBox.critical(None, "Max Ultra MCP update", "Transport did not stop. Update remains pending; run the entry script to retry.")
+                    self.recover_update("Transport did not stop. Update remains pending.")
                 else:
                     QtCore.QTimer.singleShot(50, install_when_stopped)
                 return
@@ -512,10 +560,33 @@ class Client:
             self.settings.set_many("updates", {"pendingPackage": "", "pendingVersion": "", "lastStatus": "Installed version " + version})
             self.rt.fileIn(str(self.root / "01_START_MAX_ULTRA_MCP_FIRST.ms"), quiet=True)
         except Exception as error:
-            QtWidgets.QMessageBox.critical(None, "Max Ultra MCP update", "Update could not complete: " + str(error))
+            self.recover_update(error)
+
+    def recover_update(self, error):
+        self.update_failed(error)
+        # Reopen the surviving installation once, without retrying the same
+        # failed installer recursively. A later explicit launch retries it.
+        anchor = sys.modules.get("_max_ultra_session")
+        if anchor is not None:
+            anchor.skip_pending_once = True
+        try:
+            self.rt.fileIn(str(self.root / "01_START_MAX_ULTRA_MCP_FIRST.ms"), quiet=True)
+        except Exception as restart_error:
+            if anchor is not None:
+                anchor.skip_pending_once = False
+            QtWidgets.QMessageBox.critical(None, "Max Ultra MCP update", self.update_message + "\nCould not restart: " + str(restart_error))
+
+    def autostart_file(self):
+        return Path(str(self.rt.getDir(self.rt.Name("userStartupScripts")))) / "3DGROUND-Max-Ultra-MCP-Autostart.ms"
+
+    def sync_autostart(self):
+        enabled = self.autostart_file().is_file()
+        if self.settings.boolean("settings", "autostart") != enabled:
+            self.save_setting("settings", {"autostart": enabled})
+        return enabled
 
     def set_autostart(self, enabled):
-        destination = Path(str(self.rt.getDir(self.rt.Name("userStartupScripts")))) / "3DGROUND-Max-Ultra-MCP-Autostart.ms"
+        destination = self.autostart_file()
         if enabled:
             script = str(self.root / "01_START_MAX_ULTRA_MCP_FIRST.ms").replace('"', '\\"')
             destination.write_text('-- Max Ultra MCP owned startup entry.\nfileIn @"' + script + '" quiet: true\n', encoding="utf-8")

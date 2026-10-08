@@ -44,6 +44,7 @@ class SettingsWindow(Window):
         super().__init__(client.root, "Settings", parent)
         self.setWindowModality(Qt.WindowModal)
         self.client = client
+        client.sync_autostart()
         self.resize(540, 720)
         self.setMinimumSize(320, 260)
         content = QtWidgets.QWidget()
@@ -201,18 +202,23 @@ class Onboarding(Window):
         explanation = QtWidgets.QLabel("For clients configured manually, use these STDIO values. Automatic setup is available on the Setup tab.")
         explanation.setWordWrap(True)
         manual_layout.addWidget(explanation)
-        config_text = client.manual_setup()
-        config = json.loads(config_text)["mcpServers"]["max-ultra-mcp"]
-        for label, value in [("Command", config["command"]), ("Arguments (one per line)", "\n".join(config["args"])), ("Environment", "\n".join(key + "=" + value for key, value in config["env"].items()))]:
+        self.manual_fields = []
+        self._manual_text = None
+        for label in ("Command", "Arguments (one per line)", "Environment"):
             manual_layout.addWidget(QtWidgets.QLabel(label))
-            field = QtWidgets.QPlainTextEdit(value)
+            field = QtWidgets.QPlainTextEdit()
             field.setReadOnly(True)
             field.setAccessibleName(label)
             field.setStyleSheet("font-family:Consolas; font-size:11pt;")
             field.setMaximumHeight(70)
             manual_layout.addWidget(field)
+            self.manual_fields.append(field)
+        self.runtime_status = QtWidgets.QLabel()
+        self.runtime_status.setWordWrap(True)
+        manual_layout.addWidget(self.runtime_status)
+        manual_layout.addWidget(action(client.root, "refresh-cw", "Refresh status", client.refresh_agents))
         manual_layout.addStretch()
-        manual_layout.addWidget(action(client.root, "copy", "Copy JSON configuration", lambda: QtWidgets.QApplication.clipboard().setText(config_text)))
+        manual_layout.addWidget(action(client.root, "copy", "Copy JSON configuration", lambda: QtWidgets.QApplication.clipboard().setText(client.manual_setup())))
         manual_scroll = QtWidgets.QScrollArea()
         manual_scroll.setWidgetResizable(True)
         manual_scroll.setWidget(manual)
@@ -226,6 +232,15 @@ class Onboarding(Window):
                 self.card_grid.addWidget(card, 0 if self.width() >= 600 else index, index if self.width() >= 600 else 0)
 
     def update_status(self):
+        config_text = self.client.manual_setup()
+        if config_text != self._manual_text:
+            config = json.loads(config_text)["mcpServers"]["max-ultra-mcp"]
+            values = (config["command"], "\n".join(config["args"]), "\n".join(key + "=" + value for key, value in config["env"].items()))
+            for field, value in zip(self.manual_fields, values):
+                field.setPlainText(value)
+            self._manual_text = config_text
+        parser = self.client.integration_result
+        self.runtime_status.setText("Runtime check: " + (parser.get("runtime", "detail", fallback="Runtime not checked.") if parser is not None else "Runtime not checked."))
         busy = self.client.integration is not None
         self.progress.setVisible(busy)
         self.elapsed.setVisible(busy)
@@ -504,13 +519,16 @@ class SkillsWindow(Window):
 
     def open_document(self, identifier, relative):
         if self.current_document:
-            self.history.append(self.current_document)
+            self.history.append((self.current_document, self.preview.verticalScrollBar().value()))
+        self._restore_scroll = 0
         self.current_document = (identifier, relative)
         self.update_actions()
         self.client.skills_operation("read", ["-SkillId", identifier, "-RelativePath", relative])
 
     def navigate(self, url):
-        if url.scheme() == "skill-nav" and url.path() == "back":
+        if not url.scheme() and not url.path() and url.hasFragment():
+            self.preview.scrollToAnchor(url.fragment())
+        elif url.scheme() == "skill-nav" and url.path() == "back":
             self.back()
         elif url.scheme() == "skill-ref" and self.current_document:
             from urllib.parse import unquote
@@ -530,7 +548,7 @@ class SkillsWindow(Window):
 
     def back(self):
         if self.history:
-            self.current_document = self.history.pop()
+            self.current_document, self._restore_scroll = self.history.pop()
             self.update_actions()
             self.client.skills_operation("read", ["-SkillId", self.current_document[0], "-RelativePath", self.current_document[1]])
 
@@ -597,3 +615,4 @@ class SkillsWindow(Window):
             r'<table border="1" cellspacing="0" cellpadding="12" width="100%" style="border:1px solid #777066;"><tr><td>\1</td></tr></table><br>',
             content, count=1, flags=re.DOTALL)
         self.preview.setHtml(content)
+        self.preview.verticalScrollBar().setValue(getattr(self, "_restore_scroll", 0))

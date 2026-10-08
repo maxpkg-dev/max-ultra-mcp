@@ -7,13 +7,16 @@ from pathlib import Path
 import sys
 import time
 import types
+import importlib
+import importlib.util
 
 from pymxs import runtime as rt
 
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON_ROOT = str(ROOT / "python")
-if PYTHON_ROOT not in sys.path:
-    sys.path.insert(0, PYTHON_ROOT)
+while PYTHON_ROOT in sys.path:
+    sys.path.remove(PYTHON_ROOT)
+sys.path.insert(0, PYTHON_ROOT)
 sys.dont_write_bytecode = True
 
 # This one process-local anchor survives package replacement and module reload.
@@ -50,10 +53,24 @@ if not getattr(anchor, "loading", False):
             for module_name in list(sys.modules):
                 if module_name == "max_ultra" or module_name.startswith("max_ultra."):
                     del sys.modules[module_name]
+            # Another installed copy may also be on sys.path. Bind this launch
+            # to its own package explicitly, including all relative imports.
+            importlib.invalidate_caches()
+            package_root = ROOT / "python/max_ultra"
+            spec = importlib.util.spec_from_file_location("max_ultra", str(package_root / "__init__.py"), submodule_search_locations=[str(package_root)])
+            package = importlib.util.module_from_spec(spec)
+            sys.modules["max_ultra"] = package
+            spec.loader.exec_module(package)
             from max_ultra.client import Client
             anchor.client = Client(ROOT, launch_count, restart=previous is not None or legacy is not None)
             anchor.launch_count = launch_count
             anchor.loading = False
+            skip_pending = getattr(anchor, "skip_pending_once", False)
+            anchor.skip_pending_once = False
+            if skip_pending:
+                anchor.client.automatic_update_suppressed = True
+            else:
+                anchor.client.resume_pending_update()
         except Exception as error:
             anchor.loading = False
             QtWidgets.QMessageBox.critical(None, "Max Ultra MCP startup", str(error))

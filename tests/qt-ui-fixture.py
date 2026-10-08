@@ -11,7 +11,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
-from max_ultra.qt import QtWidgets, QtCore, Qt, max_parent
+from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt, max_parent
 from max_ultra.journal import Journal
 from max_ultra.widgets import Panel, MiniPanel, bounded_window_position
 
@@ -90,6 +90,19 @@ def run():
             assert len(panel.model.pages) <= 8
             panel.go_latest()
             assert not panel.latest.isVisible()
+            journal.append('support', 'Please use Donate to support development.')
+            panel.model.refresh()
+            index = panel.model.index(panel.model.total - 1, 0)
+            delegate = panel.log.itemDelegate()
+            option = QtWidgets.QStyleOptionViewItem()
+            option.rect = QtCore.QRect(0, 0, 290, 26)
+            link = delegate.donate_rect(option.rect, panel.model.record(index.row()))
+            assert option.rect.contains(link) and link.width() > 20
+            clicked = []
+            delegate.donateActivated.connect(lambda: clicked.append(True))
+            event = QtGui.QMouseEvent(QtCore.QEvent.MouseButtonRelease, QtCore.QPointF(link.center()), Qt.LeftButton, Qt.NoButton, Qt.NoModifier)
+            assert delegate.editorEvent(event, panel.model, option, index)
+            assert clicked == [True]
             return "Qt fixture passed: sizes, SVG, colors, 100k history, search, scroll preservation, paged memory and non-topmost ownership"
         finally:
             panel.close()

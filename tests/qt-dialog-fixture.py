@@ -36,7 +36,7 @@ def run():
         save_setting=lambda *args: None, skills_operation=lambda *args: calls.append(args),
         donate=lambda: None, refresh_agents=lambda: None, cancel_integration=lambda: None,
         integration=None, integration_steps=[], integration_result=None, integration_message="Fixture status",
-        version="Fixture", update_helper=None, set_autostart=lambda *args: None,
+        version="Fixture", update_helper=None, set_autostart=lambda *args: None, sync_autostart=lambda: False,
         check_updates=lambda: None, show_onboarding=lambda: None,
         client_state=lambda identifier: "configured",
         manual_setup=lambda: '{"mcpServers":{"max-ultra-mcp":{"command":"node","args":[],"env":{}}}}')
@@ -87,15 +87,29 @@ def run():
         skills.source.setCurrentIndex(1)
         skills.list.setCurrentItem(skills.list.topLevelItem(1))
         assert skills.delete_button.isVisible()
+        long_html = '<p>Start</p>' + '<p>Example paragraph</p>' * 100 + '<a name="end"></a><p>End</p>'
+        skills.set_preview_html(long_html)
+        application.processEvents()
+        skills.preview.verticalScrollBar().setValue(180)
         skills.open_document('1', 'references/example.md')
         assert skills.back_button.isVisible()
         skills.back()
+        skills.set_preview_html(long_html)
+        assert skills.preview.verticalScrollBar().value() == 180
+        before_anchor = list(calls)
+        skills.navigate(QtCore.QUrl('#end'))
+        assert skills.preview.verticalScrollBar().value() > 180
+        assert calls == before_anchor, 'Local anchors must not start helper reads'
         assert skills.current_document == ('1', 'SKILL.md')
         assert not skills.back_button.isVisible()
         skills.resize(320, 300)
         application.processEvents()
         assert skills.width() == 320
         onboarding.show()
+        client.manual_setup = lambda: '{"mcpServers":{"max-ultra-mcp":{"command":"updated-node","args":["--stdio"],"env":{"MAX_ULTRA_MCP_PORT":"49000"}}}}'
+        onboarding.update_status()
+        assert onboarding.manual_fields[0].toPlainText() == 'updated-node'
+        assert '49000' in onboarding.manual_fields[2].toPlainText()
         onboarding.resize(670, 570)
         application.processEvents()
         first = onboarding.detail.height()

@@ -55,6 +55,8 @@ The bootstrap starts `scripts\update-manager.ps1` as a hidden detached process a
 
 ## Package lifecycle
 
+The Python client revalidates a pending package and its SHA-256 on the next explicit launch, including legacy pending records without a separate version field. If installation fails or is cancelled, it restarts the surviving entry point and retains the pending package and error status. That recovery launch skips both the pending installation and its automatic update check to prevent a retry loop. A subsequent explicit launch or manual update check can retry. Recovery still requires an intact entry point and a transport worker that can stop; failures to restart are shown explicitly.
+
 - MaxPkg extracts the package into its GUID-owned temporary package directory.
 - The generated MaxPkg macro runs `01_START_MAX_ULTRA_MCP_FIRST.ms` directly from that directory.
 - Runtime paths are resolved from the executing entry file; no developer-machine path is embedded in the archive.

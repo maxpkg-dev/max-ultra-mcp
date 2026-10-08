@@ -11,6 +11,13 @@ import zipfile
 GUID = "c6977570-25a6-41b0-b9bb-b3be8101123c"
 
 
+def staged_version(filename):
+    match = re.fullmatch(r"max-ultra-mcp@(\d+\.\d+\.\d+)@" + GUID + r"\.mzp", Path(filename).name)
+    if not match:
+        raise ValueError("Invalid staged package filename")
+    return match.group(1)
+
+
 def verify_package(filename, directory, version):
     package = Path(filename).resolve()
     staging = Path(directory).resolve()
