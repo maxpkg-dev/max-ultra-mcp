@@ -88,10 +88,9 @@ class SettingsWindow(Window):
         self.opacity_slider.setAccessibleName("Main window opacity, 20 to 100 percent")
         self.opacity_slider.setCursor(Qt.PointingHandCursor)
         self.opacity_value.setText("{}%".format(self.opacity_slider.value()))
-        self.opacity_save = QtCore.QTimer(self)
-        self.opacity_save.setSingleShot(True)
-        self.opacity_save.setInterval(1000)
-        self.opacity_save.timeout.connect(self.save_opacity)
+        self._opacity_dragging = False
+        self._opacity_dirty = False
+        self.opacity_slider.installEventFilter(self)
         self.opacity_slider.valueChanged.connect(self.change_opacity)
         groups["Appearance"].addWidget(self.opacity_slider)
         check_icon = (client.root / "assets/icons/check.svg").as_posix()
@@ -160,8 +159,8 @@ class SettingsWindow(Window):
         self.set_settings_dimming(True)
 
     def hideEvent(self, event):
-        if self.opacity_save.isActive():
-            self.opacity_save.stop()
+        self._opacity_dragging = False
+        if self._opacity_dirty:
             self.save_opacity()
         self.set_settings_dimming(False)
         super().hideEvent(event)
@@ -169,13 +168,25 @@ class SettingsWindow(Window):
     def change_opacity(self, value):
         self.opacity_value.setText("{}%".format(value))
         self.client.set_panel_opacity(value)
-        # Preview the actual selected opacity while retaining the base value
-        # that Settings must restore on close. The timer reapplies dimming.
-        self.client.panel.setWindowOpacity(self.client.panel_opacity / 100.0)
-        self.opacity_save.start()
+        self._opacity_dirty = True
+        if self._opacity_dragging:
+            self.client.panel.setWindowOpacity(self.client.panel_opacity / 100.0)
+        else:
+            self.save_opacity()
+
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, 'opacity_slider', None):
+            if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self._opacity_dragging = True
+                self.client.panel.setWindowOpacity(self.client.panel_opacity / 100.0)
+            elif event.type() == QtCore.QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                self._opacity_dragging = False
+                self.save_opacity()
+        return super().eventFilter(watched, event)
 
     def save_opacity(self):
         self.client.set_panel_opacity(self.opacity_slider.value(), persist=True)
+        self._opacity_dirty = False
 
     def change_theme(self, index):
         if not self.client.set_theme(self.theme_picker.itemData(index)):

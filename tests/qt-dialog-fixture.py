@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
-from max_ultra.qt import QtWidgets, QtCore, max_parent
+from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt, max_parent
 from max_ultra.dialogs import SkillsWindow, Onboarding, SkillHelpWindow, SettingsWindow
 from max_ultra.wire import encode
 
@@ -44,6 +44,7 @@ def run():
     onboarding = Onboarding(client, max_parent())
     settings = SettingsWindow(client, max_parent())
     client.panel = skills
+    client.panel_opacity = 100
     client.set_panel_opacity = lambda value, persist=False: Client.set_panel_opacity(client, value, persist)
     help_windows = []
     try:
@@ -72,19 +73,26 @@ def run():
         onboarding.setWindowOpacity(1.0)
         settings.show()
         application.processEvents()
+        def opacity_mouse(kind, buttons):
+            option = QtWidgets.QStyleOptionSlider()
+            settings.opacity_slider.initStyleOption(option)
+            handle = settings.opacity_slider.style().subControlRect(QtWidgets.QStyle.CC_Slider, option, QtWidgets.QStyle.SC_SliderHandle, settings.opacity_slider)
+            event = QtGui.QMouseEvent(kind, QtCore.QPointF(handle.center()), Qt.LeftButton, buttons, Qt.NoModifier)
+            application.sendEvent(settings.opacity_slider, event)
+        opacity_mouse(QtCore.QEvent.MouseButtonPress, Qt.LeftButton)
         settings.opacity_slider.setValue(60)
         assert abs(skills.windowOpacity() - 0.6) < 0.01
-        assert settings.opacity_save.interval() == 1000
         def wait_opacity(milliseconds):
             loop = QtCore.QEventLoop()
             QtCore.QTimer.singleShot(milliseconds, loop.quit)
             loop.exec_()
-        wait_opacity(650)
+        wait_opacity(1100)
+        assert abs(skills.windowOpacity() - 0.6) < 0.01
         settings.opacity_slider.setValue(70)
-        wait_opacity(650)
         assert abs(skills.windowOpacity() - 0.7) < 0.01
-        wait_opacity(500)
+        opacity_mouse(QtCore.QEvent.MouseButtonRelease, Qt.NoButton)
         assert abs(skills.windowOpacity() - 0.35) < 0.01
+        opacity_mouse(QtCore.QEvent.MouseButtonPress, Qt.LeftButton)
         settings.opacity_slider.setValue(60)
         settings.close()
         wait_opacity(1100)
