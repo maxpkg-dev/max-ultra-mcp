@@ -62,6 +62,9 @@ try:
         window.resize(width, 600)
         app.processEvents()
         assert window.scroll.horizontalScrollBar().maximum() == 0
+        card = window.card_widgets[0][0]
+        assert card.mapTo(window, QtCore.QPoint(0, 0)).x() == window.search.x()
+        assert card.width() == window.scroll.viewport().width()
         badges = window.card_widgets[0][0].findChildren(MetadataBadge)
         assert len(badges) == 2
         assert [badge.toolTip() for badge in badges] == ['Example Author', '1.0.0']
@@ -73,6 +76,14 @@ try:
     window.search.setText('no match')
     assert window.card_widgets[0][0].isHidden()
     window.search.clear()
+    for policy in (Qt.ScrollBarAlwaysOn, Qt.ScrollBarAlwaysOff):
+        window.scroll.setVerticalScrollBarPolicy(policy)
+        for _ in range(3):
+            app.processEvents()
+        card = window.card_widgets[0][0]
+        assert card.mapTo(window, QtCore.QPoint(0, 0)).x() == window.search.x()
+        assert card.width() == window.scroll.viewport().width()
+    window.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     entry['installState'] = 'installed'
     window.entries = [entry]
     window.render_cards()
