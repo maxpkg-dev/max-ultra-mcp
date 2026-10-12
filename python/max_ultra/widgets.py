@@ -67,6 +67,77 @@ QSlider::handle:horizontal { width:14px; margin:-5px 0; background:@text; border
 """
 
 
+class OverflowLabel(QtWidgets.QLabel):
+    """Scroll overflowing context without restarting on identical status polls."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setTextFormat(Qt.PlainText)
+        self._offset = 0.0
+        self._limit = 0
+        self._pause = 1200
+        self._clock = QtCore.QElapsedTimer()
+        self._timer = QtCore.QTimer(self)
+        self._timer.setInterval(40)
+        self._timer.timeout.connect(self.advance)
+
+    def setText(self, text):
+        if text == self.text():
+            return
+        super().setText(text)
+        self.setToolTip(text)
+        self.reset_scroll()
+
+    def reset_scroll(self):
+        self._offset = 0.0
+        self._pause = 1200
+        self._limit = max(0, self.fontMetrics().horizontalAdvance(self.text()) - self.contentsRect().width())
+        self._timer.stop()
+        if self._limit and self.isVisible():
+            self._clock.start()
+            self._timer.start()
+        self.update()
+
+    def advance(self):
+        elapsed = min(100, self._clock.restart())
+        if self._pause > 0:
+            self._pause -= elapsed
+            return
+        if self._offset >= self._limit:
+            self._offset = 0.0
+            self._pause = 1200
+        else:
+            self._offset = min(self._limit, self._offset + elapsed * 0.025)
+            if self._offset >= self._limit:
+                self._pause = 1200
+        self.update()
+
+    def paintEvent(self, event):
+        if not self._limit:
+            return super().paintEvent(event)
+        painter = QtGui.QPainter(self)
+        painter.setClipRect(self.contentsRect())
+        painter.setPen(self.palette().color(QtGui.QPalette.WindowText))
+        rectangle = self.contentsRect().adjusted(-int(self._offset), 0, self._limit, 0)
+        painter.drawText(rectangle, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextSingleLine, self.text())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.reset_scroll()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.FontChange and hasattr(self, "_timer"):
+            self.reset_scroll()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.reset_scroll()
+
+    def hideEvent(self, event):
+        self._timer.stop()
+        super().hideEvent(event)
+
+
 class PromotionLink(QtWidgets.QLabel):
     PROMOTIONS = (
         ("Discover useful 3ds Max tools on maxpkg.dev.", "Tools on maxpkg.dev", "https://maxpkg.dev"),
@@ -694,7 +765,7 @@ class Panel(Window):
         top_row.addWidget(self.hide_button)
         self.outer.addLayout(top_row)
         status_row = QtWidgets.QHBoxLayout()
-        self.scene_label = QtWidgets.QLabel()
+        self.scene_label = OverflowLabel()
         self.scene_label.setMinimumWidth(0)
         self.scene_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.scene_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)

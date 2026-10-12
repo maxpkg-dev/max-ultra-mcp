@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt, max_parent
 from max_ultra.journal import Journal
-from max_ultra.widgets import Panel, MiniPanel, bounded_window_position
+from max_ultra.widgets import Panel, MiniPanel, OverflowLabel, bounded_window_position
 
 
 def run():
@@ -22,6 +22,32 @@ def run():
         raise RuntimeError("This fixture runs inside 3ds Max")
     output = ROOT / "dist" / "qt-fixture"
     output.mkdir(parents=True, exist_ok=True)
+    context = OverflowLabel()
+    try:
+        context.resize(180, 28)
+        message = "PID 22022 | Scene ExampleScene.max | Objects 100 | Selection 0"
+        context.setText(message)
+        context.show()
+        application.processEvents()
+        assert context._timer.isActive() and context._limit > 0
+        deadline = time.monotonic() + 1.7
+        while time.monotonic() < deadline:
+            application.processEvents()
+            time.sleep(0.01)
+        assert context._offset > 0
+        offset = context._offset
+        context.setText(message)
+        assert context._offset == offset  # Repeated scene polls must not reset motion.
+        context.hide()
+        assert not context._timer.isActive()
+        context.resize(1200, 28)
+        context.show()
+        application.processEvents()
+        assert context._offset == 0 and not context._timer.isActive()
+        assert context.text() == message and context.toolTip() == message
+    finally:
+        context.close()
+        context.deleteLater()
     with tempfile.TemporaryDirectory(prefix="max-ultra-qt-fixture-") as folder:
         journal = Journal(Path(folder) / "journal.sqlite3")
         for category, message in [("system", "Initializing Max Ultra MCP services"), ("success", "Connected to the example server"), ("info", "Read scene summary completed in 12 ms"), ("warning", "Example warning with detailed diagnostic information"), ("error", "Example operation failed; inspect details")]:
