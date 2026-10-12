@@ -127,17 +127,17 @@ try:
     snapshot.read_string(ini_text)
     fixture_client = SimpleNamespace(root=root, settings=SimpleNamespace(get=lambda *args: 'builtin'), save_setting=lambda *args: True, skills_operation=lambda *args: None, donate=lambda: None)
     skills = SkillsWindow(fixture_client, None)
-    install = next(button for button in skills.buttons if button.text() == 'Install Community Skills')
+    install = next(button for button in skills.buttons if button.text() == 'Discover Community Skills')
     assert not install.icon().isNull() and '@ready_background' in install._theme_style
     rows = [skills.outer.itemAt(i).layout() for i in range(skills.outer.count()) if skills.outer.itemAt(i).layout()]
     import_row = next(row for row in rows if row.count() and row.itemAt(0).widget() is install)
-    assert [import_row.itemAt(i).widget().text() for i in range(import_row.count()) if import_row.itemAt(i).widget()][:3] == ['Install Community Skills', 'Import Folder', 'Import ZIPs']
+    assert [import_row.itemAt(i).widget().text() for i in range(import_row.count()) if import_row.itemAt(i).widget()][:3] == ['Discover Community Skills', 'Import Folder', 'Import ZIPs']
     assert import_row.itemAt(import_row.count()-1).widget() is skills.delete_button
     assert import_row.itemAt(import_row.count()-2).spacerItem() is not None
     assert 'background:@delete_background' in skills.delete_button._theme_style
     assert skills.delete_button._theme_style == DESTRUCTIVE_STYLE
     assert import_row.itemAt(1).spacerItem().sizeHint().width() == 14
-    assert sum(button.text() == 'Install Community Skills' for button in skills.buttons) == 1
+    assert sum(button.text() == 'Discover Community Skills' for button in skills.buttons) == 1
     assert any(button.text() == 'Open Online Catalog' for button in window.findChildren(QtWidgets.QToolButton))
     skills.apply_result(SimpleNamespace(snapshot=snapshot, result=root/'dist'/'missing-author-fixture'))
     seen = []
@@ -161,12 +161,19 @@ try:
         skills.source.setCurrentIndex(1)
         skills.list.setCurrentItem(custom)
         skills.show()
-        for width in (1040, 320, 1040):
+        for width in (1040, 800, 320, 1040):
             skills.resize(width, 600)
             for _ in range(3):
                 app.processEvents()
             assert skills.delete_button.isVisible()
             assert skills.delete_button.width() == skills.donate_button.width()
+            assert install.toolButtonStyle() == Qt.ToolButtonTextBesideIcon
+            help_buttons = [button for button in skills.buttons if button.text() in ('How to create and import skills', 'Submit Your Skill')]
+            if width == 800:
+                assert all(button.toolButtonStyle() == Qt.ToolButtonTextBesideIcon for button in help_buttons)
+            if width == 320:
+                imports = [button for button in skills.buttons if button.text() in ('Import Folder', 'Import ZIPs')]
+                assert all(button.toolButtonStyle() == Qt.ToolButtonIconOnly for button in imports)
             assert skills.delete_button.mapTo(skills, QtCore.QPoint(skills.delete_button.width(), 0)).x() == skills.donate_button.mapTo(skills, QtCore.QPoint(skills.donate_button.width(), 0)).x()
 
     finally:

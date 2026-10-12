@@ -720,17 +720,18 @@ class SkillsWindow(Window):
         self.splitter.setSizes([140, 540])
         self.outer.addWidget(self.splitter, 1)
         controls = QtWidgets.QHBoxLayout()
-        for symbol, title, callback in [("download", "Install Community Skills", self.show_community), ("folder-open", "Import Folder", self.import_folder), ("file-archive", "Import ZIPs", self.import_zips), ("trash-2", "Delete", self.delete_selected)]:
+        self.import_controls = controls
+        for symbol, title, callback in [("download", "Discover Community Skills", self.show_community), ("folder-open", "Import Folder", self.import_folder), ("file-archive", "Import ZIPs", self.import_zips), ("trash-2", "Delete", self.delete_selected)]:
             if title == "Delete":
                 controls.addStretch()
             button = action(client.root, symbol, title, callback)
             if title == "Delete":
                 themes.set_style(button, DESTRUCTIVE_STYLE)
-            if title == "Install Community Skills":
+            if title == "Discover Community Skills":
                 themes.set_style(button, "QToolButton { background:@ready_background; border-color:@community_border; color:@status_button_text; } QToolButton:hover { background:@community_hover; border-color:@community_hover_border; } QToolButton:disabled { background:@community_disabled_background; color:@community_disabled_text; border-color:@border; }")
             self.buttons.append(button)
             controls.addWidget(button)
-            if title == "Install Community Skills":
+            if title == "Discover Community Skills":
                 controls.addSpacing(14)
         self.delete_button = button
         self.outer.addLayout(controls)
@@ -779,14 +780,41 @@ class SkillsWindow(Window):
         self.delete_button.setEnabled(custom and not self.busy)
         self.back_button.setVisible(bool(self.history))
         self.back_button.setEnabled(bool(self.history) and not self.busy)
+        if hasattr(self, 'donate_button'):
+            self.fit_button_rows()
+
+    def fit_button_rows(self):
+        if getattr(self, '_fitting_buttons', False):
+            return
+        self._fitting_buttons = True
+        try:
+            available = self.width() - self.outer.contentsMargins().left() - self.outer.contentsMargins().right()
+            for row, priorities in ((self.controls, ('Donate', 'Submit Your Skill', 'How to create and import skills')),
+                                    (self.import_controls, ('Import Folder', 'Import ZIPs', 'Delete'))):
+                visible = [row.itemAt(i).widget() for i in range(row.count()) if row.itemAt(i).widget() is not None and not row.itemAt(i).widget().isHidden()]
+                for button in visible:
+                    button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+                def required_width():
+                    widths = sum(button.sizeHint().width() for button in visible)
+                    if self.delete_button in visible:
+                        widths += self.donate_button.sizeHint().width() - self.delete_button.sizeHint().width()
+                    gaps = sum(row.itemAt(i).spacerItem().sizeHint().width() for i in range(row.count()) if row.itemAt(i).spacerItem() is not None)
+                    return widths + gaps + max(0, len(visible) - 1) * max(0, row.spacing())
+                for title in priorities:
+                    if required_width() <= available:
+                        break
+                    button = next((item for item in visible if item.text() == title), None)
+                    if button is not None:
+                        button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        finally:
+            self._fitting_buttons = False
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "loading_overlay"):
             self.position_loading_overlay()
-        if hasattr(self, "buttons"):
-            for button in self.buttons:
-                button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 900 else Qt.ToolButtonTextBesideIcon)
+        if hasattr(self, "donate_button"):
+            self.fit_button_rows()
 
     def position_loading_overlay(self):
         top = self.header.geometry().bottom() + 1
