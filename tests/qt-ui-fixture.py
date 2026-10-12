@@ -115,6 +115,28 @@ def run():
             # Populate disk storage, not the view; GUI memory must remain paged.
             with journal._db:
                 journal._db.executemany("INSERT INTO entries(stamp,category,message) VALUES (?,?,?)", (("2026-01-01T12:00:00", "system", "Synthetic history {}".format(index)) for index in range(100000)))
+            opening = Panel(client, max_parent())
+            try:
+                opening.show()
+                journal.append('info', 'Asynchronous initial wrapped message ' * 20)
+                opening.refresh()
+                for _ in range(12):
+                    application.processEvents()
+                bar = opening.log.verticalScrollBar()
+                assert bar.value() == bar.maximum(), 'First opening must settle at the latest message'
+                opening.log.cancel_latest()
+                bar.setValue(bar.maximum() // 2)
+                application.processEvents()
+                position = bar.value()
+                opening.hide()
+                opening.show()
+                opening.refresh()
+                for _ in range(8):
+                    application.processEvents()
+                assert bar.value() == position, 'Restoring an existing panel must preserve manual reading'
+            finally:
+                opening.close()
+                opening.deleteLater()
             for width in (240, 349, 350, 351):
                 panel.resize(width, 480)
                 application.processEvents()

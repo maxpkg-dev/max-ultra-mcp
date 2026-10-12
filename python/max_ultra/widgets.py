@@ -1006,8 +1006,15 @@ class Panel(Window):
         self.log.setContextMenuPolicy(Qt.CustomContextMenu)
         self.log.customContextMenuRequested.connect(self.journal_menu)
         self._unread = 0
+        self._opened_once = False
         self.update_ai()
         self.donate_button.setFocus(Qt.OtherFocusReason)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._opened_once:
+            self._opened_once = True
+            self.go_latest()
 
     def show_search(self):
         self.filters.show()
@@ -1123,7 +1130,7 @@ class Panel(Window):
 
     def refresh(self):
         scrollbar = self.log.verticalScrollBar()
-        following = scrollbar.value() >= scrollbar.maximum() - 1
+        following = self.log._jump_pending or scrollbar.value() >= scrollbar.maximum() - 1
         previous = self.model.total
         self.model.refresh()
         if following:
