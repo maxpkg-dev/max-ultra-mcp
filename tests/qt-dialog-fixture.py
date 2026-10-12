@@ -13,7 +13,7 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt, max_parent
-from max_ultra.dialogs import SkillsWindow, Onboarding, SkillHelpWindow, SettingsWindow
+from max_ultra.dialogs import SkillsWindow, Onboarding, SkillHelpWindow, SettingsWindow, SkillTableItem
 from max_ultra.wire import encode
 
 
@@ -148,7 +148,21 @@ def run():
         skills.list.setCurrentItem(skills.list.topLevelItem(0))
         application.processEvents()
         assert skills.list.topLevelItem(0).text(1) == 'Example description'
-        assert skills.list.columnCount() == 2
+        assert skills.list.columnCount() == 4
+        assert skills.list.isSortingEnabled() and skills.list.header().isSortIndicatorShown()
+        sorting = QtWidgets.QTreeWidget()
+        sorting.setColumnCount(4)
+        for values, date in [(['beta', 'First', 'Zoe', '2 Jan, 2026'], '2026-01-02'), (['Alpha', 'Second', 'Amy', '13 Oct, 2025'], '2025-10-13')]:
+            item = SkillTableItem(values)
+            item.setData(3, Qt.UserRole, date)
+            sorting.addTopLevelItem(item)
+        sorting.setSortingEnabled(True)
+        for column, first in [(0, 'Alpha'), (1, 'beta'), (2, 'Alpha'), (3, 'Alpha')]:
+            sorting.sortByColumn(column, Qt.AscendingOrder)
+            assert sorting.topLevelItem(0).text(0) == first
+            sorting.sortByColumn(column, Qt.DescendingOrder)
+            assert sorting.topLevelItem(1).text(0) == first
+        sorting.deleteLater()
         assert skills.list.headerItem().text(0) == 'Name'
         assert skills.list.headerItem().text(1) == 'Description'
         skills.set_preview_html('<html><body><div class="skill-header" id="skill-header" role="navigation"><a style="display:none">Back</a><span>Back</span><span>Custom Ready</span></div><h1>Fixture instructions</h1><p>Back is valid document text.</p><a href="skill-ref:references/test.md">Reference</a></body></html>')
@@ -187,6 +201,7 @@ def run():
             assert 'Version: 1.2.3' in content
             assert 'Website: https://example.com/skills' in content and 'Email: author@example.com' in content
             browser = dialog.findChild(QtWidgets.QTextBrowser)
+            assert browser._theme_html.count('color:@support_link') == 2
             with patch.object(QtGui.QDesktopServices, 'openUrl', return_value=True) as opener:
                 browser.anchorClicked.emit(QtCore.QUrl('https://example.com/skills'))
                 assert opener.call_count == 1
@@ -292,7 +307,7 @@ def run():
             application.processEvents()
             assert help_window.width() == 320
         skills.set_preview_html('<html><head><style>p{font-size:14px}h1{font-size:25px}</style></head><body><div class="metadata"><div class="eyebrow">SKILL</div><h1>Heading</h1><p>Introductory description</p></div>' + '<p style="font-size:30px">Responsive example text for reading.</p>' * 100 + '</body></html>')
-        for width, points in [(380, 8), (560, 9), (800, 10), (1024, 11), (1280, 16), (1800, 20), (2400, 24), (3000, 28), (3600, 32), (1040, 14)]:
+        for width, points in [(380, 8), (560, 9), (800, 10), (1250, 11), (1280, 16), (1800, 20), (2400, 24), (3000, 28), (3600, 32), (1251, 14)]:
             skills.resize(width, 800)
             application.processEvents()
             assert skills.preview._text_points == points

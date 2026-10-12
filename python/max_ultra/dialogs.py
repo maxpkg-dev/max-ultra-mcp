@@ -156,7 +156,7 @@ class ResponsiveSkillBrowser(PassiveBrowser):
         selection = self.textCursor()
         super().resizeEvent(event)
         width = self.window().width()
-        points = 8 if width < 420 else 9 if width < 600 else 10 if width < 900 else 32 if width >= 3600 else 28 if width >= 3000 else 24 if width >= 2400 else 20 if width >= 1800 else 16 if width >= 1280 else 14 if width > 1024 else 11
+        points = 8 if width < 420 else 9 if width < 600 else 10 if width < 900 else 32 if width >= 3600 else 28 if width >= 3000 else 24 if width >= 2400 else 20 if width >= 1800 else 16 if width >= 1280 else 14 if width > 1250 else 11
         padding = max(16, min(40, round(16 + (self.viewport().width() - 360) / 100)))
         if points == self._text_points and padding == self._document_padding:
             return
@@ -185,6 +185,15 @@ class InlineHelpBrowser(PassiveBrowser):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         themes.set_style(self, "QTextBrowser { border:none; padding:0; background:transparent; }")
         self.document().documentLayout().documentSizeChanged.connect(self.fit_height)
+
+    def setMarkdown(self, content):
+        super().setMarkdown(content)
+        # Qt's Markdown import embeds blue foregrounds in anchor spans.
+        # Store palette tokens so already-open help follows theme changes.
+        rendered = re.sub(r'<a\b[^>]*>.*?</a>',
+                          lambda match: re.sub(r'color\s*:\s*[^;"\']+', 'color:@support_link', match.group(), flags=re.I),
+                          self.toHtml(), flags=re.I | re.S)
+        self.setHtml(rendered)
 
     def fit_height(self, *args):
         self.setFixedHeight(int(self.document().size().height()) + 10)
@@ -660,6 +669,14 @@ class SkillsMenu(QtWidgets.QMenu):
                 painter.drawText(rectangle.adjusted(42, 0, -20, 0), Qt.AlignRight | Qt.AlignVCenter, shortcut)
 
 
+class SkillTableItem(QtWidgets.QTreeWidgetItem):
+    def __lt__(self, other):
+        column = self.treeWidget().sortColumn()
+        if column == 3:
+            return (self.data(3, Qt.UserRole) or '') < (other.data(3, Qt.UserRole) or '')
+        return self.text(column).casefold() < other.text(column).casefold()
+
+
 class SkillsWindow(Window):
     def __init__(self, client, parent):
         super().__init__(client.root, "Skills", parent)
@@ -688,8 +705,14 @@ class SkillsWindow(Window):
         self.outer.addWidget(tab_heading)
         self.splitter = QtWidgets.QSplitter(Qt.Vertical)
         self.list = QtWidgets.QTreeWidget()
-        self.list.setColumnCount(2)
-        self.list.setHeaderLabels(["Name", "Description"])
+        self.list.setColumnCount(4)
+        self.list.setHeaderLabels(["Name", "Description", "Author", "Date"])
+        self.list.setSortingEnabled(True)
+        self.list.header().setSectionsClickable(True)
+        self.list.header().setSortIndicatorShown(True)
+        self.list.sortByColumn(0, Qt.AscendingOrder)
+        self.list.setColumnWidth(2, 150)
+        self.list.setColumnWidth(3, 135)
         self.list.setRootIsDecorated(False)
         self.list.setUniformRowHeights(True)
         self.list.setMinimumHeight(72)
@@ -697,6 +720,7 @@ class SkillsWindow(Window):
         self.list.header().setStretchLastSection(False)
         self.list.header().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         self.list.currentItemChanged.connect(self.read_selected)
+        self.list.viewport().installEventFilter(self)
         self.list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list.customContextMenuRequested.connect(self.show_skill_menu)
         self.preview = ResponsiveSkillBrowser()
@@ -743,6 +767,9 @@ class SkillsWindow(Window):
             if title == "Donate":
                 self.controls.addStretch()
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)
+            if title != "Donate":
+                button.elidable_caption = True
+                button.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
             self.buttons.append(button)
             self.controls.addWidget(button)
         self.donate_button = button
@@ -756,6 +783,10 @@ class SkillsWindow(Window):
         self.client.show_dialog("community", CommunityWindow).refresh()
 
     def eventFilter(self, watched, event):
+        if watched is self.list.viewport() and event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.RightButton:
+            # Leave selection and preview untouched; the context-menu event
+            # resolves its target directly from the pointer position.
+            return True
         if watched is getattr(self, "donate_button", None) and event.type() == QtCore.QEvent.Resize:
             self.delete_button.setFixedWidth(watched.width())
         return super().eventFilter(watched, event)
@@ -789,10 +820,12 @@ class SkillsWindow(Window):
         self._fitting_buttons = True
         try:
             available = self.width() - self.outer.contentsMargins().left() - self.outer.contentsMargins().right()
-            for row, priorities in ((self.controls, ('Donate', 'Submit Your Skill', 'How to create and import skills')),
+            for row, priorities in ((self.controls, ('Donate',)),
                                     (self.import_controls, ('Import Folder', 'Import ZIPs', 'Delete'))):
                 visible = [row.itemAt(i).widget() for i in range(row.count()) if row.itemAt(i).widget() is not None and not row.itemAt(i).widget().isHidden()]
                 for button in visible:
+                    if row is self.controls and button is not self.donate_button:
+                        button.setMaximumWidth(16777215)
                     button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
                 def required_width():
                     widths = sum(button.sizeHint().width() for button in visible)
@@ -806,6 +839,28 @@ class SkillsWindow(Window):
                     button = next((item for item in visible if item.text() == title), None)
                     if button is not None:
                         button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+                        if row is self.import_controls and title == 'Import Folder':
+                            for sibling in visible:
+                                if sibling.text() == 'Import ZIPs':
+                                    sibling.setToolButtonStyle(Qt.ToolButtonIconOnly)
+                if row is self.controls:
+                    help_buttons = [button for button in visible if button is not self.donate_button]
+                    widths = [button.sizeHint().width() for button in help_buttons]
+                    excess = max(0, required_width() - available)
+                    minimums = [button.iconSize().width() + button.fontMetrics().horizontalAdvance('...') + 24 for button in help_buttons]
+                    while excess > 0 and any(width > minimum for width, minimum in zip(widths, minimums)):
+                        index = max(range(len(widths)), key=lambda i: widths[i] - minimums[i])
+                        widths[index] -= 1
+                        excess -= 1
+                    for button, width in zip(help_buttons, widths):
+                        button.setMinimumWidth(minimums[help_buttons.index(button)])
+                        button.setMaximumWidth(width)
+                elif self.delete_button in visible:
+                    # Its width follows Donate, so choose the caption using that
+                    # actual constraint before Qt paints the first resized frame.
+                    self.delete_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+                    if self.delete_button.sizeHint().width() > self.donate_button.sizeHint().width():
+                        self.delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         finally:
             self._fitting_buttons = False
 
@@ -931,24 +986,25 @@ class SkillsWindow(Window):
         dialog = Window(self.client.root, "About skill", self)
         dialog.resize(520, 420)
         details = entry.data(0, Qt.UserRole + 1) or {}
-        information = QtWidgets.QTextBrowser()
+        information = PassiveBrowser()
         information.setOpenExternalLinks(False)
         information.setOpenLinks(False)
         information.anchorClicked.connect(lambda url: QtGui.QDesktopServices.openUrl(url) if url.scheme() in ('https', 'mailto') else None)
-        information.setHtml("<h2>{}</h2><p>{}</p><p><b>Author:</b> {}<br><b>Version:</b> {}<br><b>Source:</b> {}<br><b>Type:</b> {}<br><b>Status:</b> {}</p>".format(
+        content = "<h2>{}</h2><p>{}</p><p><b>Author:</b> {}<br><b>Version:</b> {}<br><b>Source:</b> {}<br><b>Type:</b> {}<br><b>Status:</b> {}</p>".format(
             html.escape(entry.text(0)), html.escape(entry.text(1)),
             html.escape(details.get("author") or "Not specified"),
             html.escape(details.get("version") or "Not specified"),
             html.escape(details.get("displaySource") or entry.data(0, Qt.UserRole)[1]),
-            html.escape(entry.data(0, Qt.UserRole)[1]), html.escape(details.get("state") or "Not specified")))
+            html.escape(entry.data(0, Qt.UserRole)[1]), html.escape(details.get("state") or "Not specified"))
         from urllib.parse import quote
         contacts = []
         if details.get('website'):
-            contacts.append('<b>Website:</b> <a href="{0}">{0}</a>'.format(html.escape(details['website'], quote=True)))
+            contacts.append('<b>Website:</b> <a href="{0}" style="color:@support_link">{0}</a>'.format(html.escape(details['website'], quote=True)))
         if details.get('email'):
-            contacts.append('<b>Email:</b> <a href="mailto:{}">{}</a>'.format(quote(details['email'], safe=''), html.escape(details['email'])))
+            contacts.append('<b>Email:</b> <a href="mailto:{}" style="color:@support_link">{}</a>'.format(quote(details['email'], safe=''), html.escape(details['email'])))
         if contacts:
-            information.append('<p>' + '<br>'.join(contacts) + '</p>')
+            content += '<p>' + '<br>'.join(contacts) + '</p>'
+        information.setHtml(content)
         information.moveCursor(QtGui.QTextCursor.Start)
         dialog.setMinimumSize(320, 240)
         dialog.outer.addWidget(information, 1)
@@ -994,18 +1050,24 @@ class SkillsWindow(Window):
         self.status.setText(decode(parser.get("result", "message", fallback="")))
         if parser.get("result", "haslist", fallback="false") == "true":
             self.list.blockSignals(True)
+            self.list.setSortingEnabled(False)
             self.list.clear()
             for index in range(parser.getint("result", "count", fallback=0)):
                 section = "skill" + str(index)
-                values = [decode(parser.get(section, field, fallback="")) for field in ("name", "description")]
+                from .community_dialog import display_date
+                values = [decode(parser.get(section, field, fallback="")) for field in ("name", "description", "author", "publishedAt")]
+                values[3] = display_date(values[3]) or 'Not specified'
                 values[0] = decode(parser.get(section, "title", fallback="")) or values[0]
                 values[1] = decode(parser.get(section, "displayDescription", fallback="")) or values[1]
-                entry = QtWidgets.QTreeWidgetItem(values)
+                entry = SkillTableItem(values)
+                raw_date = decode(parser.get(section, 'publishedAt', fallback=''))
+                entry.setData(3, Qt.UserRole, raw_date[:10] if display_date(raw_date) else '')
                 for column, value in enumerate(values):
                     entry.setToolTip(column, value)
                 entry.setData(0, Qt.UserRole, (decode(parser.get(section, "id")), decode(parser.get(section, "source"))))
                 entry.setData(0, Qt.UserRole + 1, {field: decode(parser.get(section, field, fallback="")) for field in ("author", "state", "version", "displaySource", "website", "email")})
                 self.list.addTopLevelItem(entry)
+            self.list.setSortingEnabled(True)
             self.list.blockSignals(False)
             self.filter_rows()
         preview = Path(str(helper.result) + ".html")

@@ -4,5 +4,6 @@
   "description": "Build a reference-based armchair with editable subdivision geometry and verified proportions.",
   "version": "1.5.0",
   "source": "Max Ultra MCP",
-  "author": "Lukianenko Vasyl"
+  "author": "Lukianenko Vasyl",
+  "website": "https://3dground.net"
 }

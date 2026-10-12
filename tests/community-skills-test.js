@@ -34,9 +34,9 @@ async function main() {
  let archive=makeZip();
  let entry={id:'example-skill',name:'example-skill',title:manifest.title,description:'Example workflow.',author:manifest.author,version:manifest.version,downloadUrl:'https://github.com/maxpkg-dev/max-ultra-mcp-community-skills/releases/download/example-skill-v1.0.0/example-skill.zip',sha256:createHash('sha256').update(archive).digest('hex'),sizeBytes:archive.length};
  let requests=[];
- const fetch=async(url,limit)=>{requests.push(url);return url===FEED?Buffer.from(JSON.stringify({schemaVersion:1,skills:[entry]})):archive;};
+ const fetch=async(url,limit)=>{requests.push(url);return url===FEED?Buffer.from(JSON.stringify({schemaVersion:1,skills:[entry]})):url.startsWith('https://api.github.com/')?Buffer.from(JSON.stringify([{tag_name:entry.id+'-v'+entry.version,published_at:'2026-06-13T12:00:00Z',draft:false,prerelease:false}])):archive;};
  assert.equal((await run('community-list',[],store,fetch)).community[0].installState,'available');
- assert.deepEqual(requests,[FEED], 'listing never downloads or installs a package');
+ assert.ok(requests.every(url => url === FEED || url.startsWith('https://api.github.com/repos/maxpkg-dev/max-ultra-mcp-community-skills/releases?')), 'listing never downloads or installs a package');
  const args=()=>[entry.id,entry.version,entry.sha256];
  await assert.rejects(run('community-install',[entry.id,'0.9.0',entry.sha256],store,fetch),/catalog changed/);
  const original=archive;archive=Buffer.from('corrupt');
@@ -48,6 +48,8 @@ async function main() {
  assert.equal(phases[1].total,entry.sizeBytes);
  assert.equal(result.community[0].installState,'installed');
  const installed=result.skills[0];
+ assert.equal(installed.publishedAt,'2026-06-13');
+ assert.equal(result.community[0].publishedAt,'2026-06-13');
  const before=fs.readFileSync(path.join(store.packagePath(installed.id.slice(5)),'SKILL.md'));
  await assert.rejects(run('community-install',args(),store,fetch),/already installed/);
  assert.deepEqual(fs.readFileSync(path.join(store.packagePath(installed.id.slice(5)),'SKILL.md')),before);

@@ -20,8 +20,8 @@ The initial size is 640 x 480, with a minimum of 240 x 180. Width thresholds use
 | --- | --- | --- | --- | --- | --- | --- |
 | Below 300 | 9 pt | 9 pt | 8 pt | 14 px | 24 px, fixed | 7 px |
 | 300-519 | 11 pt | 12 pt | 11 pt | 20 px | 32 px | 9 px |
-| 520-1024 | 11 pt | 12 pt | 11 pt | 20 px | 32 px | 13 px |
-| Above 1024, below 1800 | 14 pt | 16 pt | 14 pt | 26 px | 44 px | 17 px |
+| 520-1250 | 11 pt | 12 pt | 11 pt | 20 px | 32 px | 13 px |
+| Above 1250, below 1800 | 14 pt | 16 pt | 14 pt | 26 px | 44 px | 17 px |
 | 1800 and above | 18 pt | 20 pt | 18 pt | 34 px | 56 px | 21 px |
 
 Horizontal scrollbar thickness follows the same values. Close buttons remain smaller than action buttons: 14, 18, 24 or 30 px depending on the mode.
@@ -46,7 +46,7 @@ Tooltips and accessible names retain the meaning of icon-only actions. Promotion
 `Panel.update_journal_density()` controls the Consolas journal font separately:
 
 1. Width at least 1800: 18 pt, with 8 px of extra row height.
-2. Width above 1024: 14 pt, with 6 px extra.
+2. Width above 1250: 14 pt, with 6 px extra.
 3. Width below 300: 8 pt, with 1 px extra.
 4. Width below 420 or height below 300: 9 pt, with 2 px extra.
 5. Width below 520 or height below 380: 10 pt, with 3 px extra.

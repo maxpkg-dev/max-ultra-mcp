@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt
 from max_ultra import themes
-from max_ultra.community_dialog import CommunityWindow, MetadataBadge
+from max_ultra.community_dialog import CommunityWindow, MetadataBadge, display_date
 from max_ultra.dialogs import ResponsiveSkillBrowser, SkillsWindow
 from max_ultra.widgets import Window, DESTRUCTIVE_STYLE
 from unittest.mock import patch
@@ -27,9 +27,23 @@ entry = dict(id='example-skill', name='example-skill', title='Example Skill', au
 parser = configparser.ConfigParser()
 parser.read_dict({'result': {'ok': 'true', 'message': encode('Choose a skill'), 'community': encode(json.dumps([entry]))}})
 try:
+    assert display_date('2026-06-13') == '13 Jun, 2026'
+    assert display_date('2026-02-30') == ''
     window.show()
     window.apply_result(SimpleNamespace(snapshot=parser))
     assert not calls, 'Viewing a catalog must never install'
+    links = [label for label in window.findChildren(QtWidgets.QLabel) if 'View details</a>' in label.text()]
+    assert len(links) == 1 and '/docs/skills/example-skill.html' in links[0].text()
+    assert links[0].openExternalLinks()
+    confirmation = QtWidgets.QMessageBox(window)
+    confirmation.setText('Delete this synthetic skill?')
+    confirmation.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+    confirmation.show()
+    app.processEvents()
+    yes, no = confirmation.button(QtWidgets.QMessageBox.Yes), confirmation.button(QtWidgets.QMessageBox.No)
+    assert yes.width() >= 90 and yes.height() >= 36
+    assert abs(yes.x() - no.x()) >= min(yes.width(), no.width()) + 6
+    confirmation.close()
     assert 'background:@ready_background' in window.install_buttons[0][0]._theme_style
     window.set_busy(False)
     assert window.search.cursor().shape() == Qt.IBeamCursor
@@ -66,8 +80,8 @@ try:
         assert card.mapTo(window, QtCore.QPoint(0, 0)).x() == window.search.x()
         assert card.width() == window.scroll.viewport().width()
         badges = window.card_widgets[0][0].findChildren(MetadataBadge)
-        assert len(badges) == 2
-        assert [badge.toolTip() for badge in badges] == ['Example Author', '1.0.0']
+        assert len(badges) == 3
+        assert [badge.toolTip() for badge in badges] == ['Example Author', '1.0.0', 'Not specified']
         assert all(not badge.wordWrap() and badge.fontMetrics().height() <= badge.height() <= badge.fontMetrics().height() + 4 for badge in badges)
         assert badges[0].accessibleName() == 'Author: Example Author'
         assert badges[1].accessibleName() == 'Version: 1.0.0'
@@ -161,14 +175,34 @@ try:
         skills.source.setCurrentIndex(1)
         skills.list.setCurrentItem(custom)
         skills.show()
-        for width in (1040, 800, 320, 1040):
+        other = QtWidgets.QTreeWidgetItem(['Other', 'Context target'])
+        other.setData(0, Qt.UserRole, ('user/other', 'Custom'))
+        skills.list.addTopLevelItem(other)
+        app.processEvents()
+        before_context = list(calls)
+        position = skills.list.visualItemRect(other).center()
+        press = QtGui.QMouseEvent(QtCore.QEvent.MouseButtonPress, QtCore.QPointF(position), Qt.RightButton, Qt.RightButton, Qt.NoModifier)
+        QtWidgets.QApplication.sendEvent(skills.list.viewport(), press)
+        assert skills.list.currentItem() is custom and calls == before_context
+        with patch('max_ultra.dialogs.SkillsMenu.exec_', return_value=0) as popup:
+            skills.show_skill_menu(position)
+            assert popup.call_count == 1 and calls == before_context
+        for width in (1040, 800, 620, 500, 400, 320, 1040):
             skills.resize(width, 600)
             for _ in range(3):
                 app.processEvents()
             assert skills.delete_button.isVisible()
             assert skills.delete_button.width() == skills.donate_button.width()
             assert install.toolButtonStyle() == Qt.ToolButtonTextBesideIcon
+            imports = [button for button in skills.buttons if button.text() in ('Import Folder', 'Import ZIPs')]
+            assert imports[0].toolButtonStyle() == imports[1].toolButtonStyle()
             help_buttons = [button for button in skills.buttons if button.text() in ('How to create and import skills', 'Submit Your Skill')]
+            assert all(button.toolButtonStyle() == Qt.ToolButtonTextBesideIcon for button in help_buttons)
+            assert all(button.width() > button.iconSize().width() + 20 for button in help_buttons)
+            assert help_buttons[0].geometry().right() + 4 < help_buttons[1].geometry().left(), [button.geometry() for button in help_buttons]
+            assert help_buttons[1].geometry().right() + 4 < skills.donate_button.geometry().left()
+            if skills.donate_button.toolButtonStyle() == Qt.ToolButtonIconOnly:
+                assert skills.delete_button.toolButtonStyle() == Qt.ToolButtonIconOnly
             if width == 800:
                 assert all(button.toolButtonStyle() == Qt.ToolButtonTextBesideIcon for button in help_buttons)
             if width == 320:
@@ -209,7 +243,7 @@ try:
     for _ in range(3):
         app.processEvents()
     badges = window.card_widgets[0][0].findChildren(MetadataBadge)
-    assert len(badges) == 2 and all(not badge.wordWrap() for badge in badges)
+    assert len(badges) == 3 and all(not badge.wordWrap() for badge in badges)
     assert badges[0].toolTip() == entry['author']
     assert badges[0].text() == entry['author'], 'Author must remain complete'
     assert badges[0].width() >= badges[0].fontMetrics().horizontalAdvance(entry['author']) + 14

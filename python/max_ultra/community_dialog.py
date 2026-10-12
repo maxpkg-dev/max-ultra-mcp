@@ -4,12 +4,22 @@
 # Developed by Lukianenko Vasyl
 
 import json
+from datetime import datetime
 from .qt import QtWidgets, QtCore, QtGui, Qt
 from .widgets import Window, action, DESTRUCTIVE_STYLE, PillProgressBar
 from .wire import decode
 from . import themes
 
 CATALOG_URL = "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"
+
+
+def display_date(value):
+    try:
+        parsed = datetime.strptime(value[:10], '%Y-%m-%d')
+        month = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')[parsed.month - 1]
+        return '{} {}, {}'.format(parsed.day, month, parsed.year)
+    except (ValueError, TypeError):
+        return ''
 
 
 class MetadataBadge(QtWidgets.QLabel):
@@ -54,8 +64,10 @@ class MetadataBadge(QtWidgets.QLabel):
 
 
 class MetadataRow(QtWidgets.QWidget):
-    def __init__(self, author, version):
+    def __init__(self, author, version, date=''):
         super().__init__()
+        self.setObjectName('skillMetadataRow')
+        themes.set_style(self, 'QWidget#skillMetadataRow { background:transparent; border:none; }')
         self.row = QtWidgets.QBoxLayout(QtWidgets.QBoxLayout.LeftToRight, self)
         self.row.setContentsMargins(0, 0, 0, 0)
         self.row.setSpacing(6)
@@ -63,15 +75,25 @@ class MetadataRow(QtWidgets.QWidget):
         self.author = MetadataBadge(author, 'Author')
         self.version = MetadataBadge(version, 'Version')
         self.row.addWidget(self.author, 0, Qt.AlignLeft)
-        self.row.addWidget(self.version, 0, Qt.AlignLeft)
+        version_row = QtWidgets.QWidget()
+        version_row.setObjectName('skillVersionRow')
+        themes.set_style(version_row, 'QWidget#skillVersionRow { background:transparent; border:none; }')
+        version_layout = QtWidgets.QHBoxLayout(version_row)
+        version_layout.setContentsMargins(0, 0, 0, 0)
+        version_layout.setSpacing(8)
+        version_layout.addWidget(self.version)
+        self.date = MetadataBadge(display_date(date) or 'Not specified', 'Publication date')
+        version_layout.addWidget(self.date)
+        self.version_row = version_row
+        self.row.addWidget(version_row, 0, Qt.AlignLeft)
         self.row.addStretch()
 
     def minimumSizeHint(self):
-        return QtCore.QSize(max(self.author.width(), self.version.width()), self.author.height())
+        return QtCore.QSize(max(self.author.width(), self.version_row.sizeHint().width()), self.author.height())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        vertical = self.width() < self.author.width() + self.version.width() + 6
+        vertical = self.width() < self.author.width() + self.version_row.sizeHint().width() + 6
         self.row.setDirection(QtWidgets.QBoxLayout.TopToBottom if vertical else QtWidgets.QBoxLayout.LeftToRight)
 
 
@@ -189,7 +211,7 @@ class CommunityWindow(Window):
                     label.setFont(font)
                 layout.addWidget(label)
                 if title:
-                    layout.addWidget(MetadataRow(entry['author'], entry['version']))
+                    layout.addWidget(MetadataRow(entry['author'], entry['version'], entry.get('publishedAt', '')))
             state = entry.get("installState", "available")
             if state == "available":
                 button = action(self.client.root, "download", "Install", lambda checked=False, selected=entry: self.install(selected))
@@ -204,6 +226,13 @@ class CommunityWindow(Window):
             self.install_buttons.append((button, state != "installed"))
             actions = QtWidgets.QHBoxLayout()
             actions.addWidget(button)
+            actions.addSpacing(max(6, actions.spacing()))
+            details = QtWidgets.QLabel()
+            themes.set_label(details, '<a href="{}docs/skills/{}.html" style="color:@support_link">View details</a>'.format(CATALOG_URL, entry['id']))
+            details.setOpenExternalLinks(True)
+            details.setCursor(Qt.PointingHandCursor)
+            details.setAccessibleName('View details for ' + entry['title'])
+            actions.addWidget(details)
             actions.addStretch()
             if entry.get("installedId", "").startswith("user/"):
                 delete_button = action(self.client.root, "trash-2", "Delete Installed Skill", lambda checked=False, selected=entry: self.delete_installed(selected))

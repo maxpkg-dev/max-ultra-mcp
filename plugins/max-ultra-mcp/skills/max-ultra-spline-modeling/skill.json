@@ -4,5 +4,6 @@
   "description": "Create and refine editable spline shapes, profiles and paths in 3ds Max.",
   "version": "1.5.0",
   "source": "Max Ultra MCP",
-  "author": "Lukianenko Vasyl"
+  "author": "Lukianenko Vasyl",
+  "website": "https://3dground.net"
 }

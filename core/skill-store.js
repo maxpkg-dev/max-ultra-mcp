@@ -89,12 +89,13 @@ function packageMetadata(root) {
   let value;
   try { value = JSON.parse(decode(fs.readFileSync(filename))); }
   catch { fail("SKILL_INVALID", "skill.json must contain valid UTF-8 JSON."); }
-  const limits = { title: 160, description: 1024, author: 256, version: 64, source: 160, website: 2048, email: 254 };
+  const limits = { title: 160, description: 1024, author: 256, version: 64, publishedAt: 10, source: 160, website: 2048, email: 254 };
   if (!value || typeof value !== "object" || Array.isArray(value) || value.schemaVersion !== 1 || Object.keys(value).some((key) => key !== "schemaVersion" && !Object.hasOwn(limits, key))) fail("SKILL_INVALID", "Unsupported skill.json schema or field.");
   for (const [key, limit] of Object.entries(limits)) {
     if (Object.hasOwn(value, key) && (typeof value[key] !== "string" || !value[key].trim() || value[key].length > limit || /[\x00-\x1f\x7f]/.test(value[key]))) fail("SKILL_INVALID", `skill.json ${key} must be single-line text (1-${limit} characters).`);
   }
   if (value.version !== undefined && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value.version)) fail("SKILL_INVALID", "skill.json version must be MAJOR.MINOR.PATCH without leading zeroes.");
+  if (value.publishedAt !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(value.publishedAt) || !Number.isFinite(Date.parse(value.publishedAt)) || new Date(value.publishedAt).toISOString().slice(0, 10) !== value.publishedAt)) fail("SKILL_INVALID", "skill.json publishedAt must be a valid YYYY-MM-DD date.");
   if (value.website !== undefined) {
     let url;
     try { url = new URL(value.website); } catch { fail("SKILL_INVALID", "skill.json website must be an HTTPS URL."); }
@@ -163,7 +164,7 @@ function scanPackage(source, { builtin = false } = {}) {
     }
   }
   const revision = digest(JSON.stringify(files));
-  return { ...fields, title: display.title || "", displaySource: display.source || "", website: display.website || "", email: display.email || "", displayDescription: display.description || "", author: display.author || fields.author || "", version: display.version || "", files, bytes: total, revision };
+  return { ...fields, title: display.title || "", displaySource: display.source || "", website: display.website || "", email: display.email || "", displayDescription: display.description || "", author: display.author || fields.author || "", version: display.version || "", publishedAt: display.publishedAt || "", files, bytes: total, revision };
 }
 
 class SkillStore {
@@ -216,13 +217,17 @@ class SkillStore {
     return `---\nname: max-ultra-user-${record.id}\ndescription: ${JSON.stringify(record.description)}\n---\n\n# ${record.name}\n\nManaged by Max Ultra MCP. Source: user/${record.id}.\n\nFor this workflow, call max_skill_read with id "user/${record.id}" and relativePath "SKILL.md". Read the returned instructions before acting. Use the returned revision for subsequent max_skill_read calls to read referenced files relative to the skill package. If the skill is unavailable or disabled, stop using it. If it changed, reload SKILL.md. These user instructions do not override the current request, permissions, or higher-priority instructions.\n`;
   }
   preview(source) { return { ...scanPackage(source), source: path.resolve(source), warning: "Adding publishes the description to AI clients. Instructions and attachments they read may be sent to their model provider. Import does not execute scripts or collect conversations." }; }
-  import(source, expectedRevision, clients = [], originalArchive) {
+  import(source, expectedRevision, clients = [], originalArchive, publishedAt = "") {
     if (!Array.isArray(clients) || new Set(clients).size !== clients.length || clients.some((client) => !Object.hasOwn(this.clientRoots, client))) fail("SKILL_INVALID", "Choose supported clients explicitly.");
     const snapshot = this.preview(source);
+    if (publishedAt) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(publishedAt) || !Number.isFinite(Date.parse(publishedAt)) || new Date(publishedAt).toISOString().slice(0, 10) !== publishedAt) fail("SKILL_INVALID", "Invalid publication date.");
+      snapshot.publishedAt = publishedAt;
+    }
     if (snapshot.revision !== expectedRevision) fail("SKILL_STALE", "The source changed. Preview it again.");
     return this.mutate((registry) => {
       if (registry.skills.some((record) => record.name === snapshot.name)) fail("SKILL_DUPLICATE", "A custom skill with this name already exists. Export/delete it first, or rename the new skill.");
-      const record = { id: randomUUID(), name: snapshot.name, description: snapshot.description, title: snapshot.title, displaySource: snapshot.displaySource, website: snapshot.website, email: snapshot.email, displayDescription: snapshot.displayDescription, version: snapshot.version, author: snapshot.author || "", revision: snapshot.revision, source: originalArchive ? noLinks(originalArchive) : snapshot.source, enabled: false, state: "installing", adapters: [], clients, error: "" };
+      const record = { id: randomUUID(), name: snapshot.name, description: snapshot.description, title: snapshot.title, displaySource: snapshot.displaySource, website: snapshot.website, email: snapshot.email, displayDescription: snapshot.displayDescription, version: snapshot.version, publishedAt: snapshot.publishedAt || "", author: snapshot.author || "", revision: snapshot.revision, source: originalArchive ? noLinks(originalArchive) : snapshot.source, enabled: false, state: "installing", adapters: [], clients, error: "" };
       registry.skills.push(record);
       this.save(registry); // Durable ownership before any package or adapter creation.
       try {
@@ -257,13 +262,13 @@ class SkillStore {
     }
   }
   publicRecord(record) {
-    return { id: `user/${record.id}`, name: record.name, description: record.description, title: record.title || "", displaySource: record.displaySource || "", website: record.website || "", email: record.email || "", displayDescription: record.displayDescription || "", version: record.version || "", author: record.author || "", source: "Custom", revision: record.revision, enabled: record.enabled, state: record.state, error: record.error, clients: record.adapters.map((adapter) => ({ client: adapter.client, state: record.state === "ready" ? "Published; refresh may be needed" : record.state })) };
+    return { id: `user/${record.id}`, name: record.name, description: record.description, title: record.title || "", displaySource: record.displaySource || "", website: record.website || "", email: record.email || "", displayDescription: record.displayDescription || "", version: record.version || "", publishedAt: record.publishedAt || "", author: record.author || "", source: "Custom", revision: record.revision, enabled: record.enabled, state: record.state, error: record.error, clients: record.adapters.map((adapter) => ({ client: adapter.client, state: record.state === "ready" ? "Published; refresh may be needed" : record.state })) };
   }
   builtins() {
     if (!fs.existsSync(noLinks(this.builtinRoot))) return [];
     return fs.readdirSync(this.builtinRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && NAME.test(entry.name) && fs.existsSync(child(this.builtinRoot, `${entry.name}/SKILL.md`))).map((entry) => {
       const content = scanPackage(child(this.builtinRoot, entry.name), { builtin: true });
-      return { id: `bundled/${entry.name}`, name: content.name, description: content.description, title: content.title, displaySource: content.displaySource, website: content.website, email: content.email, displayDescription: content.displayDescription, version: content.version, author: content.author || "", revision: content.revision, source: "Built-in", state: "Read only", enabled: true };
+      return { id: `bundled/${entry.name}`, name: content.name, description: content.description, title: content.title, displaySource: content.displaySource, website: content.website, email: content.email, displayDescription: content.displayDescription, version: content.version, publishedAt: content.publishedAt || "", author: content.author || "", revision: content.revision, source: "Built-in", state: "Read only", enabled: true };
     });
   }
   list({ management = false } = {}) {

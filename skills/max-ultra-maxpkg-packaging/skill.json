@@ -4,5 +4,6 @@
   "description": "Prepare a 3ds Max script for official MaxPkg installation and MZP packaging.",
   "version": "1.5.0",
   "source": "Max Ultra MCP",
-  "author": "Lukianenko Vasyl"
+  "author": "Lukianenko Vasyl",
+  "website": "https://3dground.net"
 }

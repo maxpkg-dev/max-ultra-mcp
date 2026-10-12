@@ -13,6 +13,7 @@ const { TextDecoder } = require("node:util");
 const { withZipSkill } = require("./skill-zip");
 const SITE = "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/";
 const FEED = SITE + "catalog.json";
+const RELEASE_DATES = "https://api.github.com/repos/maxpkg-dev/max-ultra-mcp-community-skills/releases?per_page=100";
 const RELEASE = "https://github.com/maxpkg-dev/max-ultra-mcp-community-skills/releases/download/";
 const MAX_ZIP = 50 * 1024 * 1024;
 function fail(message) { throw new Error(message); }
@@ -37,7 +38,7 @@ function download(address, limit, request = https.get, progress = () => {}, expe
   const deadline = Date.now() + 90000;
   function fetch(url, redirects) {
     const parsed = new URL(url);
-    const permitted = url === FEED || url.startsWith(RELEASE) || parsed.hostname === "release-assets.githubusercontent.com" || parsed.hostname === "objects.githubusercontent.com";
+    const permitted = url === FEED || url === RELEASE_DATES || url.startsWith(RELEASE) || parsed.hostname === "release-assets.githubusercontent.com" || parsed.hostname === "objects.githubusercontent.com";
     if (!permitted || parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port) return Promise.reject(new Error("Unsafe catalog redirect."));
     return new Promise((resolve, reject) => {
       const remaining = deadline - Date.now();
@@ -87,6 +88,15 @@ function ownedImport(entry, installed) {
 async function run(command, values, store, fetch = download, progress = () => {}) {
   progress({ phase: "catalog", bytes: 0, total: null });
   const entries = await catalog(fetch);
+  // Optional display metadata must never prevent browsing or installing.
+  try {
+    const releases = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await fetch(RELEASE_DATES, 2 * 1024 * 1024)));
+    if (Array.isArray(releases)) for (const entry of entries) {
+      const tag = entry.downloadUrl.slice(RELEASE.length).split('/')[0];
+      const release = releases.find(item => item.tag_name === tag && !item.draft && !item.prerelease);
+      if (/^\d{4}-\d{2}-\d{2}T/.test(release?.published_at || '') && Number.isFinite(Date.parse(release.published_at))) entry.publishedAt = release.published_at.slice(0, 10);
+    }
+  } catch { /* GitHub rate limits or offline date metadata leave dates unknown. */ }
   let message = entries.length ? "Choose a skill to install. Imported instructions are available in new AI conversations." : "No community skills are published yet.";
   if (command === "community-delete") {
     const entry = entries.find(item => item.id === values[1]);
@@ -111,7 +121,7 @@ async function run(command, values, store, fetch = download, progress = () => {}
         const preview = store.preview(folder);
         if (preview.name !== entry.name || preview.version !== entry.version || preview.author !== entry.author || preview.title !== entry.title) fail("Package metadata does not match the catalog. Nothing was installed.");
         progress({ phase: "install", bytes: bytes.length, total: entry.sizeBytes });
-        return store.import(folder, preview.revision, Object.keys(store.clientRoots), archive);
+        return store.import(folder, preview.revision, Object.keys(store.clientRoots), archive, entry.publishedAt || "");
       });
       if (imported.state !== "ready") fail("Package saved, but client registration failed. Inspect the Custom list before retrying.");
       message = "Skill installed. Start a new conversation in your AI client.";

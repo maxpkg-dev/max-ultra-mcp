@@ -43,6 +43,7 @@ QWidget#qt_scrollarea_vcontainer, QWidget#qt_scrollarea_hcontainer { background:
 QAbstractScrollArea::corner { background:transparent; border:none; }
 QProgressBar { background:@recessed_background; border:1px solid @border; border-radius:6px; min-height:10px; max-height:10px; padding:0; text-align:center; }
 QProgressBar::chunk { background:@accent; border-radius:5px; }
+QMessageBox QPushButton { min-width:76px; min-height:24px; padding:6px 12px; margin-left:5px; margin-right:5px; }
 QTabWidget::pane { border: 1px solid @active_border; border-radius: 5px; top: -1px; background: @tab_pane_background; }
 QTabBar::tab { padding: 8px 12px; margin-right: 4px; margin-top: 3px; border: 1px solid @tab_border; border-bottom: 1px solid @active_border; border-top-left-radius: 4px; border-top-right-radius: 4px; background: @tab_background; color: @muted_text; }
 QTabBar::tab:selected { color: @heading_text; background: @active_tab_background; border: 1px solid @active_border; border-bottom-color: @active_tab_background; margin-top: 0; padding-top: 11px; }
@@ -277,6 +278,12 @@ def icon(root, name):
 
 
 class ActionButton(QtWidgets.QToolButton):
+    def minimumSizeHint(self):
+        size = super().minimumSizeHint()
+        if getattr(self, 'elidable_caption', False):
+            size.setWidth(self.iconSize().width() + self.fontMetrics().horizontalAdvance('...') + 24)
+        return size
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setCursor(Qt.PointingHandCursor if self.isEnabled() else Qt.ArrowCursor)
@@ -354,6 +361,7 @@ class ActionButton(QtWidgets.QToolButton):
         gap = 5 if caption else 0
         available = max(0, self.width() - 12 - edge - gap)
         caption = self.fontMetrics().elidedText(caption, Qt.ElideRight, available)
+        gap = 5 if caption else 0
         total = edge + gap + self.fontMetrics().horizontalAdvance(caption)
         x = max(0 if not caption else 2, (self.width() - total) // 2)
         rectangle = QtCore.QRect(x, (self.height() - edge) // 2, edge, edge)
@@ -1054,7 +1062,7 @@ class Panel(Window):
 
     def update_compact_layout(self):
         tiny = self.width() < 350
-        large = self.width() > 1024
+        large = self.width() > 1250
         extra_large = self.width() >= 1800
         scroll_density = 'tiny' if tiny else 'compact' if self.width() < 520 else 'normal'
         for scrollbar in (self.log.verticalScrollBar(), self.log.horizontalScrollBar()):
@@ -1108,7 +1116,7 @@ class Panel(Window):
 
     def update_journal_density(self):
         # Window dimensions are logical pixels; point sizes retain DPI scaling.
-        point_size = 18 if self.width() >= 1800 else 14 if self.width() > 1024 else 8 if self.width() < 350 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
+        point_size = 18 if self.width() >= 1800 else 14 if self.width() > 1250 else 8 if self.width() < 350 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
         delegate = self.log.itemDelegate()
         padding = {8: 1, 9: 2, 10: 3, 11: 4, 14: 6, 18: 8}[point_size]
         row_height = QtGui.QFontMetrics(QtGui.QFont("Consolas", point_size)).height() + padding
