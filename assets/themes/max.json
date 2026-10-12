@@ -88,7 +88,11 @@
         "$windowText",
         0.06
       ]
-    }
+    },
+    "delete_background": "#9f3636",
+    "delete_hover": "#b64545",
+    "delete_pressed": "#842d2d",
+    "delete_text": "#fff4f4"
   },
   "colorMan": {
     "background": "#444444",

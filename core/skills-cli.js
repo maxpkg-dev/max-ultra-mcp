@@ -118,7 +118,7 @@ function ini(result) {
   if (result.community) lines.push(`community=${encode(JSON.stringify(result.community))}`);
   for (const [index, skill] of (result.skills || []).entries()) {
     lines.push(`[skill${index}]`, `id=${encode(skill.id)}`, `name=${encode(skill.name)}`, `description=${encode(skill.description)}`, `author=${encode(skill.author)}`, `source=${encode(skill.source)}`, `state=${encode(skill.state)}`, `clients=${encode((skill.clients || []).map((client) => `${client.client}: ${client.state}`).join("; "))}`, `error=${encode(skill.error)}`);
-    for (const field of ["title", "displayDescription", "version", "displaySource", "website", "email"]) lines.push(`${field}=${encode(skill[field])}`);
+    for (const field of ["title", "displayDescription", "version", "displaySource", "website", "email", "revision"]) lines.push(`${field}=${encode(skill[field])}`);
   }
   return lines.join("\n") + "\n";
 }

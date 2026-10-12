@@ -5,7 +5,7 @@
 
 import json
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, action
+from .widgets import Window, action, DESTRUCTIVE_STYLE
 from .wire import decode
 from . import themes
 
@@ -22,6 +22,7 @@ class CommunityWindow(Window):
         self.install_buttons = []
         self.busy = False
         self.search = QtWidgets.QLineEdit()
+        themes.set_style(self.search, "QLineEdit { background:@field_background; color:@field_text; border:1px solid @field_border; border-radius:7px; padding:3px; selection-background-color:@selection_background; } QLineEdit:focus { border-color:@focus_border; }")
         self.search.setPlaceholderText("Search skills, descriptions or authors")
         self.search.textChanged.connect(self.filter_cards)
         self.outer.addWidget(self.search)
@@ -48,7 +49,7 @@ class CommunityWindow(Window):
         self.retry = action(client.root, "refresh-cw", "Refresh", self.refresh)
         controls.addWidget(self.retry)
         controls.addStretch()
-        controls.addWidget(action(client.root, "globe", "Open online catalog", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(CATALOG_URL))))
+        controls.addWidget(action(client.root, "globe", "Open Online Catalog", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(CATALOG_URL))))
         self.outer.addLayout(controls)
 
     def refresh(self):
@@ -63,7 +64,7 @@ class CommunityWindow(Window):
             button.setEnabled(not busy and available)
 
     def show_error(self, message):
-        self.status.setText(message + "\nUse Refresh to retry, or Open online catalog for manual download and import.")
+        self.status.setText(message + "\nUse Refresh to retry, or Open Online Catalog for manual download and import.")
         self.set_busy(False)
 
     def apply_result(self, helper):
@@ -82,6 +83,7 @@ class CommunityWindow(Window):
     def render_cards(self):
         while self.cards.count() > 1:
             widget = self.cards.takeAt(0).widget()
+            widget.hide()
             widget.deleteLater()
         self.install_buttons = []
         self.card_widgets = []
@@ -107,6 +109,7 @@ class CommunityWindow(Window):
             state = entry.get("installState", "available")
             if state == "available":
                 button = action(self.client.root, "download", "Install", lambda checked=False, selected=entry: self.install(selected))
+                themes.set_style(button, "QToolButton { background:@ready_background; color:@status_button_text; border-color:@community_border; } QToolButton:hover { background:@community_hover; border-color:@community_hover_border; } QToolButton:disabled { background:@community_disabled_background; color:@community_disabled_text; border-color:@border; }")
             elif state == "installed":
                 button = action(self.client.root, "check", "Installed", lambda: None)
             else:
@@ -114,12 +117,33 @@ class CommunityWindow(Window):
                 notice.setWordWrap(True)
                 layout.addWidget(notice)
                 button = action(self.client.root, "folder-open", "Manage installed", self.manage_installed)
-            layout.addWidget(button, 0, Qt.AlignLeft)
             self.install_buttons.append((button, state != "installed"))
+            actions = QtWidgets.QHBoxLayout()
+            actions.addWidget(button)
+            actions.addStretch()
+            if entry.get("installedId", "").startswith("user/"):
+                delete_button = action(self.client.root, "trash-2", "Delete Installed Skill", lambda checked=False, selected=entry: self.delete_installed(selected))
+                delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+                themes.set_style(delete_button, DESTRUCTIVE_STYLE)
+                actions.addWidget(delete_button)
+                self.install_buttons.append((delete_button, True))
+            layout.addLayout(actions)
             self.cards.insertWidget(self.cards.count() - 1, card)
             self.card_widgets.append((card, " ".join(entry[field] for field in ("title", "author", "description")).lower()))
         self.filter_cards()
         self.set_busy(self.busy)
+
+    def sync_installed(self, parser):
+        if parser is None or parser.get("result", "haslist", fallback="false") != "true":
+            return
+        installed = [{field: decode(parser.get("skill" + str(index), field, fallback="")) for field in ("id", "name", "title", "author", "displaySource", "source", "revision", "version", "state")} for index in range(parser.getint("result", "count", fallback=0))]
+        for entry in self.entries:
+            matched = next((item for item in installed if item['name'] == entry['name']), None)
+            entry['installState'] = 'available' if matched is None else 'different-version' if matched['version'] != entry['version'] else 'installed' if matched['state'] == 'ready' else 'needs-attention'
+            owned = next((item for item in installed if item['source'] == 'Custom' and item['id'].startswith('user/') and item['name'] == entry['name'] and item['displaySource'] == 'Community Skills' and item['title'] == entry['title'] and item['author'] == entry['author']), None)
+            entry['installedId'] = owned['id'] if owned else ''
+            entry['installedRevision'] = owned['revision'] if owned else ''
+        self.render_cards()
 
     def filter_cards(self):
         query = self.search.text().strip().lower()
@@ -134,3 +158,10 @@ class CommunityWindow(Window):
         self.client.show_skills()
         self.client.dialogs["skills"].source.setCurrentIndex(1)
         QtWidgets.QMessageBox.information(self, "Installed skill", "Inspect and back up your installed skill using Open folder in Custom. To replace it, explicitly delete that copy, then return here and Refresh. Installation never overwrites your local work.")
+
+    def delete_installed(self, entry):
+        if self.busy or not entry.get("installedId", "").startswith("user/"):
+            return
+        if QtWidgets.QMessageBox.question(self, "Delete skill", "Delete this imported skill and its owned discovery adapters?") == QtWidgets.QMessageBox.Yes:
+            if self.client.skills_operation("community-delete", ["-SkillId", entry["installedId"], "-Source", entry["id"], "-Revision", entry["installedRevision"]]):
+                self.status.setText("Deleting " + entry["title"] + "...")

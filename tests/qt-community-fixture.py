@@ -28,11 +28,15 @@ try:
     window.show()
     window.apply_result(SimpleNamespace(snapshot=parser))
     assert not calls, 'Viewing a catalog must never install'
+    assert 'background:@ready_background' in window.install_buttons[0][0]._theme_style
     window.set_busy(False)
+    assert window.search.cursor().shape() == Qt.IBeamCursor
+    assert window.install_buttons[0][0].cursor().shape() == Qt.PointingHandCursor
     window.install_buttons[0][0].click()
     assert calls[0] == ('community-install', ['-SkillId', 'example-skill', '-Source', '1.0.0', '-Revision', 'a'*64])
     window.set_busy(True)
     assert not window.install_buttons[0][0].isEnabled() and not window.retry.isEnabled()
+    assert window.install_buttons[0][0].cursor().shape() == Qt.ArrowCursor
     window.set_busy(False)
     for width in (320, 760, 1800):
         window.resize(width, 600)
@@ -47,8 +51,34 @@ try:
     window.entries = [entry]
     window.render_cards()
     assert not window.install_buttons[0][0].isEnabled()
+    assert window.install_buttons[0][0].cursor().shape() == Qt.ArrowCursor
+    entry.update(installedId='user/00000000-0000-4000-8000-000000000000', installedRevision='fixture-revision')
+    window.render_cards()
+    trash = window.install_buttons[1][0]
+    assert trash.cursor().shape() == Qt.PointingHandCursor
+    assert trash.toolButtonStyle() == Qt.ToolButtonIconOnly and 'background:@delete_background' in trash._theme_style
+    assert trash.toolTip() == 'Delete Installed Skill' and trash.accessibleName() == 'Delete Installed Skill'
+    previous = len(calls)
+    with patch.object(QtWidgets.QMessageBox, 'question', return_value=QtWidgets.QMessageBox.No):
+        trash.click()
+    assert len(calls) == previous
+    with patch.object(QtWidgets.QMessageBox, 'question', return_value=QtWidgets.QMessageBox.Yes):
+        trash.click()
+    assert calls[-1][0] == 'community-delete' and calls[-1][1][1] == entry['installedId']
+    window.set_busy(True)
+    assert not trash.isEnabled()
+    assert trash.cursor().shape() == Qt.ArrowCursor
+    window.set_busy(False)
+    window.resize(760, 600)
+    app.processEvents()
+    window.grab().save(str(root/'dist'/'community-delete-card.png'))
     window.show_error('Offline')
-    assert 'Open online catalog' in window.status.text() and window.retry.isEnabled()
+    assert 'Open Online Catalog' in window.status.text() and window.retry.isEnabled()
+    empty = configparser.ConfigParser()
+    empty.read_dict({'result': {'haslist': 'true', 'count': '0'}})
+    window.sync_installed(empty)
+    assert window.entries[0]['installState'] == 'available' and not window.entries[0]['installedId']
+    assert len(window.install_buttons) == 1 and window.install_buttons[0][0].text() == 'Install'
     window.entries = []
     window.render_cards()
     assert not window.install_buttons
@@ -64,9 +94,12 @@ try:
     rows = [skills.outer.itemAt(i).layout() for i in range(skills.outer.count()) if skills.outer.itemAt(i).layout()]
     import_row = next(row for row in rows if row.count() and row.itemAt(0).widget() is install)
     assert [import_row.itemAt(i).widget().text() for i in range(import_row.count()) if import_row.itemAt(i).widget()][:3] == ['Install Community Skills', 'Import Folder', 'Import ZIPs']
+    assert import_row.itemAt(import_row.count()-1).widget() is skills.delete_button
+    assert import_row.itemAt(import_row.count()-2).spacerItem() is not None
+    assert 'background:@delete_background' in skills.delete_button._theme_style
     assert import_row.itemAt(1).spacerItem().sizeHint().width() == 14
     assert sum(button.text() == 'Install Community Skills' for button in skills.buttons) == 1
-    assert any(button.text() == 'Open online catalog' for button in window.findChildren(QtWidgets.QToolButton))
+    assert any(button.text() == 'Open Online Catalog' for button in window.findChildren(QtWidgets.QToolButton))
     skills.apply_result(SimpleNamespace(snapshot=snapshot, result=root/'dist'/'missing-author-fixture'))
     seen = []
     def inspect_about(dialog):

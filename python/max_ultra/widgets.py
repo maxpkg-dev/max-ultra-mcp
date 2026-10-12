@@ -14,6 +14,7 @@ from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt, enable_window_shadow
 
 COLORS = {"info": "@log_info", "system": "@log_system", "success": "@log_success", "warning": "@log_warning", "error": "@log_error", "support": "@support_link", "debug": "@log_debug"}
 DONATE_STYLE = "QToolButton { background:@donate_background; border-color:@donate_border; } QToolButton:hover { background:@donate_hover; }"
+DESTRUCTIVE_STYLE = "QToolButton { background:@delete_background; color:@delete_text; border-color:@delete_background; } QToolButton:hover { background:@delete_hover; border-color:@delete_hover; } QToolButton:pressed { background:@delete_pressed; border-color:@delete_pressed; } QToolButton:disabled { background:@button_background; color:@disabled_text; border-color:@border; }"
 STYLE = """
 QWidget { background: @window_background; color: @text; font-family: 'Segoe UI'; font-size: 11pt; }
 QDialog { border: 1px solid @border; }
@@ -198,6 +199,15 @@ def icon(root, name):
 
 
 class ActionButton(QtWidgets.QToolButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.PointingHandCursor if self.isEnabled() else Qt.ArrowCursor)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.EnabledChange:
+            self.setCursor(Qt.PointingHandCursor if self.isEnabled() else Qt.ArrowCursor)
+
     def sizeHint(self):
         size = super().sizeHint()
         if self.toolButtonStyle() == Qt.ToolButtonIconOnly:
@@ -958,7 +968,7 @@ class Panel(Window):
             self.update_journal_density()
 
     def update_compact_layout(self):
-        tiny = self.width() < 300
+        tiny = self.width() < 350
         large = self.width() > 1024
         extra_large = self.width() >= 1800
         scroll_density = 'tiny' if tiny else 'compact' if self.width() < 520 else 'normal'
@@ -1013,7 +1023,7 @@ class Panel(Window):
 
     def update_journal_density(self):
         # Window dimensions are logical pixels; point sizes retain DPI scaling.
-        point_size = 18 if self.width() >= 1800 else 14 if self.width() > 1024 else 8 if self.width() < 300 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
+        point_size = 18 if self.width() >= 1800 else 14 if self.width() > 1024 else 8 if self.width() < 350 else 9 if self.width() < 420 or self.height() < 300 else 10 if self.width() < 520 or self.height() < 380 else 11
         delegate = self.log.itemDelegate()
         padding = {8: 1, 9: 2, 10: 3, 11: 4, 14: 6, 18: 8}[point_size]
         row_height = QtGui.QFontMetrics(QtGui.QFont("Consolas", point_size)).height() + padding

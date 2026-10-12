@@ -28,8 +28,8 @@ function zip(records, file = path.join(root, "skill.zip")) {
   fs.writeFileSync(file, Buffer.concat([...locals, directory, end])); return file;
 }
 async function main() {
- const store = new SkillStore({root:path.join(root,'store'), builtinRoot:path.join(root,'builtin'),clientRoots:{}});
- const manifest={schemaVersion:1,title:'Example skill',author:'Example Author',version:'1.0.0'};
+ const store = new SkillStore({root:path.join(root,'store'), builtinRoot:path.join(root,'builtin'),clientRoots:{codex:path.join(root,'client')}});
+ const manifest={schemaVersion:1,title:'Example skill',author:'Example Author',version:'1.0.0',source:'Community Skills'};
  const makeZip = (name='example-skill') => fs.readFileSync(zip([{name:'SKILL.md',text:`---\nname: ${name}\ndescription: Example workflow.\n---\nInstructions only.\n`},{name:'skill.json',text:JSON.stringify(manifest)}]));
  let archive=makeZip();
  let entry={id:'example-skill',name:'example-skill',title:manifest.title,description:'Example workflow.',author:manifest.author,version:manifest.version,downloadUrl:'https://github.com/maxpkg-dev/max-ultra-mcp-community-skills/releases/download/example-skill-v1.0.0/example-skill.zip',sha256:createHash('sha256').update(archive).digest('hex'),sizeBytes:archive.length};
@@ -50,7 +50,26 @@ async function main() {
  assert.deepEqual(fs.readFileSync(path.join(store.packagePath(installed.id.slice(5)),'SKILL.md')),before);
  entry={...entry,version:'1.1.0'};
  assert.equal((await run('community-list',[],store,fetch)).community[0].installState,'different-version');
- store.remove(installed.id);entry={...entry,version:'1.0.0'};
+ const card=result.community[0];
+ assert.equal(card.installedId,installed.id);
+ await assert.rejects(run('community-delete',[installed.id,entry.id,'stale'],store,fetch),/changed/);
+ await assert.rejects(run('community-delete',['bundled/example-skill',entry.id,card.installedRevision],store,fetch),/changed/);
+ const record=store.registry().skills[0];const adapter=store.adapterPath(record,'codex');const originalAdapter=fs.readFileSync(adapter);
+ fs.appendFileSync(adapter,'\nchanged');
+ const incomplete=await run('community-delete',[installed.id,entry.id,card.installedRevision],store,fetch);
+ assert.match(incomplete.message,/Removal incomplete/);
+ assert.equal(incomplete.community[0].installedId,installed.id);
+ assert.ok(fs.existsSync(adapter),'Edited adapter must not be deleted');
+ fs.writeFileSync(adapter,originalAdapter);
+ const deleted=await run('community-delete',[installed.id,entry.id,card.installedRevision],store,fetch);
+ assert.equal(deleted.community[0].installState,'available');
+ assert.equal(deleted.community[0].installedId,'');
+ assert.ok(!fs.existsSync(adapter));
+ const {ownedImport}=require('../core/community-skills');
+ assert.equal(ownedImport(entry,[{...installed,source:'Built-in'}]),undefined);
+ assert.equal(ownedImport(entry,[{...installed,author:'Someone else'}]),undefined);
+ assert.equal(ownedImport(entry,[{...installed,displaySource:'Personal'}]),undefined);
+ entry={...entry,version:'1.0.0'};
  archive=makeZip('wrong-name');entry={...entry,sha256:createHash('sha256').update(archive).digest('hex'),sizeBytes:archive.length};
  await assert.rejects(run('community-install',args(),store,fetch),/metadata does not match/);
  assert.equal(store.registry().skills.length,0);

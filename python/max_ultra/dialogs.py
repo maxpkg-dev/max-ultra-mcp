@@ -12,7 +12,7 @@ import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS
+from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -613,17 +613,29 @@ class SkillsMenu(QtWidgets.QMenu):
     """Native menu interaction with one shared icon/text layout for every row."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        themes.set_style(self, "QMenu { background:@window_background; border:1px solid @border; padding:6px; } QMenu::item { padding:8px 20px 8px 42px; min-width:130px; } QMenu::item:selected { background:@selection_background; } QMenu::separator { height:1px; background:@border; margin:6px 8px; }")
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        themes.set_style(self, "QMenu { background:@window_background; border:1px solid @border; border-radius:8px; padding:6px; } QMenu::item { padding:8px 20px 8px 42px; min-width:130px; border-radius:5px; } QMenu::item:selected { background:@selection_background; } QMenu::separator { height:1px; background:@border; margin:6px 8px; }")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        outline = QtGui.QPainterPath()
+        outline.addRoundedRect(QtCore.QRectF(self.rect()), 8, 8)
+        self.setMask(QtGui.QRegion(outline.toFillPolygon().toPolygon()))
 
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
         for item in self.actions():
             if item.isSeparator():
                 continue
             rectangle = self.actionGeometry(item)
             selected = item == self.activeAction() and item.isEnabled()
-            painter.fillRect(rectangle, QtGui.QColor(themes.style('@selection_background' if selected else '@window_background')))
+            painter.fillRect(rectangle, QtGui.QColor(themes.style('@window_background')))
+            if selected:
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QtGui.QColor(themes.style('@selection_background')))
+                painter.drawRoundedRect(QtCore.QRectF(rectangle), 5, 5)
             role = '@log_error' if item.property('destructive') else '@selected_text' if selected else '@text'
             color = QtGui.QColor(themes.style(role if item.isEnabled() else '@disabled_text'))
             ratio = self.devicePixelRatioF()
@@ -703,7 +715,11 @@ class SkillsWindow(Window):
         self.outer.addWidget(self.splitter, 1)
         controls = QtWidgets.QHBoxLayout()
         for symbol, title, callback in [("download", "Install Community Skills", self.show_community), ("folder-open", "Import Folder", self.import_folder), ("file-archive", "Import ZIPs", self.import_zips), ("trash-2", "Delete", self.delete_selected)]:
+            if title == "Delete":
+                controls.addStretch()
             button = action(client.root, symbol, title, callback)
+            if title == "Delete":
+                themes.set_style(button, DESTRUCTIVE_STYLE)
             if title == "Install Community Skills":
                 themes.set_style(button, "QToolButton { background:@ready_background; border-color:@community_border; color:@status_button_text; } QToolButton:hover { background:@community_hover; border-color:@community_hover_border; } QToolButton:disabled { background:@community_disabled_background; color:@community_disabled_text; border-color:@border; }")
             self.buttons.append(button)
@@ -711,7 +727,6 @@ class SkillsWindow(Window):
             if title == "Install Community Skills":
                 controls.addSpacing(14)
         self.delete_button = button
-        controls.addStretch()
         self.outer.addLayout(controls)
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)

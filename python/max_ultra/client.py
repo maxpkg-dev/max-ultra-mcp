@@ -520,6 +520,8 @@ class Client:
                 elif name == "skills_helper":
                     if getattr(self, "skills_operation_name", "").startswith("community-") and "community" in self.dialogs:
                         self.dialogs["community"].apply_result(helper)
+                    elif "community" in self.dialogs:
+                        self.dialogs["community"].sync_installed(helper.snapshot)
                     if "skills" in self.dialogs:
                         self.dialogs["skills"].apply_result(helper)
                 else:

@@ -60,7 +60,7 @@ function download(address, limit, request = https.get) {
       const timer = setTimeout(() => req.destroy(new Error("Community download timed out. Retry.")), remaining);
       req.on("close", () => clearTimeout(timer));
       req.setTimeout(30000, () => req.destroy(new Error("Community download timed out. Retry.")));
-      req.on("error", () => reject(new Error("Cannot reach the community catalog. Check your connection, Retry or Open online catalog.")));
+      req.on("error", () => reject(new Error("Cannot reach the community catalog. Check your connection, Retry or Open Online Catalog.")));
     });
   }
   return fetch(address, 0);
@@ -78,9 +78,19 @@ function installedState(entry, installed) {
   if (record.version === entry.version) return record.state === "ready" ? "installed" : "needs-attention";
   return "different-version";
 }
+function ownedImport(entry, installed) {
+  return installed.find(item => item.source === "Custom" && /^user\/[a-f0-9-]{36}$/.test(item.id) && item.name === entry.name && item.displaySource === "Community Skills" && item.title === entry.title && item.author === entry.author);
+}
 async function run(command, values, store, fetch = download) {
   const entries = await catalog(fetch);
   let message = entries.length ? "Choose a skill to install. Imported instructions are available in new AI conversations." : "No community skills are published yet.";
+  if (command === "community-delete") {
+    const entry = entries.find(item => item.id === values[1]);
+    const record = entry && ownedImport(entry, store.list({ management: true }).skills);
+    if (!record || record.id !== values[0] || record.revision !== values[2]) fail("The installed skill changed or does not belong to this card. Refresh before deleting.");
+    const result = store.remove(record.id);
+    message = result.message + (result.error ? " " + result.error : "");
+  }
   if (command === "community-install") {
     const entry = entries.find(item => item.id === values[0]);
     if (!entry || entry.version !== values[1] || entry.sha256 !== values[2]) fail("The catalog changed. Refresh the list before installing.");
@@ -101,6 +111,9 @@ async function run(command, values, store, fetch = download) {
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
   }
   const listing = store.list({ management: true });
-  return { ...listing, community: entries.map(entry => ({ ...entry, installState: installedState(entry, listing.skills) })), message };
+  return { ...listing, community: entries.map(entry => {
+    const owned = ownedImport(entry, listing.skills);
+    return { ...entry, installState: installedState(entry, listing.skills), installedId: owned?.id || "", installedRevision: owned?.revision || "" };
+  }), message };
 }
-module.exports = { run, validateFeed, download, installedState, SITE, FEED };
+module.exports = { run, validateFeed, download, installedState, ownedImport, SITE, FEED };

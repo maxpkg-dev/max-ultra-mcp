@@ -130,3 +130,5 @@ The overlay paints the recessed theme color with alpha 175/255, a faint circular
 | `tests/qt-dialog-fixture.py` | Dialog layouts, opacity and overlay lifecycle |
 
 Verify changes in both PySide2 and PySide6. Test shrinking after enlargement, theme switching, visible scrollbars, long messages, DPI scaling and keyboard interaction. Standalone Qt fixture results do not replace real-Max checks of ownership, focus, modal dialogs and multi-monitor behavior. Keep required runtime assets in `maxpkg-files.txt` when adding new files.
+
+The main panel uses its smallest control tier below 350 logical pixels: 24-pixel action height, 14-pixel icons, 8-point journal text and a 7-pixel scrollbar. At 350 pixels and above the existing normal/large tiers remain unchanged. Skills document padding is independent of this main-panel breakpoint.

@@ -177,6 +177,8 @@ def run():
         for index in (0, 1, 3):
             custom_menu.setActiveAction(custom_menu.actions()[index])
             assert not custom_menu.grab().isNull()
+        assert not custom_menu.mask().contains(QtCore.QPoint(0, 0))
+        assert custom_menu.mask().contains(custom_menu.rect().center())
         custom_menu.grab().save(str(ROOT / 'dist/skills-context-menu.png'))
         def inspect_about(dialog):
             content = dialog.findChild(QtWidgets.QTextBrowser).toPlainText()
@@ -349,6 +351,8 @@ def run():
         for item in actions:
             menu.setActiveAction(item)
             assert not menu.grab().isNull()
+        assert not menu.mask().contains(QtCore.QPoint(0, 0))
+        assert menu.mask().contains(menu.rect().center())
         menu.grab().save(str(ROOT / 'dist/skills-document-menu.png'))
         menu.deleteLater()
         link_menu.deleteLater()

@@ -83,28 +83,28 @@ def run():
                 assert panel.log.viewport().height() >= 24
                 assert not panel.log.mask().contains(QtCore.QPoint(0, 0))
                 assert panel.log.mask().contains(panel.log.rect().center())
-                expected_points = 18 if width >= 1800 else 14 if width > 1024 else {1024: 11, 640: 11, 480: 10, 320: 9, 280: 8, 240: 8}[width]
+                expected_points = 18 if width >= 1800 else 14 if width > 1024 else {1024: 11, 640: 11, 480: 10, 320: 8, 280: 8, 240: 8}[width]
                 assert panel.log.itemDelegate().journal_font().pointSize() == expected_points
                 metrics = QtGui.QFontMetrics(panel.log.itemDelegate().journal_font())
                 assert panel.log.verticalHeader().defaultSectionSize() == metrics.height() + {8: 1, 9: 2, 10: 3, 11: 4, 14: 6, 18: 8}[expected_points]
-                assert panel.ai.iconSize().width() == (34 if width >= 1800 else 26 if width > 1024 else 14 if width < 300 else 20)
-                assert panel.ai.font().pointSize() == (18 if width >= 1800 else 14 if width > 1024 else 9 if width < 300 else 11)
-                assert panel.caption.font().pointSize() == (20 if width >= 1800 else 16 if width > 1024 else 9 if width < 300 else 12)
-                assert panel.support.font().pointSize() == (18 if width >= 1800 else 14 if width > 1024 else 8 if width < 300 else 11)
-                scroll_width = 7 if width < 300 else 9 if width < 520 else 21 if width >= 1800 else 17 if width > 1024 else 13
+                assert panel.ai.iconSize().width() == (34 if width >= 1800 else 26 if width > 1024 else 14 if width < 350 else 20)
+                assert panel.ai.font().pointSize() == (18 if width >= 1800 else 14 if width > 1024 else 9 if width < 350 else 11)
+                assert panel.caption.font().pointSize() == (20 if width >= 1800 else 16 if width > 1024 else 9 if width < 350 else 12)
+                assert panel.support.font().pointSize() == (18 if width >= 1800 else 14 if width > 1024 else 8 if width < 350 else 11)
+                scroll_width = 7 if width < 350 else 9 if width < 520 else 21 if width >= 1800 else 17 if width > 1024 else 13
                 assert panel.log.verticalScrollBar().sizeHint().width() == scroll_width
                 assert panel.log.horizontalScrollBar().sizeHint().height() == scroll_width
                 assert not bool(panel.windowFlags() & Qt.WindowStaysOnTopHint)
                 for button in panel.buttons:
-                    assert button.width() >= (24 if width < 300 else 32)
-                    if width < 300:
+                    assert button.width() >= (24 if width < 350 else 32)
+                    if width < 350:
                         assert button.height() == 24, (width, button.text(), button.height(), button.minimumHeight(), button.maximumHeight())
                     assert not button.icon().isNull()
                     assert panel.rect().contains(button.mapTo(panel, QtCore.QPoint(button.width() - 1, button.height() - 1)))
                 if width == 320:
                     normal_small_log_height = panel.log.viewport().height()
                 if width == 280:
-                    assert panel.log.viewport().height() > normal_small_log_height
+                    assert panel.log.viewport().height() >= normal_small_log_height
                 panel.grab().save(str(output / ("panel-{}x{}.png".format(width, height))))
             assert panel.model.total == 5
             panel.model.refresh(search="diagnostic")
@@ -115,6 +115,14 @@ def run():
             # Populate disk storage, not the view; GUI memory must remain paged.
             with journal._db:
                 journal._db.executemany("INSERT INTO entries(stamp,category,message) VALUES (?,?,?)", (("2026-01-01T12:00:00", "system", "Synthetic history {}".format(index)) for index in range(100000)))
+            for width in (240, 349, 350, 351):
+                panel.resize(width, 480)
+                application.processEvents()
+                assert panel._ultra_compact == (width < 350)
+                assert panel.ai.height() == 24 if width < 350 else panel.ai.height() >= 32
+                assert panel.ai.iconSize().width() == (14 if width < 350 else 20)
+                assert panel.log.itemDelegate().point_size == (8 if width < 350 else 9)
+                assert panel.log.height() > 200
             panel.resize(640, 480)
             panel.refresh()
             application.processEvents()
