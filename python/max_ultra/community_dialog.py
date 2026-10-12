@@ -22,17 +22,29 @@ class MetadataBadge(QtWidgets.QLabel):
         self.setWordWrap(False)
         self.setMinimumWidth(0)
         self.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        self.update_style(9)
+        self.update_style()
         self.ensurePolished()
         self.setFixedHeight(self.fontMetrics().height() + 4)
         self.setFixedWidth(self.fontMetrics().horizontalAdvance(value) + 20)
 
-    def update_style(self, radius):
-        themes.set_style(self, "QLabel { font-size:8pt; color:@field_text; background:@recessed_background; border:1px solid @field_border; padding:0px 6px; border-radius:%spx; }" % radius)
+    def update_style(self):
+        themes.set_style(self, "QLabel { font-size:8pt; color:@field_text; background:transparent; border:none; padding:0; }")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.update_style(self.height() / 2)
+        self.update()
+
+    def paintEvent(self, event):
+        # Paint the capsule once: fractional QSS radii vary between Qt styles.
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        capsule = QtCore.QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        painter.setPen(QtGui.QPen(QtGui.QColor(themes.style('@field_border')), 1))
+        painter.setBrush(QtGui.QColor(themes.style('@recessed_background')))
+        painter.drawRoundedRect(capsule, capsule.height() / 2, capsule.height() / 2)
+        painter.setPen(QtGui.QColor(themes.style('@field_text')))
+        painter.setFont(self.font())
+        painter.drawText(self.rect(), Qt.AlignCenter, self.text())
 
     def changeEvent(self, event):
         super().changeEvent(event)
