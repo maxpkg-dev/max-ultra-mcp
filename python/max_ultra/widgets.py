@@ -966,7 +966,7 @@ class MiniPanel(Window):
     def __init__(self, client, parent):
         super().__init__(client.root, "Max Ultra MCP", parent)
         self.setSizeGripEnabled(False)
-        self.setFixedSize(180, 32)
+        self.setFixedSize(196, 32)
         self.header.hide()
         self.outer.removeWidget(self.header)
         self.outer.setContentsMargins(3, 2, 3, 2)
@@ -974,6 +974,12 @@ class MiniPanel(Window):
         row = QtWidgets.QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(2)
+        self.drag_grip = action(client.root, "grip-vertical", "Drag to move", lambda: None)
+        self.drag_grip.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.drag_grip.setMinimumSize(0, 0)
+        self.drag_grip.setFixedSize(14, 24)
+        self.drag_grip.setIconSize(QtCore.QSize(14, 14))
+        self.drag_grip.setFocusPolicy(Qt.NoFocus)
         self.button = action(client.root, "expand", "Max Ultra MCP", client.show_panel)
         self.button.setToolTip("Expand MCP Server — drag to move")
         self.button.setMinimumSize(0, 0)
@@ -985,10 +991,12 @@ class MiniPanel(Window):
         compact_style = "QToolButton { font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:@button_hover; }"
         themes.set_style(self.button, compact_style)
         themes.set_style(self.close_button, compact_style)
+        row.addWidget(self.drag_grip)
         row.addWidget(self.button, 1)
         row.addWidget(self.close_button)
         self.outer.addLayout(row)
         self.button.installEventFilter(self)
+        self.drag_grip.installEventFilter(self)
         self._press = None
         self._moving = False
         self.client = client
@@ -1010,6 +1018,7 @@ class MiniPanel(Window):
         style = "QToolButton { color:@status_button_text; font-size:10pt; min-height:0; padding:2px; border:none; background:transparent; } QToolButton:hover { background:" + hover + "; }"
         themes.set_style(self.button, style)
         themes.set_style(self.close_button, style)
+        themes.set_style(self.drag_grip, style)
 
     def install_screen_constraints(self):
         if getattr(self, "_screen_constraints", False):
@@ -1045,14 +1054,17 @@ class MiniPanel(Window):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self.drag_grip.setCursor(Qt.OpenHandCursor)
         self.confine_to_screen()
 
     def eventFilter(self, watched, event):
-        if watched is getattr(self, "button", None):
+        if watched in (getattr(self, "button", None), getattr(self, "drag_grip", None)):
             if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 self._press = event.globalPos()
                 self._drag = event.globalPos() - self.frameGeometry().topLeft()
                 self._moving = False
+                if watched is self.drag_grip:
+                    self.drag_grip.setCursor(Qt.ClosedHandCursor)
             elif event.type() == QtCore.QEvent.MouseMove and self._press is not None:
                 self._moving = self._moving or (event.globalPos() - self._press).manhattanLength() >= QtWidgets.QApplication.startDragDistance()
                 if self._moving:
@@ -1060,8 +1072,9 @@ class MiniPanel(Window):
                     return True
             elif event.type() == QtCore.QEvent.MouseButtonRelease:
                 self._press = None
+                self.drag_grip.setCursor(Qt.OpenHandCursor)
                 if self._moving:
-                    self.button.setDown(False)
+                    watched.setDown(False)
                     self._moving = False
                     return True
         return super().eventFilter(watched, event)

@@ -198,5 +198,6 @@ docs/THEMES.md
 docs/UI_DESIGN.md
 python/max_ultra/installation.py
 assets/obsolete-1.4.7.json
+assets/icons/grip-vertical.svg
 scripts/maxpkg-install.py
 maxpkg-files.txt
