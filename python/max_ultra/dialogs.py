@@ -6,12 +6,13 @@
 from pathlib import Path
 import html
 import json
+import os
 import re
 import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, copy_action, donate_action, COLORS
+from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -30,6 +31,142 @@ class PassiveBrowser(QtWidgets.QTextBrowser):
     def loadResource(self, resource_type, url):
         # Imported documents cannot fetch network or local resources implicitly.
         return QtCore.QByteArray()
+
+
+class ResponsiveSkillBrowser(PassiveBrowser):
+    def __init__(self):
+        super().__init__()
+        self._text_points = 11
+        self._document_padding = 16
+        self.setLineWrapMode(QtWidgets.QTextEdit.WidgetWidth)
+        themes.set_style(self, "QTextBrowser { padding:0; }")
+
+    def document_menu(self, position):
+        menu = SkillsMenu(self)
+        root = Path(__file__).resolve().parents[2]
+        copy = menu.addAction(icon(root, 'copy'), 'Copy')
+        copy.setShortcut(QtGui.QKeySequence.Copy)
+        copy.setEnabled(self.textCursor().hasSelection())
+        copy.triggered.connect(self.copy)
+        link = self.anchorAt(position)
+        copy_link = menu.addAction(icon(root, 'link-2'), 'Copy Link Location')
+        copy_link.setEnabled(bool(link))
+        copy_link.triggered.connect(lambda: QtWidgets.QApplication.clipboard().setText(link))
+        menu.addSeparator()
+        select_all = menu.addAction(icon(root, 'square-dashed'), 'Select All')
+        select_all.setShortcut(QtGui.QKeySequence.SelectAll)
+        select_all.setEnabled(not self.document().isEmpty())
+        select_all.triggered.connect(self.selectAll)
+        for item in (copy, copy_link, select_all):
+            item.setIconVisibleInMenu(True)
+            item.setShortcutVisibleInContextMenu(True)
+        return menu
+
+    def contextMenuEvent(self, event):
+        position = event.pos()
+        if event.reason() == QtGui.QContextMenuEvent.Keyboard:
+            position = self.cursorRect().center()
+        menu = self.document_menu(position)
+        try:
+            menu.exec_(self.viewport().mapToGlobal(position))
+        finally:
+            menu.deleteLater()
+
+    def setHtml(self, content):
+        self._theme_html = content
+        points = self._text_points
+        rules = "html,body,p,li,td,th,pre,code { font-size:%spt; }" % points
+        for level, ratio in enumerate((1.8, 1.5, 1.3, 1.15, 1.05, 1), 1):
+            rules += "h%d { font-size:%.2fpt; }" % (level, points * ratio)
+        rules += ".eyebrow { font-size:%.2fpt; }" % (points * 0.8)
+        style = "<style>" + rules + "</style>"
+        # QTextDocument does not consistently override earlier fixed pixel
+        # heading sizes with a later stylesheet. Keep the source untouched and
+        # remove only those size declarations from the rendered CSS.
+        content = re.sub(r'(<style\b[^>]*>)(.*?)(</style\s*>)',
+                         lambda match: match.group(1) + re.sub(r'\bbody\s*\{[^}]*\}', 'body{margin:0;padding:0}', re.sub(r'font-size\s*:[^;}]+;?', '', match.group(2), flags=re.I), flags=re.I) + match.group(3),
+                         content, flags=re.I | re.S)
+        # Web CSS centers the document with auto margins; Qt imports those as
+        # fixed margins on every paragraph, squeezing the narrow viewport.
+        content = re.sub(r'\.document\s*\{[^}]*\}', '.document{margin:0;padding:0}', content, flags=re.I)
+        if re.search(r'</head\s*>', content, re.I):
+            rendered = re.sub(r'</head\s*>', lambda match: style + match.group(), content, count=1, flags=re.I)
+        else:
+            rendered = style + content
+        QtWidgets.QTextBrowser.setHtml(self, themes.html(rendered))
+        # Qt retains the HTML heading size adjustment even alongside an
+        # explicit point size; it otherwise wins during actual font rendering.
+        formats = []
+        block = self.document().begin()
+        while block.isValid():
+            iterator = block.begin()
+            while not iterator.atEnd():
+                fragment = iterator.fragment()
+                formatting = fragment.charFormat()
+                if formatting.hasProperty(QtGui.QTextFormat.FontPointSize) and formatting.hasProperty(QtGui.QTextFormat.FontSizeAdjustment):
+                    formatting.clearProperty(QtGui.QTextFormat.FontSizeAdjustment)
+                    formats.append((fragment.position(), fragment.length(), formatting))
+                iterator += 1
+            block = block.next()
+        for position, length, formatting in formats:
+            cursor = QtGui.QTextCursor(self.document())
+            cursor.setPosition(position)
+            cursor.setPosition(position + length, QtGui.QTextCursor.KeepAnchor)
+            cursor.setCharFormat(formatting)
+        self.document().setDocumentMargin(self._document_padding)
+        if 'data-skill-metadata="true"' in content:
+            # Keep the existing introductory block's outline independent of
+            # generic HTML table/cell rules and QTextDocument CSS precedence.
+            table = next((frame for frame in self.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable)), None)
+            if table is not None:
+                formatting = table.format()
+                formatting.setBorder(1)
+                formatting.setBorderStyle(QtGui.QTextFrameFormat.BorderStyle_Solid)
+                formatting.setBorderBrush(QtGui.QColor(themes.style('@preview_border')))
+                formatting.setCellPadding(4)
+                formatting.setCellSpacing(0)
+                table.setFormat(formatting)
+                cell = table.cellAt(0, 0)
+                cell_format = cell.format().toTableCellFormat()
+                cell_format.setPadding(4)
+                cell.setFormat(cell_format)
+        # The helper's browser CSS contains em-based block spacing intended for
+        # a web engine. Bound it here so small QTextBrowser views stay readable.
+        block = self.document().begin()
+        while block.isValid():
+            formatting = block.blockFormat()
+            formatting.setTopMargin(min(formatting.topMargin(), points * 0.6))
+            formatting.setBottomMargin(min(formatting.bottomMargin(), points * 0.6))
+            cursor = QtGui.QTextCursor(block)
+            cursor.setBlockFormat(formatting)
+            block = block.next()
+
+    def resizeEvent(self, event):
+        anchor = self.cursorForPosition(QtCore.QPoint(0, 0))
+        anchor_y = self.cursorRect(anchor).top()
+        selection = self.textCursor()
+        super().resizeEvent(event)
+        width = self.window().width()
+        points = 8 if width < 420 else 9 if width < 600 else 10 if width < 900 else 32 if width >= 3600 else 28 if width >= 3000 else 24 if width >= 2400 else 20 if width >= 1800 else 16 if width >= 1280 else 14 if width > 1024 else 11
+        padding = max(16, min(40, round(16 + (self.viewport().width() - 360) / 100)))
+        if points == self._text_points and padding == self._document_padding:
+            return
+        self._text_points = points
+        self._document_padding = padding
+        content = getattr(self, '_theme_html', None)
+        if content is not None:
+            anchor_position = anchor.position()
+            selected_position, selected_anchor = selection.position(), selection.anchor()
+            self.setHtml(content)
+            limit = self.document().characterCount() - 1
+            selection = self.textCursor()
+            selection.setPosition(min(selected_anchor, limit))
+            selection.setPosition(min(selected_position, limit), QtGui.QTextCursor.KeepAnchor)
+            self.setTextCursor(selection)
+            anchor = self.textCursor()
+            anchor.setPosition(min(anchor_position, limit))
+            scrollbar = self.verticalScrollBar()
+            scrollbar.setValue(scrollbar.value() + self.cursorRect(anchor).top() - anchor_y)
 
 
 class InlineHelpBrowser(PassiveBrowser):
@@ -469,6 +606,39 @@ class SkillHelpWindow(Window):
             QtGui.QDesktopServices.openUrl(url)
 
 
+class SkillsMenu(QtWidgets.QMenu):
+    """Native menu interaction with one shared icon/text layout for every row."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        themes.set_style(self, "QMenu { background:@window_background; border:1px solid @border; padding:6px; } QMenu::item { padding:8px 20px 8px 42px; min-width:130px; } QMenu::item:selected { background:@selection_background; } QMenu::separator { height:1px; background:@border; margin:6px 8px; }")
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QtGui.QPainter(self)
+        for item in self.actions():
+            if item.isSeparator():
+                continue
+            rectangle = self.actionGeometry(item)
+            selected = item == self.activeAction() and item.isEnabled()
+            painter.fillRect(rectangle, QtGui.QColor(themes.style('@selection_background' if selected else '@window_background')))
+            role = '@log_error' if item.property('destructive') else '@selected_text' if selected else '@text'
+            color = QtGui.QColor(themes.style(role if item.isEnabled() else '@disabled_text'))
+            ratio = self.devicePixelRatioF()
+            pixmap = item.icon().pixmap(round(20 * ratio), round(20 * ratio))
+            tint = QtGui.QPainter(pixmap)
+            tint.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
+            tint.fillRect(pixmap.rect(), color)
+            tint.end()
+            pixmap.setDevicePixelRatio(ratio)
+            painter.drawPixmap(rectangle.left() + 12, rectangle.center().y() - 10, pixmap)
+            painter.setPen(color)
+            shortcut = item.shortcut().toString(QtGui.QKeySequence.NativeText)
+            reserved = self.fontMetrics().horizontalAdvance(shortcut) + 28 if shortcut else 0
+            painter.drawText(rectangle.adjusted(42, 0, -20 - reserved, 0), Qt.AlignLeft | Qt.AlignVCenter, item.text())
+            if shortcut:
+                painter.drawText(rectangle.adjusted(42, 0, -20, 0), Qt.AlignRight | Qt.AlignVCenter, shortcut)
+
+
 class SkillsWindow(Window):
     def __init__(self, client, parent):
         super().__init__(client.root, "Skills", parent)
@@ -506,7 +676,9 @@ class SkillsWindow(Window):
         self.list.header().setStretchLastSection(False)
         self.list.header().setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         self.list.currentItemChanged.connect(self.read_selected)
-        self.preview = PassiveBrowser()
+        self.list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self.show_skill_menu)
+        self.preview = ResponsiveSkillBrowser()
         self.preview.setOpenLinks(False)
         self.preview.setOpenExternalLinks(False)
         self.preview.anchorClicked.connect(self.navigate)
@@ -655,11 +827,89 @@ class SkillsWindow(Window):
             else:
                 selection.unlink()
 
+    def skill_folder(self, entry):
+        identifier, source = entry.data(0, Qt.UserRole)
+        if source == "Built-in" and re.fullmatch(r"bundled/[a-z0-9][a-z0-9-]*", identifier):
+            return self.client.root / "skills" / identifier.split("/", 1)[1]
+        if source == "Custom" and re.fullmatch(r"user/[0-9a-fA-F-]{36}", identifier):
+            default = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local/share"))) / "3DGROUND/MaxUltraMCP/user-skills"
+            return Path(os.environ.get("MAX_ULTRA_MCP_SKILLS_ROOT") or default) / "packages" / identifier.split("/", 1)[1]
+        return None
+
+    def open_skill_folder(self, entry):
+        folder = self.skill_folder(entry)
+        if folder is None or not folder.is_dir():
+            self.status.setText("The skill folder is no longer available. Refresh the list.")
+        elif not QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(folder.resolve()))):
+            self.status.setText("Could not open the skill folder.")
+
+    def skill_menu(self, entry):
+        # The helper may refresh the tree while QMenu runs its nested event loop.
+        entry = entry.clone()
+        menu = SkillsMenu(self)
+        about = menu.addAction(icon(self.client.root, "circle-question-mark"), "About")
+        about.setIconVisibleInMenu(True)
+        about.triggered.connect(lambda: self.show_skill_about(entry))
+        open_folder = menu.addAction(icon(self.client.root, "folder-open"), "Open folder")
+        open_folder.setIconVisibleInMenu(True)
+        open_folder.triggered.connect(lambda: self.open_skill_folder(entry))
+        if entry.data(0, Qt.UserRole)[1] == "Custom":
+            menu.addSeparator()
+            delete = menu.addAction(icon(self.client.root, "trash-2"), "Delete")
+            delete.setProperty("destructive", True)
+            delete.setIconVisibleInMenu(True)
+            delete.setEnabled(not self.busy)
+            delete.triggered.connect(lambda: self.delete_skill(entry))
+        return menu
+
+    def show_skill_about(self, entry):
+        dialog = Window(self.client.root, "About skill", self)
+        dialog.setSizeGripEnabled(False)
+        dialog.resize(480, 300)
+        details = entry.data(0, Qt.UserRole + 1) or {}
+        information = QtWidgets.QTextBrowser()
+        information.setOpenExternalLinks(False)
+        information.setOpenLinks(False)
+        information.anchorClicked.connect(lambda url: QtGui.QDesktopServices.openUrl(url) if url.scheme() in ('https', 'mailto') else None)
+        information.setHtml("<h2>{}</h2><p>{}</p><p><b>Author:</b> {}<br><b>Version:</b> {}<br><b>Source:</b> {}<br><b>Type:</b> {}<br><b>Status:</b> {}</p>".format(
+            html.escape(entry.text(0)), html.escape(entry.text(1)),
+            html.escape(details.get("author") or "Not specified"),
+            html.escape(details.get("version") or "Not specified"),
+            html.escape(details.get("displaySource") or entry.data(0, Qt.UserRole)[1]),
+            html.escape(entry.data(0, Qt.UserRole)[1]), html.escape(details.get("state") or "Not specified")))
+        from urllib.parse import quote
+        contacts = []
+        if details.get('website'):
+            contacts.append('<b>Website:</b> <a href="{0}">{0}</a>'.format(html.escape(details['website'], quote=True)))
+        if details.get('email'):
+            contacts.append('<b>Email:</b> <a href="mailto:{}">{}</a>'.format(quote(details['email'], safe=''), html.escape(details['email'])))
+        if contacts:
+            information.append('<p>' + '<br>'.join(contacts) + '</p>')
+        dialog.outer.addWidget(information, 1)
+        dialog.outer.addWidget(action(self.client.root, "close", "Close", dialog.accept))
+        try:
+            dialog.exec_()
+        finally:
+            dialog.deleteLater()
+
+    def show_skill_menu(self, position):
+        entry = self.list.itemAt(position)
+        if entry is None:
+            return
+        menu = self.skill_menu(entry)
+        try:
+            menu.exec_(self.list.viewport().mapToGlobal(position))
+        finally:
+            menu.deleteLater()
+
     def delete_selected(self):
-        current = self.list.currentItem()
-        if current and current.data(0, Qt.UserRole)[1] == "Custom":
+        self.delete_skill(self.list.currentItem())
+
+    def delete_skill(self, current):
+        if current and not self.busy and current.data(0, Qt.UserRole)[1] == "Custom":
+            identifier = current.data(0, Qt.UserRole)[0]
             if QtWidgets.QMessageBox.question(self, "Delete skill", "Delete this imported skill and its owned discovery adapters?") == QtWidgets.QMessageBox.Yes:
-                self.client.skills_operation("delete", ["-SkillId", current.data(0, Qt.UserRole)[0]])
+                self.client.skills_operation("delete", ["-SkillId", identifier])
 
     def help(self, document):
         submit = document == "SUBMIT_SKILL.html"
@@ -678,10 +928,13 @@ class SkillsWindow(Window):
             for index in range(parser.getint("result", "count", fallback=0)):
                 section = "skill" + str(index)
                 values = [decode(parser.get(section, field, fallback="")) for field in ("name", "description")]
+                values[0] = decode(parser.get(section, "title", fallback="")) or values[0]
+                values[1] = decode(parser.get(section, "displayDescription", fallback="")) or values[1]
                 entry = QtWidgets.QTreeWidgetItem(values)
                 for column, value in enumerate(values):
                     entry.setToolTip(column, value)
                 entry.setData(0, Qt.UserRole, (decode(parser.get(section, "id")), decode(parser.get(section, "source"))))
+                entry.setData(0, Qt.UserRole + 1, {field: decode(parser.get(section, field, fallback="")) for field in ("author", "state", "version", "displaySource", "website", "email")})
                 self.list.addTopLevelItem(entry)
             self.list.blockSignals(False)
             self.filter_rows()
@@ -699,7 +952,7 @@ class SkillsWindow(Window):
         # the original square metadata frame in both Qt 5 and Qt 6.
         content = re.sub(
             r'<div class="metadata">(<div class="eyebrow">.*?</div><h1>.*?</h1><p>.*?</p>)</div>',
-            r'<table border="1" cellspacing="0" cellpadding="12" width="100%" style="border:1px solid @preview_border;"><tr><td>\1</td></tr></table><br>',
+            r'<table data-skill-metadata="true" border="1" cellspacing="0" cellpadding="12" width="100%" style="border:1px solid @preview_border;"><tr><td>\1</td></tr></table><br>',
             content, count=1, flags=re.DOTALL)
         self.preview.setHtml(content)
         self.preview.verticalScrollBar().setValue(getattr(self, "_restore_scroll", 0))

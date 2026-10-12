@@ -21,6 +21,8 @@ Import sends no data. Your AI client may send instructions and images to its mod
 
 ## Browse and remove
 
+New packages should include **skill.json** beside **SKILL.md** with an explicit display title, description, author and version. See [the metadata format](SKILL_METADATA.md). Right-click a skill and choose **About** to view this information, or **Open folder** to inspect the imported files. Older packages still work; missing attribution and version are shown as **Not specified**.
+
 Click a reference to read it. **Back** returns to the previous document. Built-in skills are read-only.
 
 To remove a custom skill, select it and click **Delete**. This removes the imported copy and its client entries; your original folder or ZIP is kept. To update a skill, edit the original, delete the imported copy, and import again.

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "title": "Max Ultra MCP",
+  "description": "Connect AI workflows to 3ds Max for scene inspection, scripting, viewport capture and verified edits.",
+  "author": "Lukianenko Vasyl",
+  "version": "1.5.0",
+  "source": "Max Ultra MCP"
+}

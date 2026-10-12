@@ -82,6 +82,31 @@ function metadata(markdown) {
   return values;
 }
 
+function packageMetadata(root) {
+  const filename = child(root, "skill.json");
+  if (!fs.existsSync(filename)) return {};
+  if (fs.statSync(filename).size > 8192) fail("SKILL_INVALID", "skill.json must not exceed 8192 bytes.");
+  let value;
+  try { value = JSON.parse(decode(fs.readFileSync(filename))); }
+  catch { fail("SKILL_INVALID", "skill.json must contain valid UTF-8 JSON."); }
+  const limits = { title: 160, description: 1024, author: 256, version: 64, source: 160, website: 2048, email: 254 };
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.schemaVersion !== 1 || Object.keys(value).some((key) => key !== "schemaVersion" && !Object.hasOwn(limits, key))) fail("SKILL_INVALID", "Unsupported skill.json schema or field.");
+  for (const [key, limit] of Object.entries(limits)) {
+    if (Object.hasOwn(value, key) && (typeof value[key] !== "string" || !value[key].trim() || value[key].length > limit || /[\x00-\x1f\x7f]/.test(value[key]))) fail("SKILL_INVALID", `skill.json ${key} must be single-line text (1-${limit} characters).`);
+  }
+  if (value.version !== undefined && !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value.version)) fail("SKILL_INVALID", "skill.json version must be MAJOR.MINOR.PATCH without leading zeroes.");
+  if (value.website !== undefined) {
+    let url;
+    try { url = new URL(value.website); } catch { fail("SKILL_INVALID", "skill.json website must be an HTTPS URL."); }
+    if (!/^https:\/\//i.test(value.website) || /[\s\\]/.test(value.website) || url.protocol !== "https:" || !url.hostname || url.username || url.password) fail("SKILL_INVALID", "skill.json website must be an HTTPS URL without credentials.");
+  }
+  if (value.email !== undefined) {
+    const parts = value.email.split('@');
+    if (parts.length !== 2 || !/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+$/.test(parts[0]) || parts[0].length > 64 || /(^\.|\.$|\.\.)/.test(parts[0]) || parts[1].split('.').length < 2 || parts[1].split('.').some(label => !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label))) fail("SKILL_INVALID", "skill.json email must be one plain email address.");
+  }
+  return value;
+}
+
 function scanPackage(source, { builtin = false } = {}) {
   const root = noLinks(source);
   if (!fs.statSync(root).isDirectory()) fail("SKILL_INVALID", "Select a folder containing SKILL.md.");
@@ -104,7 +129,7 @@ function scanPackage(source, { builtin = false } = {}) {
       if (!entry.isFile()) fail("SKILL_PATH_UNSAFE", "Only regular files and folders are supported.");
       const extension = path.extname(relative).toLowerCase();
       if (builtin && !TEXT.has(extension) && !IMAGES[extension]) continue;
-      if (!builtin && relative !== "SKILL.md" && !(relative.startsWith("references/") && TEXT.has(extension)) && !(relative.startsWith("assets/") && IMAGES[extension])) fail("SKILL_INVALID", `Unsupported file: ${relative}`);
+      if (!builtin && relative !== "SKILL.md" && relative !== "skill.json" && !(relative.startsWith("references/") && TEXT.has(extension)) && !(relative.startsWith("assets/") && IMAGES[extension])) fail("SKILL_INVALID", `Unsupported file: ${relative}`);
       const stat = fs.statSync(absolute);
       const limit = relative === "SKILL.md" ? LIMITS.entry : TEXT.has(extension) ? LIMITS.text : LIMITS.image;
       total += stat.size;
@@ -118,6 +143,7 @@ function scanPackage(source, { builtin = false } = {}) {
   if (!files.some((file) => file.path === "SKILL.md")) fail("SKILL_INVALID", "SKILL.md must be at the folder root.");
   const entryText = decode(fs.readFileSync(child(root, "SKILL.md")));
   const fields = metadata(entryText);
+  const display = packageMetadata(root);
   if (!builtin) {
     const known = new Set(files.map((file) => file.path));
     for (const file of files.filter((file) => /\.md$/i.test(file.path))) {
@@ -137,7 +163,7 @@ function scanPackage(source, { builtin = false } = {}) {
     }
   }
   const revision = digest(JSON.stringify(files));
-  return { ...fields, files, bytes: total, revision };
+  return { ...fields, title: display.title || "", displaySource: display.source || "", website: display.website || "", email: display.email || "", displayDescription: display.description || "", author: display.author || fields.author || "", version: display.version || "", files, bytes: total, revision };
 }
 
 class SkillStore {
@@ -196,7 +222,7 @@ class SkillStore {
     if (snapshot.revision !== expectedRevision) fail("SKILL_STALE", "The source changed. Preview it again.");
     return this.mutate((registry) => {
       if (registry.skills.some((record) => record.name === snapshot.name)) fail("SKILL_DUPLICATE", "A custom skill with this name already exists. Export/delete it first, or rename the new skill.");
-      const record = { id: randomUUID(), name: snapshot.name, description: snapshot.description, author: snapshot.author || "", revision: snapshot.revision, source: originalArchive ? noLinks(originalArchive) : snapshot.source, enabled: false, state: "installing", adapters: [], clients, error: "" };
+      const record = { id: randomUUID(), name: snapshot.name, description: snapshot.description, title: snapshot.title, displaySource: snapshot.displaySource, website: snapshot.website, email: snapshot.email, displayDescription: snapshot.displayDescription, version: snapshot.version, author: snapshot.author || "", revision: snapshot.revision, source: originalArchive ? noLinks(originalArchive) : snapshot.source, enabled: false, state: "installing", adapters: [], clients, error: "" };
       registry.skills.push(record);
       this.save(registry); // Durable ownership before any package or adapter creation.
       try {
@@ -231,13 +257,13 @@ class SkillStore {
     }
   }
   publicRecord(record) {
-    return { id: `user/${record.id}`, name: record.name, description: record.description, author: record.author || "", source: "Custom", revision: record.revision, enabled: record.enabled, state: record.state, error: record.error, clients: record.adapters.map((adapter) => ({ client: adapter.client, state: record.state === "ready" ? "Published; refresh may be needed" : record.state })) };
+    return { id: `user/${record.id}`, name: record.name, description: record.description, title: record.title || "", displaySource: record.displaySource || "", website: record.website || "", email: record.email || "", displayDescription: record.displayDescription || "", version: record.version || "", author: record.author || "", source: "Custom", revision: record.revision, enabled: record.enabled, state: record.state, error: record.error, clients: record.adapters.map((adapter) => ({ client: adapter.client, state: record.state === "ready" ? "Published; refresh may be needed" : record.state })) };
   }
   builtins() {
     if (!fs.existsSync(noLinks(this.builtinRoot))) return [];
     return fs.readdirSync(this.builtinRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && NAME.test(entry.name) && fs.existsSync(child(this.builtinRoot, `${entry.name}/SKILL.md`))).map((entry) => {
       const content = scanPackage(child(this.builtinRoot, entry.name), { builtin: true });
-      return { id: `bundled/${entry.name}`, name: content.name, description: content.description, author: content.author || "", revision: content.revision, source: "Built-in", state: "Read only", enabled: true };
+      return { id: `bundled/${entry.name}`, name: content.name, description: content.description, title: content.title, displaySource: content.displaySource, website: content.website, email: content.email, displayDescription: content.displayDescription, version: content.version, author: content.author || "", revision: content.revision, source: "Built-in", state: "Read only", enabled: true };
     });
   }
   list({ management = false } = {}) {

@@ -198,6 +198,20 @@ def icon(root, name):
 
 
 class ActionButton(QtWidgets.QToolButton):
+    def sizeHint(self):
+        size = super().sizeHint()
+        if self.toolButtonStyle() == Qt.ToolButtonIconOnly:
+            # Point-sized fonts can grow independently of logical icon pixels
+            # under Max's high-DPI settings. Reserve the same content height as
+            # a labelled action, including the current style's padding/border.
+            option = QtWidgets.QStyleOptionToolButton()
+            self.initStyleOption(option)
+            content = QtCore.QSize(self.iconSize().width(), max(self.iconSize().height(), self.fontMetrics().height()))
+            styled = self.style().sizeFromContents(QtWidgets.QStyle.CT_ToolButton, option, content, self)
+            edge = max(size.width(), size.height(), styled.height())
+            return QtCore.QSize(edge, edge)
+        return size
+
     def paint_glyph(self, painter, glyph, rectangle, renderer=None):
         mode = QtGui.QIcon.Normal if self.isEnabled() else QtGui.QIcon.Disabled
         ratio = self.devicePixelRatioF()
@@ -751,11 +765,13 @@ class Panel(Window):
         self.outer.setSpacing(6)
         self.ai = action(client.root, "settings", "Setup AI Client", client.show_onboarding)
         self.ai.setFocusPolicy(Qt.StrongFocus)
-        self.ai.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
+        self.ai.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.ai.setMinimumWidth(100)
         self.ai_refresh = action(client.root, "refresh-cw", "Refresh AI client status", client.refresh_agents)
         self.ai_refresh.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.hide_button = action(client.root, "panel-top-close", "Hide panel", client.hide_panel)
+        for button in (self.ai_refresh, self.hide_button):
+            button.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         top_row = QtWidgets.QHBoxLayout()
         self.top_row = top_row
         top_row.setSpacing(8)

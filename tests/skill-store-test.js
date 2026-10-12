@@ -126,6 +126,50 @@ async function main() {
   assert.throws(() => metadata(authored.replace('Fixture Author', 'x'.repeat(257))), /Author must/);
   assert.throws(() => metadata(authored.replace('\n---\nInstructions', '\nauthor: Duplicate\n---\nInstructions')), /exactly one/);
   assert.match(ini({skills: [{id: 'test', name: 'test', author: 'Fixture Author'}]}), /author=Rml4dHVyZSBBdXRob3I=/);
+  const described = fixture('described-example');
+  const manifestFile = path.join(described, 'skill.json');
+  const displayMetadata = { schemaVersion: 1, title: 'Readable fixture title', description: 'Short display summary.', author: 'Fixture Author', version: '2.3.4', source: 'Community Skills', website: 'https://example.com/skills', email: 'author@example.com' };
+  const legacyRevision = store.preview(described).revision;
+  assert.equal(store.preview(described).version, '');
+  fs.writeFileSync(manifestFile, JSON.stringify(displayMetadata));
+  const describedPreview = store.preview(described);
+  assert.notEqual(describedPreview.revision, legacyRevision);
+  assert.equal(describedPreview.description, 'Prepare a synthetic fixture using verified rules.');
+  const describedImport = store.import(described, describedPreview.revision, []);
+  assert.equal(describedImport.title, displayMetadata.title);
+  assert.equal(describedImport.displayDescription, displayMetadata.description);
+  assert.equal(describedImport.version, displayMetadata.version);
+  assert.equal(describedImport.author, displayMetadata.author);
+  assert.equal(describedImport.displaySource, 'Community Skills');
+  assert.equal(describedImport.source, 'Custom');
+  assert.equal(describedImport.website, displayMetadata.website);
+  assert.equal(describedImport.email, displayMetadata.email);
+  for (const website of ['javascript:alert(1)', 'http://example.com', 'https://user:password@example.com', 'https://example.com/ bad', 'https://example.com/' + 'x'.repeat(2048)]) {
+    fs.writeFileSync(manifestFile, JSON.stringify({...displayMetadata, website}));
+    assert.throws(() => store.preview(described), /SKILL_INVALID/);
+  }
+  for (const email of ['Author <author@example.com>', 'author@example.com?subject=test', 'author@example.com\r\nBcc:other@example.com', 'a@example.com,b@example.com', 'a@-example.com', 'a..b@example.com']) {
+    fs.writeFileSync(manifestFile, JSON.stringify({...displayMetadata, email}));
+    assert.throws(() => store.preview(described), /SKILL_INVALID/);
+  }
+  for (const source of ['x'.repeat(161), 'bad\nsource', {}, '']) {
+    fs.writeFileSync(manifestFile, JSON.stringify({...displayMetadata, source}));
+    assert.throws(() => store.preview(described), /SKILL_INVALID/);
+  }
+  fs.writeFileSync(manifestFile, JSON.stringify(displayMetadata));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(store.packagePath(describedImport.id.slice(5)), 'skill.json'))), displayMetadata);
+  assert.equal(new SkillStore(options).list({management: true}).skills.find(item => item.id === describedImport.id).version, '2.3.4');
+  assert.match(ini({skills: [describedImport]}), /version=Mi4zLjQ=/);
+  for (const invalid of [{schemaVersion: 2}, {schemaVersion: 1, rights: 'private'}, {schemaVersion: 1, author: {name:'Author'}}, {schemaVersion: 1, title: ''}, {schemaVersion: 1, title: 'x'.repeat(161)}, {schemaVersion: 1, description: 'bad\ntext'}, {schemaVersion: 1, version: '01.2.3'}, {schemaVersion: 1, version: '1.0.0-beta'}, null, []]) {
+    fs.writeFileSync(manifestFile, JSON.stringify(invalid));
+    assert.throws(() => store.preview(described), /SKILL_INVALID/);
+  }
+  for (const invalid of ['{broken', ' '.repeat(8193)]) {
+    fs.writeFileSync(manifestFile, invalid);
+    assert.throws(() => store.preview(described), /SKILL_INVALID/);
+  }
+  fs.writeFileSync(manifestFile, JSON.stringify(displayMetadata));
+  store.remove(describedImport.id);
   assert.equal(metadata('\uFEFF' + canonical.replace(/\n/g, '\r\n')).name, 'example');
   assert.throws(() => metadata(canonical.replace('\n---\nInstructions', '\n' + '-'.repeat(82) + '\nInstructions')), /delimiter on line 4: use exactly three ASCII hyphens/);
   assert.throws(() => metadata(canonical.replace('\n---\nInstructions', '\n--- \nInstructions')), /padded divider/);

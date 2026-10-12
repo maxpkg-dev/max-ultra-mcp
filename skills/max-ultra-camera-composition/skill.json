@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "title": "Max Ultra Camera Composition",
+  "description": "Compose and verify cameras against the final render frame in an existing 3ds Max scene.",
+  "author": "Lukianenko Vasyl",
+  "version": "1.5.0",
+  "source": "Max Ultra MCP"
+}

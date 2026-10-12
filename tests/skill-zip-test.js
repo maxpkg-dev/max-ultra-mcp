@@ -52,6 +52,25 @@ try {
   const allClients = run(["import-zip", enclosed, preview.revision], store).skills[0];
   assert.deepEqual(allClients.clients.map((client) => client.client), ["codex", "claude", "antigravity"]);
   store.remove(allClients.id);
+  const displayMetadata = {schemaVersion: 1, title: 'Readable ZIP title', description: 'Display-only summary.', author: 'Fixture Author', version: '1.2.3', source: 'Community Skills', website: 'https://example.com', email: 'author@example.com'};
+  for (const prefix of ['', 'example/']) {
+    const describedZip = zip([...valid, {name: 'skill.json', text: JSON.stringify(displayMetadata)}].map(entry => ({...entry, name: prefix + entry.name})));
+    const sourceBytes = fs.readFileSync(describedZip);
+    const described = run(['add-zip', describedZip], store).skills[0];
+    assert.equal(described.title, displayMetadata.title);
+    assert.equal(described.author, displayMetadata.author);
+    assert.equal(described.version, displayMetadata.version);
+    assert.equal(described.displayDescription, displayMetadata.description);
+    assert.equal(described.displaySource, 'Community Skills');
+    assert.equal(described.website, displayMetadata.website);
+    assert.equal(described.email, displayMetadata.email);
+    assert.equal(JSON.parse(store.read({id: described.id, relativePath: 'skill.json'}).text).schemaVersion, 1);
+    store.remove(described.id);
+    assert.deepEqual(fs.readFileSync(describedZip), sourceBytes);
+  }
+  reject([...valid, {name: 'skill.json', text: '{broken'}], /skill.json/);
+  reject([...valid, {name: 'skill.json', text: JSON.stringify({schemaVersion: 1, author: {name:'Author'}})}], /skill.json/);
+  zip(valid.map(entry => ({...entry, name: 'example/' + entry.name})), enclosed);
   const directZip = run(["add-zip", enclosed], store);
   assert.equal(directZip.succeeded[0].id, directZip.skills[0].id);
   assert.equal(directZip.skills[0].clients.length, 3);

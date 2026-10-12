@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "title": "Max Ultra Renderer Settings",
+  "description": "Inspect and configure renderer settings using verified runtime capabilities.",
+  "author": "Lukianenko Vasyl",
+  "version": "1.5.0",
+  "source": "Max Ultra MCP"
+}

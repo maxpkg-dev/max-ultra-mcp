@@ -79,6 +79,7 @@ def run():
                 panel.resize(width, height)
                 application.processEvents()
                 assert panel.width() == width and panel.height() == height
+                assert panel.ai.height() == panel.ai_refresh.height() == panel.hide_button.height()
                 assert panel.log.viewport().height() >= 24
                 assert not panel.log.mask().contains(QtCore.QPoint(0, 0))
                 assert panel.log.mask().contains(panel.log.rect().center())

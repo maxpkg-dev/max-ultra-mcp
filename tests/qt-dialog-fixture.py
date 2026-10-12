@@ -141,7 +141,7 @@ def run():
         for index, source in enumerate(['Built-in', 'Custom']):
             parser['skill' + str(index)] = {key: encode(value) for key, value in
                 {'id': str(index), 'name': 'Example ' + source, 'description': 'Example description',
-                 'author': 'Fixture Author', 'source': source}.items()}
+                 'author': 'Fixture Author', 'version': '1.2.3', 'title': 'Example ' + source, 'displayDescription': 'Example description', 'displaySource': 'Community Skills', 'website': 'https://example.com/skills', 'email': 'author@example.com', 'source': source}.items()}
         with tempfile.TemporaryDirectory() as folder:
             skills.apply_result(SimpleNamespace(snapshot=parser, result=Path(folder) / 'result.ini'))
         skills.show()
@@ -164,6 +164,49 @@ def run():
         skills.source.setCurrentIndex(1)
         skills.list.setCurrentItem(skills.list.topLevelItem(1))
         assert skills.delete_button.isVisible()
+        builtin_menu = skills.skill_menu(skills.list.topLevelItem(0))
+        custom_menu = skills.skill_menu(skills.list.topLevelItem(1))
+        assert [item.text() for item in builtin_menu.actions()] == ['About', 'Open folder']
+        assert [item.text() for item in custom_menu.actions()] == ['About', 'Open folder', '', 'Delete']
+        assert custom_menu.actions()[2].isSeparator()
+        assert custom_menu.actions()[3].property('destructive')
+        assert all(not item.icon().isNull() for item in custom_menu.actions() if not item.isSeparator())
+        custom_menu.resize(custom_menu.sizeHint())
+        assert not custom_menu.grab().isNull()
+        assert len({custom_menu.actionGeometry(item).height() for item in custom_menu.actions() if not item.isSeparator()}) == 1
+        for index in (0, 1, 3):
+            custom_menu.setActiveAction(custom_menu.actions()[index])
+            assert not custom_menu.grab().isNull()
+        custom_menu.grab().save(str(ROOT / 'dist/skills-context-menu.png'))
+        def inspect_about(dialog):
+            content = dialog.findChild(QtWidgets.QTextBrowser).toPlainText()
+            assert 'Example Custom' in content and 'Example description' in content
+            assert 'Fixture Author' in content and 'Source: Community Skills' in content and 'Type: Custom' in content
+            assert 'Version: 1.2.3' in content
+            assert 'Website: https://example.com/skills' in content and 'Email: author@example.com' in content
+            browser = dialog.findChild(QtWidgets.QTextBrowser)
+            with patch.object(QtGui.QDesktopServices, 'openUrl', return_value=True) as opener:
+                browser.anchorClicked.emit(QtCore.QUrl('https://example.com/skills'))
+                assert opener.call_count == 1
+                browser.anchorClicked.emit(QtCore.QUrl('file:///unsafe'))
+                assert opener.call_count == 1
+            return 0
+        with patch.object(SkillsWindow.__bases__[0], 'exec_', inspect_about):
+            custom_menu.actions()[0].trigger()
+        with patch.object(QtWidgets.QMessageBox, 'question', return_value=QtWidgets.QMessageBox.Yes):
+            custom_menu.actions()[3].trigger()
+        assert calls[-1] == ('delete', ['-SkillId', '1'])
+        with tempfile.TemporaryDirectory() as folder:
+            entry = QtWidgets.QTreeWidgetItem(['Synthetic skill'])
+            identifier = '00000000-0000-4000-8000-000000000001'
+            entry.setData(0, Qt.UserRole, ('user/' + identifier, 'Custom'))
+            target = Path(folder) / 'packages' / identifier
+            target.mkdir(parents=True)
+            with patch.dict('os.environ', {'MAX_ULTRA_MCP_SKILLS_ROOT': folder}), patch.object(QtGui.QDesktopServices, 'openUrl', return_value=True) as open_url:
+                skills.open_skill_folder(entry)
+                assert Path(open_url.call_args[0][0].toLocalFile()) == target.resolve()
+        builtin_menu.deleteLater()
+        custom_menu.deleteLater()
         long_html = '<p>Start</p>' + '<p>Example paragraph</p>' * 100 + '<a name="end"></a><p>End</p>'
         skills.set_preview_html(long_html)
         application.processEvents()
@@ -246,7 +289,70 @@ def run():
             help_window.resize(320, 300)
             application.processEvents()
             assert help_window.width() == 320
-        return 'Dialog fixtures passed: metadata, tabs, protected built-ins, Back, compact layout and expanding setup text'
+        skills.set_preview_html('<html><head><style>p{font-size:14px}h1{font-size:25px}</style></head><body><div class="metadata"><div class="eyebrow">SKILL</div><h1>Heading</h1><p>Introductory description</p></div>' + '<p>Responsive example text for reading.</p>' * 100 + '</body></html>')
+        for width, points in [(380, 8), (560, 9), (800, 10), (1024, 11), (1280, 16), (1800, 20), (2400, 24), (3000, 28), (3600, 32), (1040, 14)]:
+            skills.resize(width, 800)
+            application.processEvents()
+            assert skills.preview._text_points == points
+            cursor = skills.preview.document().find('Responsive')
+            assert cursor.charFormat().fontPointSize() == points
+            heading = skills.preview.document().find('Heading')
+            assert heading.charFormat().fontPointSize() > points
+            assert heading.charFormat().font().pointSizeF() > points
+            table = next(frame for frame in skills.preview.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable))
+            assert table.format().border() == 1
+            assert table.format().borderStyle() == QtGui.QTextFrameFormat.BorderStyle_Solid
+            assert skills.preview.document().documentMargin() == skills.preview._document_padding
+            assert 16 <= skills.preview._document_padding <= 40
+            if width in (380, 1800):
+                saved_scroll = skills.preview.verticalScrollBar().value()
+                skills.preview.verticalScrollBar().setValue(0)
+                skills.preview.grab().save(str(ROOT / 'dist' / ('skills-responsive-%d.png' % width)))
+                skills.preview.verticalScrollBar().setValue(saved_scroll)
+        skills.preview.verticalScrollBar().setValue(400)
+        anchor = skills.preview.cursorForPosition(QtCore.QPoint(0, 0)).position()
+        skills.resize(1800, 800)
+        application.processEvents()
+        restored = skills.preview.cursorForPosition(QtCore.QPoint(0, 0)).position()
+        assert abs(restored - anchor) < 40
+        import subprocess
+        sample = '---\nname: narrow-example\ndescription: Guide architectural composition, lighting and presentation using a verified workflow.\n---\n# Example workflow\n\nA sample body paragraph for readable content width.'
+        actual_html = subprocess.check_output([str(ROOT / 'runtime/win-x64/node.exe'), '-e', 'process.stdout.write(require("./core/skill-markdown").renderMarkdown(process.argv[1],{navigation:true}))', '--', sample], cwd=str(ROOT), creationflags=subprocess.CREATE_NO_WINDOW).decode('utf-8')
+        skills.resize(320, 800)
+        application.processEvents()
+        skills.set_preview_html(actual_html)
+        skills.preview.verticalScrollBar().setValue(0)
+        application.processEvents()
+        table = next(frame for frame in skills.preview.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable))
+        assert table.format().border() == 1
+        body_cursor = skills.preview.document().find('A sample body')
+        body_rect = skills.preview.document().documentLayout().blockBoundingRect(body_cursor.block())
+        body_block = body_cursor.block()
+        body_layout = body_block.layout()
+        effective_left = body_rect.left() + body_layout.lineAt(0).x()
+        assert 15 <= effective_left <= 18, effective_left
+        skills.preview.grab().save(str(ROOT / 'dist/skills-actual-narrow.png'))
+        skills.preview.setHtml('<p>Example text and <a href="https://example.com/skill">reference</a></p>')
+        skills.preview.selectAll()
+        menu = skills.preview.document_menu(QtCore.QPoint(0, 0))
+        actions = [item for item in menu.actions() if not item.isSeparator()]
+        assert [item.text() for item in actions] == ['Copy', 'Copy Link Location', 'Select All']
+        assert actions[0].isEnabled() and not actions[1].isEnabled()
+        assert all(not item.icon().isNull() for item in actions)
+        clipboard = Mock()
+        with patch.object(QtWidgets.QApplication, 'clipboard', return_value=clipboard), patch.object(type(skills.preview), 'anchorAt', return_value='https://example.com/skill'):
+            link_menu = skills.preview.document_menu(QtCore.QPoint(0, 0))
+            link_menu.actions()[1].trigger()
+        clipboard.setText.assert_called_once_with('https://example.com/skill')
+        menu.resize(menu.sizeHint())
+        assert len({menu.actionGeometry(item).height() for item in actions}) == 1
+        for item in actions:
+            menu.setActiveAction(item)
+            assert not menu.grab().isNull()
+        menu.grab().save(str(ROOT / 'dist/skills-document-menu.png'))
+        menu.deleteLater()
+        link_menu.deleteLater()
+        return 'Dialog fixtures passed: metadata, tabs, protected built-ins, Back, compact layout and responsive preview text'
     finally:
         for window in [skills, onboarding, settings] + help_windows:
             window.close()
