@@ -11,7 +11,9 @@ from types import SimpleNamespace
 from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt
 from max_ultra import themes
 from max_ultra.community_dialog import CommunityWindow
-from max_ultra.dialogs import ResponsiveSkillBrowser
+from max_ultra.dialogs import ResponsiveSkillBrowser, SkillsWindow
+from max_ultra.widgets import Window
+from unittest.mock import patch
 from max_ultra.wire import encode
 
 root = Path(__file__).resolve().parents[1]
@@ -46,10 +48,42 @@ try:
     window.render_cards()
     assert not window.install_buttons[0][0].isEnabled()
     window.show_error('Offline')
-    assert 'Open catalog' in window.status.text() and window.retry.isEnabled()
+    assert 'Open online catalog' in window.status.text() and window.retry.isEnabled()
     window.entries = []
     window.render_cards()
     assert not window.install_buttons
+    # Real source -> store -> CLI INI -> Qt item -> About, no synthetic metadata shortcut.
+    expected = {'max-ultra-floor-plan': 'Anastasiia Reznichenko', 'max-ultra-camera-composition': 'Yuriy Bobak', 'max-ultra-small-house-detailing': 'Yuriy Bobak, Anastasiia Reznichenko'}
+    ini_text = subprocess.check_output([str(root/'runtime/win-x64/node.exe'), '-e', "const {SkillStore}=require('./core/skill-store');process.stdout.write(require('./core/skills-cli').ini({skills:new SkillStore().builtins()}))"], cwd=str(root), creationflags=subprocess.CREATE_NO_WINDOW).decode('utf-8')
+    snapshot = configparser.ConfigParser()
+    snapshot.read_string(ini_text)
+    fixture_client = SimpleNamespace(root=root, settings=SimpleNamespace(get=lambda *args: 'builtin'), save_setting=lambda *args: True, skills_operation=lambda *args: None, donate=lambda: None)
+    skills = SkillsWindow(fixture_client, None)
+    install = next(button for button in skills.buttons if button.text() == 'Install community skills')
+    assert not install.icon().isNull() and '@ready_background' in install._theme_style
+    rows = [skills.outer.itemAt(i).layout() for i in range(skills.outer.count()) if skills.outer.itemAt(i).layout()]
+    import_row = next(row for row in rows if row.count() and row.itemAt(0).widget() is install)
+    assert [import_row.itemAt(i).widget().text() for i in range(3)] == ['Install community skills', 'Import Folder', 'Import ZIPs']
+    assert sum(button.text() == 'Install community skills' for button in skills.buttons) == 1
+    assert any(button.text() == 'Open online catalog' for button in window.findChildren(QtWidgets.QToolButton))
+    skills.apply_result(SimpleNamespace(snapshot=snapshot, result=root/'dist'/'missing-author-fixture'))
+    seen = []
+    def inspect_about(dialog):
+        text = dialog.findChild(QtWidgets.QTextBrowser).toPlainText()
+        assert ('Author: ' + wanted) in text and 'Not specified' not in text
+        seen.append(wanted)
+        return 0
+    try:
+        for index in range(skills.list.topLevelItemCount()):
+            item = skills.list.topLevelItem(index)
+            identifier = item.data(0, Qt.UserRole)[0].split('/')[-1]
+            wanted = expected.get(identifier, 'Lukianenko Vasyl')
+            assert item.data(0, Qt.UserRole+1)['author'] == wanted
+            with patch.object(Window, 'exec_', inspect_about):
+                skills.show_skill_about(item)
+        assert len(seen) == 9
+    finally:
+        skills.close()
     report = subprocess.check_output([str(root/'runtime/win-x64/node.exe'), '-e', "process.stdout.write(require('./core/skill-markdown').renderImportReport([{name:'Example imported skill'}],[{name:'Other skill',reason:'Example conflict'}]))"], cwd=str(root), creationflags=subprocess.CREATE_NO_WINDOW).decode('utf-8')
     browser = ResponsiveSkillBrowser()
     browser.resize(640, 540)

@@ -3,5 +3,6 @@
   "title": "Max Ultra Renderer Settings",
   "description": "Inspect and configure renderer settings using verified runtime capabilities.",
   "version": "1.5.0",
-  "source": "Max Ultra MCP"
+  "source": "Max Ultra MCP",
+  "author": "Lukianenko Vasyl"
 }

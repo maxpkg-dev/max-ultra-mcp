@@ -60,7 +60,7 @@ function download(address, limit, request = https.get) {
       const timer = setTimeout(() => req.destroy(new Error("Community download timed out. Retry.")), remaining);
       req.on("close", () => clearTimeout(timer));
       req.setTimeout(30000, () => req.destroy(new Error("Community download timed out. Retry.")));
-      req.on("error", () => reject(new Error("Cannot reach the community catalog. Check your connection, Retry or Open catalog.")));
+      req.on("error", () => reject(new Error("Cannot reach the community catalog. Check your connection, Retry or Open online catalog.")));
     });
   }
   return fetch(address, 0);

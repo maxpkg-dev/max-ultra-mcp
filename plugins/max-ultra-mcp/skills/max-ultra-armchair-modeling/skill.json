@@ -3,5 +3,6 @@
   "title": "Max Ultra Armchair Modeling",
   "description": "Build a reference-based armchair with editable subdivision geometry and verified proportions.",
   "version": "1.5.0",
-  "source": "Max Ultra MCP"
+  "source": "Max Ultra MCP",
+  "author": "Lukianenko Vasyl"
 }

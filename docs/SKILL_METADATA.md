@@ -33,10 +33,18 @@ Bundled skill manifests are maintained explicitly with their source and mirrored
 
 ## Built-in attribution audit
 
-Product maintenance and Git commit authorship are not evidence of authorship of every bundled workflow. The earlier blanket product-author value has been removed.
+On 2026-10-12 the repository owner explicitly confirmed the rule: credit people who supplied material for each specific skill, using comma-separated names; when there is no identified outside contribution, credit Lukianenko Vasyl. Product copyright or Git commit authorship alone is not the evidence for this mapping.
 
-- **Max Ultra House and Interior Architectural Detailing** credits **Yuriy Bobak; Anastasiia Reznichenko (source workflows)**. Evidence: its SKILL.md and ATTRIBUTION.md, and integration commits `08093fd` and `ddbbc2d`. The qualifier distinguishes the supplied workflows from the maintained adaptation.
-- **Max Ultra Camera Composition** retains the specific Yuriy Bobak diagnostic credit in `references/composition-workflow.md`. That contribution does not establish authorship of the entire skill; its author field is omitted.
-- **Max Ultra Armchair Modeling**, **Max Ultra Character and Object Modeling**, **Max Ultra Floor Plan**, **Max Ultra MaxPkg Packaging**, **Max Ultra MCP**, **Max Ultra Renderer Settings**, and **Max Ultra Spline Modeling** have no explicit whole-skill author identified in the reviewed source attribution. Their author fields remain omitted pending confirmation.
+| Built-in skill | Author displayed in About | Evidence |
+| --- | --- | --- |
+| Max Ultra Armchair Modeling | Lukianenko Vasyl | Owner-confirmed default; no external contributor identified in source/history |
+| Max Ultra Camera Composition | Yuriy Bobak | Owner confirmation; camera diagnostic credit in references/composition-workflow.md, commit 08093fd |
+| Max Ultra Character and Object Modeling | Lukianenko Vasyl | Owner-confirmed default; no external contributor identified in source/history |
+| Max Ultra Floor Plan | Anastasiia Reznichenko | Explicit owner attribution on 2026-10-12 |
+| Max Ultra MaxPkg Packaging | Lukianenko Vasyl | Owner-confirmed default; official tooling references are not skill authorship |
+| Max Ultra MCP | Lukianenko Vasyl | Owner-confirmed default; links to other skills do not transfer their attribution |
+| Max Ultra Renderer Settings | Lukianenko Vasyl | Owner-confirmed default; no external contributor identified in source/history |
+| Max Ultra House and Interior Architectural Detailing | Yuriy Bobak, Anastasiia Reznichenko | SKILL.md, ATTRIBUTION.md, commits 08093fd and ddbbc2d, owner confirmation |
+| Max Ultra Spline Modeling | Lukianenko Vasyl | Owner-confirmed default; links to architectural guidance do not establish direct outside authorship |
 
-About displays `Not specified` for these unresolved authors. Source remains `Max Ultra MCP`, identifying the distributor rather than claiming authorship. Original contributor notes are retained unchanged.
+These display credits identify the supplied workflow contributions under the owner's stated convention. They do not assert ownership of third-party books, images, software or other reference materials. Existing detailed source attributions and terms remain unchanged. Source remains Max Ultra MCP, identifying the distributor.

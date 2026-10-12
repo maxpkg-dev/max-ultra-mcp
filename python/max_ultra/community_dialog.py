@@ -47,7 +47,7 @@ class CommunityWindow(Window):
         self.retry = action(client.root, "refresh-cw", "Refresh", self.refresh)
         controls.addWidget(self.retry)
         controls.addStretch()
-        controls.addWidget(action(client.root, "globe", "Open catalog", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(CATALOG_URL))))
+        controls.addWidget(action(client.root, "globe", "Open online catalog", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(CATALOG_URL))))
         self.outer.addLayout(controls)
 
     def refresh(self):
@@ -62,7 +62,7 @@ class CommunityWindow(Window):
             button.setEnabled(not busy and available)
 
     def show_error(self, message):
-        self.status.setText(message + "\nUse Refresh to retry, or Open catalog for manual download and import.")
+        self.status.setText(message + "\nUse Refresh to retry, or Open online catalog for manual download and import.")
         self.set_busy(False)
 
     def apply_result(self, helper):
