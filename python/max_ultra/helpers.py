@@ -7,6 +7,7 @@ from pathlib import Path
 import time
 import uuid
 import configparser
+import json
 
 from .processes import launch_helper
 from .settings import read_ini
@@ -35,6 +36,13 @@ class Helper:
         self.cancelled = True
         self.result.with_name(self.result.name + ".cancel").write_text("cancel", encoding="utf-8")
 
+    def read_progress(self):
+        try:
+            with self.result.with_name(self.result.name + ".progress.json").open(encoding="utf-8") as stream:
+                return json.loads(stream.read(1024))
+        except (OSError, ValueError):
+            return None
+
     def poll(self):
         self.read()
         code = self.process.poll()
@@ -46,7 +54,7 @@ class Helper:
 
     def cleanup(self):
         self.process.owned_job.close()
-        for filename in [self.result.with_name(self.result.name + suffix) for suffix in ("", ".txt", ".html", ".cancel")] + self.temporary_files:
+        for filename in [self.result.with_name(self.result.name + suffix) for suffix in ("", ".txt", ".html", ".cancel", ".progress.json", ".progress.json.tmp")] + self.temporary_files:
             try:
                 filename.unlink()
             except FileNotFoundError:

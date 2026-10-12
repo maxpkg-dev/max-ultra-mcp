@@ -14,7 +14,7 @@ from .qt import QtCore, QtGui, QtWidgets, QtSvg, Qt, enable_window_shadow
 
 COLORS = {"info": "@log_info", "system": "@log_system", "success": "@log_success", "warning": "@log_warning", "error": "@log_error", "support": "@support_link", "debug": "@log_debug"}
 DONATE_STYLE = "QToolButton { background:@donate_background; border-color:@donate_border; } QToolButton:hover { background:@donate_hover; }"
-DESTRUCTIVE_STYLE = "QToolButton { background:@delete_background; color:@delete_text; border-color:@delete_background; } QToolButton:hover { background:@delete_hover; border-color:@delete_hover; } QToolButton:pressed { background:@delete_pressed; border-color:@delete_pressed; } QToolButton:disabled { background:@button_background; color:@disabled_text; border-color:@border; }"
+DESTRUCTIVE_STYLE = "QToolButton { background:@delete_background; color:@delete_text; border-color:@delete_border; } QToolButton:hover { background:@delete_hover; border-color:@delete_border; } QToolButton:pressed { background:@delete_pressed; border-color:@delete_border; } QToolButton:disabled { background:@button_background; color:@disabled_text; border-color:@border; }"
 STYLE = """
 QWidget { background: @window_background; color: @text; font-family: 'Segoe UI'; font-size: 11pt; }
 QDialog { border: 1px solid @border; }
@@ -192,6 +192,84 @@ class PromotionLink(QtWidgets.QLabel):
     def hideEvent(self, event):
         self.timer.stop()
         super().hideEvent(event)
+
+
+class PillProgressBar(QtWidgets.QProgressBar):
+    """One clipped, antialiased track and fill for both Qt bindings."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._phase = 0
+        self._animation = QtCore.QTimer(self)
+        self._animation.setInterval(40)
+        self._animation.timeout.connect(self.advance)
+        self.setFixedHeight(12)
+
+    def setFixedHeight(self, height):
+        # QSS min/max dimensions override QWidget constraints during polish.
+        themes.set_style(self, "QProgressBar { background:transparent; border:none; padding:0; min-height:%dpx; max-height:%dpx; }" % (height, height))
+        super().setFixedHeight(height)
+
+    def sync_animation(self):
+        if self.isVisible() and self.minimum() == self.maximum() == 0:
+            self._animation.start()
+        else:
+            self._animation.stop()
+        self.update()
+
+    def setRange(self, minimum, maximum):
+        super().setRange(minimum, maximum)
+        self.sync_animation()
+
+    def setMinimum(self, value):
+        super().setMinimum(value)
+        self.sync_animation()
+
+    def setMaximum(self, value):
+        super().setMaximum(value)
+        self.sync_animation()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.sync_animation()
+
+    def hideEvent(self, event):
+        self._animation.stop()
+        super().hideEvent(event)
+
+    def advance(self):
+        self._phase = (self._phase + 1) % 80
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        track = QtCore.QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        painter.setPen(QtGui.QPen(QtGui.QColor(themes.style('@border')), 1))
+        painter.setBrush(QtGui.QColor(themes.style('@recessed_background')))
+        painter.drawRoundedRect(track, track.height() / 2, track.height() / 2)
+        inner = track.adjusted(0.5, 0.5, -0.5, -0.5)
+        if inner.width() <= 0 or inner.height() <= 0:
+            return
+        clip = QtGui.QPainterPath()
+        clip.addRoundedRect(inner, inner.height() / 2, inner.height() / 2)
+        painter.setClipPath(clip)
+        fill = QtCore.QRectF(inner)
+        if self.minimum() == self.maximum() == 0:
+            fill.setWidth(max(inner.height(), inner.width() * 0.28))
+            offset = 1 - abs(self._phase / 40.0 - 1)
+            fill.moveLeft(inner.left() + (inner.width() - fill.width()) * offset)
+        else:
+            fraction = max(0, min(1, (self.value() - self.minimum()) / max(1, self.maximum() - self.minimum())))
+            fill.setWidth(inner.width() * fraction)
+        if self.invertedAppearance() != (self.layoutDirection() == Qt.RightToLeft):
+            fill.moveRight(inner.right() - (fill.left() - inner.left()))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QtGui.QColor(themes.style('@accent' if self.isEnabled() else '@disabled_text')))
+        radius = min(fill.height(), fill.width()) / 2
+        painter.drawRoundedRect(fill, radius, radius)
+        if self.isTextVisible() and self.maximum() != self.minimum():
+            painter.setPen(QtGui.QColor(themes.style('@field_text')))
+            painter.drawText(self.rect(), Qt.AlignCenter, self.text())
 
 
 def icon(root, name):

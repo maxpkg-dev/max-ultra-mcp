@@ -5,11 +5,62 @@
 
 import json
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, action, DESTRUCTIVE_STYLE
+from .widgets import Window, action, DESTRUCTIVE_STYLE, PillProgressBar
 from .wire import decode
 from . import themes
 
 CATALOG_URL = "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"
+
+
+class MetadataBadge(QtWidgets.QLabel):
+    def __init__(self, value, label):
+        super().__init__(value)
+        self._full_text = value
+        self.setTextFormat(Qt.PlainText)
+        self.setAccessibleName(label + ": " + value)
+        self.setToolTip(value)
+        self.setWordWrap(False)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        self.update_style(9)
+        self.ensurePolished()
+        self.setFixedHeight(self.fontMetrics().height() + 4)
+        self.setFixedWidth(self.fontMetrics().horizontalAdvance(value) + 20)
+
+    def update_style(self, radius):
+        themes.set_style(self, "QLabel { font-size:8pt; color:@field_text; background:@recessed_background; border:1px solid @field_border; padding:0px 6px; border-radius:%spx; }" % radius)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_style(self.height() / 2)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QtCore.QEvent.FontChange and hasattr(self, '_full_text'):
+            self.setFixedWidth(self.fontMetrics().horizontalAdvance(self._full_text) + 20)
+            self.setFixedHeight(self.fontMetrics().height() + 4)
+
+
+class MetadataRow(QtWidgets.QWidget):
+    def __init__(self, author, version):
+        super().__init__()
+        self.row = QtWidgets.QBoxLayout(QtWidgets.QBoxLayout.LeftToRight, self)
+        self.row.setContentsMargins(0, 0, 0, 0)
+        self.row.setSpacing(6)
+        self.row.setSizeConstraint(QtWidgets.QLayout.SetNoConstraint)
+        self.author = MetadataBadge(author, 'Author')
+        self.version = MetadataBadge(version, 'Version')
+        self.row.addWidget(self.author, 0, Qt.AlignLeft)
+        self.row.addWidget(self.version, 0, Qt.AlignLeft)
+        self.row.addStretch()
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(max(self.author.width(), self.version.width()), self.author.height())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        vertical = self.width() < self.author.width() + self.version.width() + 6
+        self.row.setDirection(QtWidgets.QBoxLayout.TopToBottom if vertical else QtWidgets.QBoxLayout.LeftToRight)
 
 
 class CommunityWindow(Window):
@@ -30,10 +81,9 @@ class CommunityWindow(Window):
         self.status.setWordWrap(True)
         self.status.setTextFormat(Qt.PlainText)
         self.outer.addWidget(self.status)
-        self.progress = QtWidgets.QProgressBar()
+        self.progress = PillProgressBar()
         self.progress.setRange(0, 0)
         self.progress.setTextVisible(False)
-        self.progress.setFixedHeight(6)
         self.outer.addWidget(self.progress)
         self.scroll = QtWidgets.QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -57,11 +107,30 @@ class CommunityWindow(Window):
             self.status.setText("Loading community catalog...")
 
     def set_busy(self, busy):
+        if busy and not self.busy:
+            self.progress.setRange(0, 0)
         self.busy = busy
         self.progress.setVisible(busy)
         self.retry.setEnabled(not busy)
         for button, available in self.install_buttons:
             button.setEnabled(not busy and available)
+
+    def show_progress(self, state):
+        if not isinstance(state, dict) or not self.busy:
+            return
+        phase = state.get('phase')
+        received, total = state.get('bytes', 0), state.get('total')
+        if phase == 'download' and isinstance(received, int) and received >= 0:
+            if isinstance(total, int) and 0 < total <= 50 * 1024 * 1024:
+                self.progress.setRange(0, total)
+                self.progress.setValue(min(received, total))
+                self.status.setText('Downloading: {:,} / {:,} bytes ({}%)'.format(received, total, min(received * 100 // total, 100)))
+            else:
+                self.progress.setRange(0, 0)
+                self.status.setText('Downloading: {:,} bytes'.format(received))
+        elif phase in ('catalog', 'verify', 'install'):
+            self.progress.setRange(0, 0)
+            self.status.setText({'catalog': 'Loading community catalog...', 'verify': 'Verifying archive checksum and contents...', 'install': 'Installing skill and registering clients...'}[phase])
 
     def show_error(self, message):
         self.status.setText(message + "\nUse Refresh to retry, or Open Online Catalog for manual download and import.")
@@ -94,7 +163,7 @@ class CommunityWindow(Window):
             layout = QtWidgets.QVBoxLayout(card)
             layout.setContentsMargins(14, 12, 14, 12)
             layout.setSpacing(8)
-            for text, title in ((entry["title"], True), (entry["author"] + "  |  " + entry["version"], False), (entry["description"], False)):
+            for text, title in ((entry["title"], True), (entry["description"], False)):
                 label = QtWidgets.QLabel(text)
                 label.setTextFormat(Qt.PlainText)
                 label.setWordWrap(True)
@@ -106,6 +175,8 @@ class CommunityWindow(Window):
                     font.setPointSizeF(font.pointSizeF() + 2)
                     label.setFont(font)
                 layout.addWidget(label)
+                if title:
+                    layout.addWidget(MetadataRow(entry['author'], entry['version']))
             state = entry.get("installState", "available")
             if state == "available":
                 button = action(self.client.root, "download", "Install", lambda checked=False, selected=entry: self.install(selected))
@@ -146,6 +217,10 @@ class CommunityWindow(Window):
         self.render_cards()
 
     def filter_cards(self):
+        # Full single-line author names establish a finite minimum width;
+        # the validated feed bounds author length to 256 characters.
+        badge_widths = [badge.width() for card, _ in getattr(self, 'card_widgets', []) for badge in card.findChildren(MetadataBadge)]
+        self.setMinimumWidth(max([320] + [width + 80 for width in badge_widths]))
         query = self.search.text().strip().lower()
         for card, text in getattr(self, "card_widgets", []):
             card.setVisible(not query or query in text)

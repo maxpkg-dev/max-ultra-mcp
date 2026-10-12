@@ -481,6 +481,8 @@ class Client:
                 continue
             try:
                 code = helper.poll()
+                if name == "skills_helper" and "community" in self.dialogs and code is None:
+                    self.dialogs["community"].show_progress(helper.read_progress())
                 if name == "integration" and helper.snapshot:
                     self.integration_result = helper.snapshot
                     message = helper.snapshot.get("operation", "message", fallback="")

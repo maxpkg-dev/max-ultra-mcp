@@ -33,7 +33,7 @@ function validateFeed(value) {
     return Object.fromEntries([...Object.keys(limits), "downloadUrl", "sha256", "sizeBytes"].map(key => [key, entry[key]]));
   });
 }
-function download(address, limit, request = https.get) {
+function download(address, limit, request = https.get, progress = () => {}, expectedTotal = null) {
   const deadline = Date.now() + 90000;
   function fetch(url, redirects) {
     const parsed = new URL(url);
@@ -52,7 +52,10 @@ function download(address, limit, request = https.get) {
         if (response.statusCode !== 200) { response.resume(); reject(new Error("Community catalog download failed. Retry or open the web catalog.")); return; }
         if (Number(response.headers["content-length"]) > limit) { response.destroy(); reject(new Error("Community download exceeds the size limit.")); return; }
         const chunks = []; let size = 0;
-        response.on("data", chunk => { size += chunk.length; if (size > limit) { response.destroy(); reject(new Error("Community download exceeds the size limit.")); } else chunks.push(chunk); });
+        const headerTotal = Number(response.headers["content-length"]);
+        const total = expectedTotal || (Number.isSafeInteger(headerTotal) && headerTotal > 0 ? headerTotal : null);
+        progress({ bytes: 0, total });
+        response.on("data", chunk => { size += chunk.length; if (size > limit) { response.destroy(); reject(new Error("Community download exceeds the size limit.")); } else { chunks.push(chunk); progress({ bytes: size, total }); } });
         response.on("end", () => resolve(Buffer.concat(chunks)));
         response.on("error", () => reject(new Error("Community download was interrupted. Retry.")));
         response.on("aborted", () => reject(new Error("Community download was interrupted. Retry.")));
@@ -81,7 +84,8 @@ function installedState(entry, installed) {
 function ownedImport(entry, installed) {
   return installed.find(item => item.source === "Custom" && /^user\/[a-f0-9-]{36}$/.test(item.id) && item.name === entry.name && item.displaySource === "Community Skills" && item.title === entry.title && item.author === entry.author);
 }
-async function run(command, values, store, fetch = download) {
+async function run(command, values, store, fetch = download, progress = () => {}) {
+  progress({ phase: "catalog", bytes: 0, total: null });
   const entries = await catalog(fetch);
   let message = entries.length ? "Choose a skill to install. Imported instructions are available in new AI conversations." : "No community skills are published yet.";
   if (command === "community-delete") {
@@ -95,7 +99,9 @@ async function run(command, values, store, fetch = download) {
     const entry = entries.find(item => item.id === values[0]);
     if (!entry || entry.version !== values[1] || entry.sha256 !== values[2]) fail("The catalog changed. Refresh the list before installing.");
     if (installedState(entry, store.list({ management: true }).skills) !== "available") fail("A skill with this name is already installed. Your copy was not changed. Use Custom to inspect/export and explicitly delete it before installing another version.");
-    const bytes = await fetch(entry.downloadUrl, entry.sizeBytes);
+    progress({ phase: "download", bytes: 0, total: entry.sizeBytes });
+    const bytes = await fetch(entry.downloadUrl, entry.sizeBytes, undefined, state => progress({ phase: "download", ...state }), entry.sizeBytes);
+    progress({ phase: "verify", bytes: bytes.length, total: entry.sizeBytes });
     if (bytes.length !== entry.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== entry.sha256) fail("Archive checksum or size does not match the catalog. Refresh and retry; nothing was installed.");
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-community-"));
     try {
@@ -104,6 +110,7 @@ async function run(command, values, store, fetch = download) {
       const imported = withZipSkill(archive, folder => {
         const preview = store.preview(folder);
         if (preview.name !== entry.name || preview.version !== entry.version || preview.author !== entry.author || preview.title !== entry.title) fail("Package metadata does not match the catalog. Nothing was installed.");
+        progress({ phase: "install", bytes: bytes.length, total: entry.sizeBytes });
         return store.import(folder, preview.revision, Object.keys(store.clientRoots), archive);
       });
       if (imported.state !== "ready") fail("Package saved, but client registration failed. Inspect the Custom list before retrying.");

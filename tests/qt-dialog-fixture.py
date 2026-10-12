@@ -291,7 +291,7 @@ def run():
             help_window.resize(320, 300)
             application.processEvents()
             assert help_window.width() == 320
-        skills.set_preview_html('<html><head><style>p{font-size:14px}h1{font-size:25px}</style></head><body><div class="metadata"><div class="eyebrow">SKILL</div><h1>Heading</h1><p>Introductory description</p></div>' + '<p>Responsive example text for reading.</p>' * 100 + '</body></html>')
+        skills.set_preview_html('<html><head><style>p{font-size:14px}h1{font-size:25px}</style></head><body><div class="metadata"><div class="eyebrow">SKILL</div><h1>Heading</h1><p>Introductory description</p></div>' + '<p style="font-size:30px">Responsive example text for reading.</p>' * 100 + '</body></html>')
         for width, points in [(380, 8), (560, 9), (800, 10), (1024, 11), (1280, 16), (1800, 20), (2400, 24), (3000, 28), (3600, 32), (1040, 14)]:
             skills.resize(width, 800)
             application.processEvents()

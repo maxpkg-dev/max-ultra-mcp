@@ -12,7 +12,7 @@ import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE
+from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE, PillProgressBar
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -86,6 +86,12 @@ class ResponsiveSkillBrowser(PassiveBrowser):
         content = re.sub(r'(<style\b[^>]*>)(.*?)(</style\s*>)',
                          lambda match: match.group(1) + re.sub(r'\bbody\s*\{[^}]*\}', 'body{margin:0;padding:0}', re.sub(r'font-size\s*:[^;}]+;?', '', match.group(2), flags=re.I), flags=re.I) + match.group(3),
                          content, flags=re.I | re.S)
+        # Inline font sizes otherwise override the responsive document rules.
+        # Restrict normalization to style attributes, preserving prose/code.
+        content = re.sub(r'\bstyle\s*=\s*([\"\'])(.*?)\1',
+                         lambda match: 'style=' + match.group(1) + re.sub(
+                             r'font-size\s*:[^;}]+;?', '', match.group(2), flags=re.I
+                         ) + match.group(1), content, flags=re.I | re.S)
         # Web CSS centers the document with auto margins; Qt imports those as
         # fixed margins on every paragraph, squeezing the narrow viewport.
         content = re.sub(r'\.document\s*\{[^}]*\}', '.document{margin:0;padding:0}', content, flags=re.I)
@@ -389,7 +395,7 @@ class Onboarding(Window):
         self.detail.setMinimumHeight(90)
         self.detail.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         setup_layout.addWidget(self.detail, 1)
-        self.progress = QtWidgets.QProgressBar()
+        self.progress = PillProgressBar()
         self.progress.setTextVisible(False)
         self.progress.setRange(0, 0)
         self.progress.hide()
@@ -738,6 +744,8 @@ class SkillsWindow(Window):
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)
             self.buttons.append(button)
             self.controls.addWidget(button)
+        self.donate_button = button
+        self.donate_button.installEventFilter(self)
         self.outer.addLayout(self.controls)
         self.loading_overlay = LoadingOverlay(self)
         self.update_actions()
@@ -745,6 +753,11 @@ class SkillsWindow(Window):
     def show_community(self):
         from .community_dialog import CommunityWindow
         self.client.show_dialog("community", CommunityWindow).refresh()
+
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, "donate_button", None) and event.type() == QtCore.QEvent.Resize:
+            self.delete_button.setFixedWidth(watched.width())
+        return super().eventFilter(watched, event)
 
     def filter_rows(self):
         self.client.save_setting("skills", {"category": ("builtin", "custom")[self.source.currentIndex()]})

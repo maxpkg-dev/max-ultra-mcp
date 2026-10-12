@@ -6,15 +6,17 @@
 import configparser
 import json
 import subprocess
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt
 from max_ultra import themes
-from max_ultra.community_dialog import CommunityWindow
+from max_ultra.community_dialog import CommunityWindow, MetadataBadge
 from max_ultra.dialogs import ResponsiveSkillBrowser, SkillsWindow
-from max_ultra.widgets import Window
+from max_ultra.widgets import Window, DESTRUCTIVE_STYLE
 from unittest.mock import patch
 from max_ultra.wire import encode
+from max_ultra.helpers import Helper
 
 root = Path(__file__).resolve().parents[1]
 app = QtWidgets.QApplication.instance()
@@ -35,6 +37,24 @@ try:
     window.install_buttons[0][0].click()
     assert calls[0] == ('community-install', ['-SkillId', 'example-skill', '-Source', '1.0.0', '-Revision', 'a'*64])
     window.set_busy(True)
+    app.processEvents()
+    assert window.progress.height() == 12
+    window.show_progress({'phase': 'download', 'bytes': 512, 'total': 1024})
+    assert window.progress.value() == 512 and '50%' in window.status.text()
+    window.show_progress({'phase': 'download', 'bytes': 512, 'total': None})
+    assert window.progress.maximum() == 0 and '%' not in window.status.text()
+    window.show_progress({'phase': 'verify'})
+    assert window.progress.maximum() == 0 and 'Verifying' in window.status.text()
+    with tempfile.TemporaryDirectory() as folder:
+        helper = Helper.__new__(Helper)
+        helper.result = Path(folder) / 'operation.ini'
+        assert helper.read_progress() is None
+        progress_file = Path(str(helper.result) + '.progress.json')
+        progress_file.write_text(json.dumps({'phase': 'download', 'bytes': 75, 'total': 100}))
+        window.show_progress(helper.read_progress())
+        assert window.progress.value() == 75 and '75%' in window.status.text()
+        progress_file.write_text('{')
+        assert helper.read_progress() is None
     assert not window.install_buttons[0][0].isEnabled() and not window.retry.isEnabled()
     assert window.install_buttons[0][0].cursor().shape() == Qt.ArrowCursor
     window.set_busy(False)
@@ -42,6 +62,12 @@ try:
         window.resize(width, 600)
         app.processEvents()
         assert window.scroll.horizontalScrollBar().maximum() == 0
+        badges = window.card_widgets[0][0].findChildren(MetadataBadge)
+        assert len(badges) == 2
+        assert [badge.toolTip() for badge in badges] == ['Example Author', '1.0.0']
+        assert all(not badge.wordWrap() and badge.fontMetrics().height() <= badge.height() <= badge.fontMetrics().height() + 4 for badge in badges)
+        assert badges[0].accessibleName() == 'Author: Example Author'
+        assert badges[1].accessibleName() == 'Version: 1.0.0'
         if width == 760:
             window.grab().save(str(root/'dist'/'community-catalog.png'))
     window.search.setText('no match')
@@ -58,6 +84,7 @@ try:
     assert trash.cursor().shape() == Qt.PointingHandCursor
     assert trash.toolButtonStyle() == Qt.ToolButtonIconOnly and 'background:@delete_background' in trash._theme_style
     assert trash.toolTip() == 'Delete Installed Skill' and trash.accessibleName() == 'Delete Installed Skill'
+    assert trash._theme_style == DESTRUCTIVE_STYLE
     previous = len(calls)
     with patch.object(QtWidgets.QMessageBox, 'question', return_value=QtWidgets.QMessageBox.No):
         trash.click()
@@ -97,6 +124,7 @@ try:
     assert import_row.itemAt(import_row.count()-1).widget() is skills.delete_button
     assert import_row.itemAt(import_row.count()-2).spacerItem() is not None
     assert 'background:@delete_background' in skills.delete_button._theme_style
+    assert skills.delete_button._theme_style == DESTRUCTIVE_STYLE
     assert import_row.itemAt(1).spacerItem().sizeHint().width() == 14
     assert sum(button.text() == 'Install Community Skills' for button in skills.buttons) == 1
     assert any(button.text() == 'Open Online Catalog' for button in window.findChildren(QtWidgets.QToolButton))
@@ -116,6 +144,20 @@ try:
             with patch.object(Window, 'exec_', inspect_about):
                 skills.show_skill_about(item)
         assert len(seen) == 9
+        custom = QtWidgets.QTreeWidgetItem(['Example', 'Geometry fixture'])
+        custom.setData(0, Qt.UserRole, ('user/example', 'Custom'))
+        skills.list.addTopLevelItem(custom)
+        skills.source.setCurrentIndex(1)
+        skills.list.setCurrentItem(custom)
+        skills.show()
+        for width in (1040, 320, 1040):
+            skills.resize(width, 600)
+            for _ in range(3):
+                app.processEvents()
+            assert skills.delete_button.isVisible()
+            assert skills.delete_button.width() == skills.donate_button.width()
+            assert skills.delete_button.mapTo(skills, QtCore.QPoint(skills.delete_button.width(), 0)).x() == skills.donate_button.mapTo(skills, QtCore.QPoint(skills.donate_button.width(), 0)).x()
+
     finally:
         skills.close()
     report = subprocess.check_output([str(root/'runtime/win-x64/node.exe'), '-e', "process.stdout.write(require('./core/skill-markdown').renderImportReport([{name:'Example imported skill'}],[{name:'Other skill',reason:'Example conflict'}]))"], cwd=str(root), creationflags=subprocess.CREATE_NO_WINDOW).decode('utf-8')
@@ -142,6 +184,18 @@ try:
         assert tables[0].cellAt(0,0).format().toTableCellFormat().topBorder() > 0
         browser.grab().save(str(root/'dist'/('import-report-'+name+'.png')))
     browser.close()
+    entry['author'] = 'A long author name together with another long contributor name'
+    window.entries = [entry]
+    window.render_cards()
+    window.resize(320, 600)
+    for _ in range(3):
+        app.processEvents()
+    badges = window.card_widgets[0][0].findChildren(MetadataBadge)
+    assert len(badges) == 2 and all(not badge.wordWrap() for badge in badges)
+    assert badges[0].toolTip() == entry['author']
+    assert badges[0].text() == entry['author'], 'Author must remain complete'
+    assert badges[0].width() >= badges[0].fontMetrics().horizontalAdvance(entry['author']) + 14
+    assert window.scroll.horizontalScrollBar().maximum() == 0
 finally:
     themes.max_colors = {}
     themes.select('graphite')

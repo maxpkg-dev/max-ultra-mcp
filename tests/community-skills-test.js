@@ -42,7 +42,10 @@ async function main() {
  const original=archive;archive=Buffer.from('corrupt');
  await assert.rejects(run('community-install',args(),store,fetch),/checksum or size/);archive=original;
  assert.equal(store.registry().skills.length,0);
- const result=await run('community-install',args(),store,fetch);
+ const phases=[];
+ const result=await run('community-install',args(),store,fetch,state=>phases.push(state));
+ assert.deepEqual(phases.map(state=>state.phase),['catalog','download','verify','install']);
+ assert.equal(phases[1].total,entry.sizeBytes);
  assert.equal(result.community[0].installState,'installed');
  const installed=result.skills[0];
  const before=fs.readFileSync(path.join(store.packagePath(installed.id.slice(5)),'SKILL.md'));
@@ -89,6 +92,12 @@ async function main() {
    process.nextTick(()=>{const response=new PassThrough();response.statusCode=status;response.headers=headers;callback(response);response.end(body);req.emit('close');});return req;
  };
  assert.equal((await download(FEED,20,responseRequest(200,{},'example'))).toString(),'example');
+ const progress=[];
+ await download(FEED,20,responseRequest(200,{},'example'),state=>progress.push(state));
+ assert.deepEqual(progress.at(-1),{bytes:7,total:null});
+ const known=[];
+ await download(FEED,20,responseRequest(200,{'content-length':'7'},'example'),state=>known.push(state));
+ assert.deepEqual(known.at(-1),{bytes:7,total:7});
  await assert.rejects(download(FEED,2,responseRequest(200,{},'oversized')),/size limit/);
  await assert.rejects(download(FEED,20,responseRequest(302,{location:'http://127.0.0.1/private'},'')),/Unsafe/);
  await assert.rejects(download(FEED,20,responseRequest(302,{location:FEED},'')),/redirects/);

@@ -133,7 +133,18 @@ async function main() {
     if (index >= 0) { appearance[key] = args[index + 1]; args.splice(index, 2); }
   }
   let result;
-  try { result = args[0].startsWith("community-") ? await require("./community-skills").run(args[0], args.slice(1), new SkillStore()) : run(args, new SkillStore(), appearance); } catch (error) { result = { ok: false, message: error.message }; process.exitCode = 1; }
+  let lastProgress = 0, lastPhase = "";
+  const progress = state => {
+    if (!destination) return;
+    const now = Date.now();
+    if (state.phase === lastPhase && now - lastProgress < 100 && state.bytes !== state.total) return;
+    const target = noLinks(destination + ".progress.json");
+    const temporary = noLinks(target + ".tmp");
+    fs.writeFileSync(temporary, JSON.stringify(state));
+    fs.renameSync(temporary, target);
+    lastProgress = now; lastPhase = state.phase;
+  };
+  try { result = args[0].startsWith("community-") ? await require("./community-skills").run(args[0], args.slice(1), new SkillStore(), undefined, progress) : run(args, new SkillStore(), appearance); } catch (error) { result = { ok: false, message: error.message }; process.exitCode = 1; }
   if (destination) {
     const resolved = noLinks(destination);
     const temporary = `${resolved}.${randomUUID()}.tmp`;
