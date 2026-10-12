@@ -81,7 +81,14 @@
     "donate_border": "#d38d50",
     "storage_error": "#e48a82",
     "field_text": "$windowText",
-    "header_background": "$rollupTitleFace"
+    "header_background": "$rollupTitleFace",
+    "community_card_background": {
+      "mix": [
+        "$background",
+        "$windowText",
+        0.06
+      ]
+    }
   },
   "colorMan": {
     "background": "#444444",

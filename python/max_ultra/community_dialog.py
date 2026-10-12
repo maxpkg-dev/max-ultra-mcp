@@ -7,6 +7,7 @@ import json
 from .qt import QtWidgets, QtCore, QtGui, Qt
 from .widgets import Window, action
 from .wire import decode
+from . import themes
 
 CATALOG_URL = "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"
 
@@ -86,6 +87,8 @@ class CommunityWindow(Window):
         self.card_widgets = []
         for entry in self.entries:
             card = QtWidgets.QGroupBox()
+            card.setObjectName("communitySkillCard")
+            themes.set_style(card, "QGroupBox#communitySkillCard { background:@community_card_background; border:1px solid @field_border; border-radius:7px; margin:0; } QGroupBox#communitySkillCard QLabel { background:transparent; color:@field_text; }")
             layout = QtWidgets.QVBoxLayout(card)
             layout.setContentsMargins(14, 12, 14, 12)
             layout.setSpacing(8)

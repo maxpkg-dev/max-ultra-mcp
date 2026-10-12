@@ -702,12 +702,14 @@ class SkillsWindow(Window):
         self.splitter.setSizes([140, 540])
         self.outer.addWidget(self.splitter, 1)
         controls = QtWidgets.QHBoxLayout()
-        for symbol, title, callback in [("download", "Install community skills", self.show_community), ("folder-open", "Import Folder", self.import_folder), ("file-archive", "Import ZIPs", self.import_zips), ("trash-2", "Delete", self.delete_selected)]:
+        for symbol, title, callback in [("download", "Install Community Skills", self.show_community), ("folder-open", "Import Folder", self.import_folder), ("file-archive", "Import ZIPs", self.import_zips), ("trash-2", "Delete", self.delete_selected)]:
             button = action(client.root, symbol, title, callback)
-            if title == "Install community skills":
+            if title == "Install Community Skills":
                 themes.set_style(button, "QToolButton { background:@ready_background; border-color:@community_border; color:@status_button_text; } QToolButton:hover { background:@community_hover; border-color:@community_hover_border; } QToolButton:disabled { background:@community_disabled_background; color:@community_disabled_text; border-color:@border; }")
             self.buttons.append(button)
             controls.addWidget(button)
+            if title == "Install Community Skills":
+                controls.addSpacing(14)
         self.delete_button = button
         controls.addStretch()
         self.outer.addLayout(controls)

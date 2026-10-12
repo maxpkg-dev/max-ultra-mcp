@@ -59,12 +59,13 @@ try:
     snapshot.read_string(ini_text)
     fixture_client = SimpleNamespace(root=root, settings=SimpleNamespace(get=lambda *args: 'builtin'), save_setting=lambda *args: True, skills_operation=lambda *args: None, donate=lambda: None)
     skills = SkillsWindow(fixture_client, None)
-    install = next(button for button in skills.buttons if button.text() == 'Install community skills')
+    install = next(button for button in skills.buttons if button.text() == 'Install Community Skills')
     assert not install.icon().isNull() and '@ready_background' in install._theme_style
     rows = [skills.outer.itemAt(i).layout() for i in range(skills.outer.count()) if skills.outer.itemAt(i).layout()]
     import_row = next(row for row in rows if row.count() and row.itemAt(0).widget() is install)
-    assert [import_row.itemAt(i).widget().text() for i in range(3)] == ['Install community skills', 'Import Folder', 'Import ZIPs']
-    assert sum(button.text() == 'Install community skills' for button in skills.buttons) == 1
+    assert [import_row.itemAt(i).widget().text() for i in range(import_row.count()) if import_row.itemAt(i).widget()][:3] == ['Install Community Skills', 'Import Folder', 'Import ZIPs']
+    assert import_row.itemAt(1).spacerItem().sizeHint().width() == 14
+    assert sum(button.text() == 'Install Community Skills' for button in skills.buttons) == 1
     assert any(button.text() == 'Open online catalog' for button in window.findChildren(QtWidgets.QToolButton))
     skills.apply_result(SimpleNamespace(snapshot=snapshot, result=root/'dist'/'missing-author-fixture'))
     seen = []
@@ -94,6 +95,8 @@ try:
             themes.max_colors = {key: '#eeeeee' for key in themes.definition['colorMan']}
             themes.max_colors['text'] = '#202020'
             themes.max_colors['windowText'] = '#202020'
+        themes.apply(window)
+        assert themes.style('@community_card_background') != themes.style('@window_background')
         themes.apply(browser)
         browser.setHtml(report)
         app.processEvents()

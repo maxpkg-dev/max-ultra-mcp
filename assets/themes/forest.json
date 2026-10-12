@@ -69,6 +69,13 @@
     "donate_border": "#d38d50",
     "storage_error": "#e48a82",
     "field_text": "#e8e3da",
-    "header_background": "#202824"
+    "header_background": "#202824",
+    "community_card_background": {
+      "mix": [
+        "#202824",
+        "#e8e3da",
+        0.06
+      ]
+    }
   }
 }
