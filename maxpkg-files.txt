@@ -222,3 +222,6 @@ plugins/max-ultra-mcp/skills/max-ultra-spline-modeling/skill.json
 docs/SKILL_METADATA.md
 assets/icons/link-2.svg
 assets/icons/square-dashed.svg
+
+core/community-skills.js
+python/max_ultra/community_dialog.py

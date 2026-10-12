@@ -460,9 +460,12 @@ class Client:
     def skills_operation(self, operation, arguments=None):
         if self.skills_helper or self.disposed:
             return False
-        self.skills_helper = Helper(self.root, self.state_directory, "skills-manager.ps1", ["-Action", operation] + (arguments or []) + ["-Background", "28,28,26", "-Foreground", "232,227,218", "-ButtonBackground", "48,46,41", "-ButtonHover", "65,56,45"], timeout=120)
+        self.skills_operation_name = operation
+        self.skills_helper = Helper(self.root, self.state_directory, "skills-manager.ps1", ["-Action", operation] + (arguments or []) + ["-Background", "28,28,26", "-Foreground", "232,227,218", "-ButtonBackground", "48,46,41", "-ButtonHover", "65,56,45"], timeout=240 if operation.startswith("community-") else 120)
         if "skills" in self.dialogs:
             self.dialogs["skills"].set_busy(True)
+        if "community" in self.dialogs:
+            self.dialogs["community"].set_busy(True)
         return True
 
     def check_updates(self):
@@ -515,6 +518,8 @@ class Client:
                         if self.integration_automatic and all(state in conclusive for state in states) and "configured" not in states:
                             self.show_onboarding()
                 elif name == "skills_helper":
+                    if getattr(self, "skills_operation_name", "").startswith("community-") and "community" in self.dialogs:
+                        self.dialogs["community"].apply_result(helper)
                     if "skills" in self.dialogs:
                         self.dialogs["skills"].apply_result(helper)
                 else:
@@ -530,6 +535,8 @@ class Client:
                 setattr(self, name, None)
             except Exception as error:
                 self.log("error", str(error))
+                if name == "skills_helper" and "community" in self.dialogs:
+                    self.dialogs["community"].show_error(str(error))
                 if name == "update_helper":
                     self.update_message = str(error)
                 helper.dispose()
@@ -542,6 +549,8 @@ class Client:
             self.dialogs["onboarding"].update_status()
         if "skills" in self.dialogs:
             self.dialogs["skills"].set_busy(self.skills_helper is not None)
+        if "community" in self.dialogs:
+            self.dialogs["community"].set_busy(self.skills_helper is not None)
         if "settings" in self.dialogs:
             self.dialogs["settings"].update_status()
 

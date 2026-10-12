@@ -694,11 +694,59 @@ class JournalView(QtWidgets.QTableView):
         self._layout_width = None
         self._layout_font = None
         self._sized_rows = set()
+        self._jump_pending = False
+        self._adjusting_scroll = False
+        self._jump_timer = QtCore.QTimer(self)
+        self._jump_timer.setSingleShot(True)
+        self._jump_timer.timeout.connect(self.finish_latest)
         self.setMouseTracking(True)
         self._relayout = QtCore.QTimer(self)
         self._relayout.setSingleShot(True)
         self._relayout.timeout.connect(self.layout_visible_rows)
-        self.verticalScrollBar().valueChanged.connect(self.schedule_rows)
+        self.verticalScrollBar().valueChanged.connect(self.scroll_changed)
+        self.verticalScrollBar().sliderPressed.connect(self.cancel_latest)
+
+    def cancel_latest(self):
+        self._jump_pending = False
+        self._jump_timer.stop()
+
+    def scroll_changed(self, value):
+        if self._jump_pending and not self._adjusting_scroll and value < self.verticalScrollBar().maximum():
+            self.cancel_latest()
+        self.schedule_rows()
+
+    def wheelEvent(self, event):
+        self.cancel_latest()
+        super().wheelEvent(event)
+
+    def keyPressEvent(self, event):
+        self.cancel_latest()
+        super().keyPressEvent(event)
+
+    def request_latest(self):
+        self._jump_pending = True
+        self._adjusting_scroll = True
+        self.scrollToBottom()
+        self._adjusting_scroll = False
+        self.schedule_rows()
+        self._jump_timer.start(0)
+
+    def finish_latest(self):
+        if not self._jump_pending:
+            return
+        self._adjusting_scroll = True
+        self.doItemsLayout()
+        self.layout_visible_rows()
+        self.doItemsLayout()
+        self.scrollToBottom()
+        self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
+        self._adjusting_scroll = False
+        # Row measurements can schedule a second geometry pass. Keep the
+        # explicit jump alive until that pass has settled, not just one frame.
+        if self._relayout.isActive():
+            self._jump_timer.start(0)
+        else:
+            self._jump_pending = False
 
     def schedule_rows(self, *args):
         self._relayout.start(0)
@@ -724,9 +772,11 @@ class JournalView(QtWidgets.QTableView):
         model, delegate = self.model(), self.itemDelegate()
         if model is None or not isinstance(delegate, JournalDelegate):
             return
+        was_adjusting = self._adjusting_scroll
+        self._adjusting_scroll = True
         width = self.viewport().width()
         bar = self.verticalScrollBar()
-        following, position = bar.value() >= bar.maximum() - 1, bar.value()
+        following, position = self._jump_pending or bar.value() >= bar.maximum() - 1, bar.value()
         if (width, delegate.point_size) != (self._layout_width, self._layout_font):
             for row in self._sized_rows:
                 self.setRowHeight(row, self.verticalHeader().defaultSectionSize())
@@ -754,6 +804,7 @@ class JournalView(QtWidgets.QTableView):
             self.scrollToBottom()
         else:
             bar.setValue(position)
+        self._adjusting_scroll = was_adjusting
 
 
 class Panel(Window):
@@ -998,9 +1049,9 @@ class Panel(Window):
         self.update_ai()
 
     def go_latest(self):
-        self.log.scrollToBottom()
         self._unread = 0
         self.latest.hide()
+        self.log.request_latest()
 
     def show_message(self, index):
         dialog = Window(self.client.root, "Activity message", self)

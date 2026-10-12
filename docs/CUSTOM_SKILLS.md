@@ -35,3 +35,11 @@ To remove a custom skill, select it and click **Delete**. This removes the impor
 - Supported attachments: MD, TXT, JSON, CSV, PNG, JPG, JPEG, and WebP. Scripts, nested archives, links to other folders, and client configuration files are not accepted.
 - Limits: 200 files and 50 MiB total; SKILL.md up to 64 KiB, other text up to 1 MiB each, images up to 5 MiB each. ZIP files may be up to 54 MiB; the expanded contents must meet the same limits.
 - If several skills are in one ZIP, put each skill in its own ZIP and import them separately.
+
+## Install from Community Skills
+
+Click **Community Skills** in the Skills window to browse the public catalog inside Max Ultra MCP. Search by title, description or author, then click **Install** on a skill. The owned background helper fetches the official catalog and archive, checks the exact size and SHA-256, validates its metadata and package, and uses the normal local importer. Merely viewing the list never installs or executes content. Start a new AI conversation after import.
+
+**Open catalog** remains available for manual downloads, including when offline or a request fails. **Refresh** retries the feed. The catalog is read from `https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/catalog.json`; only schema version 1 is supported. Official GitHub release ZIPs and their HTTPS asset redirects are accepted. Feed downloads are limited to 2 MiB, archives to 50 MiB, redirects to five, and network operations have bounded timeouts. Existing ZIP expansion and file validation limits still apply.
+
+An existing skill with the same machine name is never overwritten. A different version offers **Manage installed**: inspect and back up your local files via **Open folder**, explicitly delete that copy if replacement is intended, then Refresh the catalog and Install. A checksum mismatch or changed catalog requires Refresh; it never bypasses verification.

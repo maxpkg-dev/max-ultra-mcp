@@ -31,6 +31,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skill-store-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\community-skills-test.js' @args
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skill-markdown-test.js' @args
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'run-node-script.ps1') 'tests\skill-zip-test.js' @args

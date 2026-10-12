@@ -129,13 +129,13 @@ ${navigation ? `.skill-header{position:fixed;top:0;left:0;right:0;height:42px;pa
 </style></head><body>${navigation ? `<div class="skill-header" id="skill-header" role="navigation" aria-label="Skill document navigation"><a class="skill-back" id="skill-back" href="skill-nav:back" style="display:none" aria-disabled="true" tabindex="-1" title="Return to the previous skill document">${backIcon}Back</a><span class="skill-back" id="skill-back-disabled" aria-disabled="true">${backIcon}Back</span><span class="skill-status"${status ? "" : ` title="${escape(notice)}"`}>${statusHtml}</span></div>` : ""}<div class="document">${notice && !navigation ? `<div class="notice">${escape(notice).replace(/\n/g, "<br>")}</div>` : ""}${status?.detail ? `<div class="notice">${escape(status.detail)}</div>` : ""}${details}${markdownBody(body, relativePath)}</div></body></html>`;
 }
 function renderImportReport(succeeded, failed, appearance = {}) {
-  const color = (value) => typeof value === "string" && /^\d{1,3},\d{1,3},\d{1,3}$/.test(value) && value.split(",").every((part) => Number(part) <= 255) ? `rgb(${value})` : "inherit";
-  const successColor = color(appearance.successColor);
-  const errorColor = typeof appearance.errorColor === "string" && /^\d{1,3},\d{1,3},\d{1,3}$/.test(appearance.errorColor) && appearance.errorColor.split(",").every((part) => Number(part) <= 255) ? `rgb(${appearance.errorColor})` : "inherit";
-  const content = `<h1>Import results</h1><p><span style="color:${successColor}">${succeeded.length} imported</span>, <span style="color:${errorColor}">${failed.length} failed</span>.</p>`
-    + (succeeded.length ? `<div class="import-success" style="color:${successColor}"><h2>Imported</h2><ul>${succeeded.map((item) => `<li>${escape(item.name)}</li>`).join("")}</ul></div>` : "")
-    + (failed.length ? `<div class="import-errors" style="color:${errorColor}"><h2>Failed</h2><ul>${failed.map((item) => `<li><strong>${escape(item.name)}</strong><p>${escape(item.reason).replace(/\r?\n/g, "<br>")}</p></li>`).join("")}</ul></div>` : "")
-    + (succeeded.length ? '<blockquote class="import-tip"><p>Restart your AI client or start a new chat to make the skills available.</p></blockquote>' : "");
+  const color = (value, fallback) => typeof value === "string" && /^\d{1,3},\d{1,3},\d{1,3}$/.test(value) && value.split(",").every(part => Number(part) <= 255) ? `rgb(${value})` : fallback;
+  const successColor = color(appearance.successColor, "#78e196");
+  const errorColor = color(appearance.errorColor, "#ff7d7d");
+  const content = `<h1>Import results</h1><p>${succeeded.length} imported, ${failed.length} failed.</p>`
+    + (succeeded.length ? `<table class="import-success" width="100%" border="1" cellspacing="0" cellpadding="12" style="border:1px solid ${successColor};"><tr><td style="border:1px solid ${successColor};"><h2 style="color:${successColor}">Imported</h2><ul>${succeeded.map(item => `<li>${escape(item.name)}</li>`).join("")}</ul></td></tr></table>` : "")
+    + (failed.length ? `<table class="import-errors" width="100%" border="1" cellspacing="0" cellpadding="12" style="border:1px solid ${errorColor};"><tr><td style="border:1px solid ${errorColor};"><h2 style="color:${errorColor}">Failed</h2><ul>${failed.map(item => `<li><strong>${escape(item.name)}</strong><p>${escape(item.reason).replace(/\r?\n/g, "<br>")}</p></li>`).join("")}</ul></td></tr></table>` : "")
+    + (succeeded.length ? '<p class="import-tip">Restart your AI client or start a new chat to make the skills available.</p>' : "");
   return renderMarkdown("", { ...appearance, title: "Import results", navigation: false }).replace('<div class="document">', `<div class="document">${content}`);
 }
 module.exports = { renderMarkdown, renderImportReport, markdownBody, linkTarget };

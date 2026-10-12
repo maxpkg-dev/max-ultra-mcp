@@ -4,7 +4,7 @@
 # Developed by Lukianenko Vasyl
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][ValidateSet('list','preview','preview-zip','import','import-zip','add-folder','add-zip','add-zips','read','delete','picker')][string]$Action,
+    [Parameter(Mandatory = $true)][ValidateSet('list','preview','preview-zip','import','import-zip','add-folder','add-zip','add-zips','read','delete','picker','community-list','community-install')][string]$Action,
     [Parameter(Mandatory = $true)][string]$ResultPath,
     [string]$Source = '',
     [string]$Revision = '',
@@ -43,6 +43,7 @@ switch ($Action) {
     'import-zip' { $helperArguments += @($Source, $Revision, $Clients) }
     'read' { $helperArguments += @($SkillId, $RelativePath) }
     'delete' { $helperArguments += $SkillId }
+    'community-install' { $helperArguments += @($SkillId, $Source, $Revision) }
 }
 # PowerShell 5.1 may drop an empty native argument. No clients is encoded explicitly.
 if ($Action -in @('import','import-zip') -and [string]::IsNullOrEmpty($Clients)) { $helperArguments[3] = 'none' }

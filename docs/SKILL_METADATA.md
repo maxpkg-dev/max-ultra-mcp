@@ -30,3 +30,13 @@ For catalog exports, construct this file from explicitly supplied public metadat
 Adding metadata changes ZIP bytes and the revision/checksum. Publish a new skill version and new archive; do not replace a previously published ZIP in place. Older Max Ultra MCP importers that reject extra root files require an upgrade before importing the new format. Legacy ZIPs without this file remain supported by the new importer.
 
 Bundled skill manifests are maintained explicitly with their source and mirrored plugin copies. Their initial metadata version is 1.5.0; later changes to a bundled workflow's published package should update its manifest version deliberately.
+
+## Built-in attribution audit
+
+Product maintenance and Git commit authorship are not evidence of authorship of every bundled workflow. The earlier blanket product-author value has been removed.
+
+- **Max Ultra House and Interior Architectural Detailing** credits **Yuriy Bobak; Anastasiia Reznichenko (source workflows)**. Evidence: its SKILL.md and ATTRIBUTION.md, and integration commits `08093fd` and `ddbbc2d`. The qualifier distinguishes the supplied workflows from the maintained adaptation.
+- **Max Ultra Camera Composition** retains the specific Yuriy Bobak diagnostic credit in `references/composition-workflow.md`. That contribution does not establish authorship of the entire skill; its author field is omitted.
+- **Max Ultra Armchair Modeling**, **Max Ultra Character and Object Modeling**, **Max Ultra Floor Plan**, **Max Ultra MaxPkg Packaging**, **Max Ultra MCP**, **Max Ultra Renderer Settings**, and **Max Ultra Spline Modeling** have no explicit whole-skill author identified in the reviewed source attribution. Their author fields remain omitted pending confirmation.
+
+About displays `Not specified` for these unresolved authors. Source remains `Max Ultra MCP`, identifying the distributor rather than claiming authorship. Original contributor notes are retained unchanged.

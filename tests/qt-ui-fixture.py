@@ -137,6 +137,14 @@ def run():
             assert len(panel.model.pages) <= 8
             panel.go_latest()
             assert not panel.latest.isVisible()
+            journal.append('info', 'Latest wrapped message ' * 70)
+            panel.refresh()
+            for _ in range(8):
+                application.processEvents()
+            assert panel.log.verticalScrollBar().value() == panel.log.verticalScrollBar().maximum()
+            newest = panel.model.index(panel.model.total - 1, 0)
+            assert panel.log.visualRect(newest).bottom() <= panel.log.viewport().height()
+            assert not panel.log._jump_pending
             journal.append('support', 'Please use Donate to support development.')
             panel.model.refresh()
             index = panel.model.index(panel.model.total - 1, 0)

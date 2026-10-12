@@ -39,7 +39,7 @@ class ResponsiveSkillBrowser(PassiveBrowser):
         self._text_points = 11
         self._document_padding = 16
         self.setLineWrapMode(QtWidgets.QTextEdit.WidgetWidth)
-        themes.set_style(self, "QTextBrowser { padding:0; }")
+        themes.set_style(self, "QTextBrowser { padding:0; background:@field_background; color:@field_text; }")
 
     def document_menu(self, position):
         menu = SkillsMenu(self)
@@ -75,7 +75,7 @@ class ResponsiveSkillBrowser(PassiveBrowser):
     def setHtml(self, content):
         self._theme_html = content
         points = self._text_points
-        rules = "html,body,p,li,td,th,pre,code { font-size:%spt; }" % points
+        rules = "html,body,p,li,td,th,pre,code { font-size:%spt; color:@field_text; }" % points
         for level, ratio in enumerate((1.8, 1.5, 1.3, 1.15, 1.05, 1), 1):
             rules += "h%d { font-size:%.2fpt; }" % (level, points * ratio)
         rules += ".eyebrow { font-size:%.2fpt; }" % (points * 0.8)
@@ -129,6 +129,9 @@ class ResponsiveSkillBrowser(PassiveBrowser):
                 cell = table.cellAt(0, 0)
                 cell_format = cell.format().toTableCellFormat()
                 cell_format.setPadding(4)
+                cell_format.setBorder(1)
+                cell_format.setBorderStyle(QtGui.QTextFrameFormat.BorderStyle_Solid)
+                cell_format.setBorderBrush(QtGui.QColor(themes.style('@preview_border')))
                 cell.setFormat(cell_format)
         # The helper's browser CSS contains em-based block spacing intended for
         # a web engine. Bound it here so small QTextBrowser views stay readable.
@@ -710,7 +713,7 @@ class SkillsWindow(Window):
         self.status.setWordWrap(True)
         self.outer.addWidget(self.status)
         self.controls = QtWidgets.QHBoxLayout()
-        for symbol, title, callback in [("circle-question-mark", "How to create and import skills", lambda: self.help("CUSTOM_SKILLS.html")), ("circle-question-mark", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("globe", "Community Skills", lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/"))), ("heart", "Donate", client.donate)]:
+        for symbol, title, callback in [("circle-question-mark", "How to create and import skills", lambda: self.help("CUSTOM_SKILLS.html")), ("circle-question-mark", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("globe", "Community Skills", self.show_community), ("heart", "Donate", client.donate)]:
             if title in ("Community Skills", "Donate"):
                 self.controls.addStretch()
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)
@@ -721,6 +724,10 @@ class SkillsWindow(Window):
         self.outer.addLayout(self.controls)
         self.loading_overlay = LoadingOverlay(self)
         self.update_actions()
+
+    def show_community(self):
+        from .community_dialog import CommunityWindow
+        self.client.show_dialog("community", CommunityWindow).refresh()
 
     def filter_rows(self):
         self.client.save_setting("skills", {"category": ("builtin", "custom")[self.source.currentIndex()]})
@@ -864,8 +871,7 @@ class SkillsWindow(Window):
 
     def show_skill_about(self, entry):
         dialog = Window(self.client.root, "About skill", self)
-        dialog.setSizeGripEnabled(False)
-        dialog.resize(480, 300)
+        dialog.resize(520, 420)
         details = entry.data(0, Qt.UserRole + 1) or {}
         information = QtWidgets.QTextBrowser()
         information.setOpenExternalLinks(False)
@@ -885,8 +891,14 @@ class SkillsWindow(Window):
             contacts.append('<b>Email:</b> <a href="mailto:{}">{}</a>'.format(quote(details['email'], safe=''), html.escape(details['email'])))
         if contacts:
             information.append('<p>' + '<br>'.join(contacts) + '</p>')
+        information.moveCursor(QtGui.QTextCursor.Start)
+        dialog.setMinimumSize(320, 240)
         dialog.outer.addWidget(information, 1)
         dialog.outer.addWidget(action(self.client.root, "close", "Close", dialog.accept))
+        information.document().setTextWidth(480)
+        target_height = max(420, int(information.document().size().height()) + 115)
+        screen = self.screen() if hasattr(self, "screen") else QtWidgets.QApplication.primaryScreen()
+        dialog.resize(520, min(target_height, max(300, screen.availableGeometry().height() - 80)))
         try:
             dialog.exec_()
         finally:
