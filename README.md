@@ -8,13 +8,13 @@ The v1 architecture and mock-tested MCP surface are implemented. The current aut
 
 The first production-foundations increment adds session-owned common jobs and read-only material diagnostics. The remaining workflow backlog includes asset relinking and collection, Corona/V-Ray configuration, camera composition, render masks, batch FBX/GLB export, performance analysis, proxy conversion, and AI-assisted material editing. See [Required Production Use Cases](docs/USE_CASES.md).
 
-### Recent changes in 1.4.0
+### Changes in 1.5.0
 
-- Added the [Skills manager](#skills-manager) with persistent custom skills, folder and multiple-ZIP import, navigable previews, and a reusable skill creation prompt.
-- Added [automatic Antigravity setup](docs/ANTIGRAVITY.md) with backed-up settings updates that preserve other MCP servers.
-- Redesigned [AI Client Setup](#installation-for-release-users) with individual Codex, Claude Code, and Antigravity logo buttons and per-client setup statuses. Manual STDIO settings start collapsed on every fresh opening.
-- Expanded architectural detailing workflows and added offline skill discovery through `max_skills_list` and `max_skill_read`.
-- See [CHANGELOG.md](CHANGELOG.md) for the complete release notes.
+- Embedded Python and Qt replace the in-Max controller and owned windows; the Node.js MCP server is retained.
+- Responsive layouts, SVG icons, seven editable themes and persistent panel opacity apply across the interface.
+- The full-session journal supports search, filters, export and wide-window wrapping.
+- MaxPkg custom hooks handle confirmed installation and focused removal of unchanged legacy assets.
+- See [CHANGELOG.md](CHANGELOG.md) for the complete release notes and [migration notes](docs/MAXPKG.md#transition-from-147-to-150) for installation limits.
 
 ## What users can do
 
@@ -39,9 +39,13 @@ The main panel's **Skills** button opens a separate manager. View built-in workf
 
 AI Client Setup distinguishes runtime check failures from missing files; see [runtime diagnostics](docs/README.md#ai-runtime-diagnostics).
 
+## Python and Qt interface
+
+Version 1.5.0 moves the in-Max controller and owned windows to the Python/Qt runtime supplied by 3ds Max, while preserving the Node.js MCP server and MZP installation. The responsive interface provides SVG actions, editable themes, a searchable full-session journal and a compact status panel. See [UI design](docs/UI_DESIGN.md) and [update migration](docs/MAXPKG.md#transition-from-147-to-150).
+
 ## Automatic updates
 
-The Settings window enables automatic update checks by default. Version metadata and release assets are downloaded with Windows `curl.exe` from a hidden detached helper process, so network waits never block the 3ds Max UI thread. Only a stable official GitHub Release whose MZP filename, package GUID, asset URLs, and SHA-256 all match is accepted. The verified MZP is installed through MaxPkg, the active bridge is disposed, and `01_START_MAX_ULTRA_MCP_FIRST.ms` restarts automatically from the updated package. Failed checks or installation attempts keep the previous installation recoverable. Disable automatic checks or use **Check now** in Settings at any time.
+The Settings window enables automatic update checks by default. Version metadata and release assets are downloaded with Windows `curl.exe` from a hidden detached helper process, so network waits never block the 3ds Max UI thread. Only a stable official GitHub Release whose MZP filename, package GUID, asset URLs, and SHA-256 all match is accepted. The verified MZP is installed through MaxPkg, the active bridge is disposed, and `01_START_MAX_ULTRA_MCP_FIRST.ms` restarts automatically from the updated package. Failed checks and downloads leave the installed version untouched. Installation waits for confirmation and reports failure; cancelling the standard standalone installer can require reinstalling the MZP. See the migration notes before updating. Disable automatic checks or use **Check now** in Settings at any time.
 
 ## Installation for release users
 
@@ -73,21 +77,21 @@ The onboarding uses official `codex mcp` and `claude mcp` commands when their CL
 
 See [CLI installation and diagnostics](docs/README.md#cli-installation) for installer sources, cancellation, account steps, and verification limits.
 
-Closing onboarding dismisses its automatic display for the current run without stopping the bridge or disabling readiness checks. The next startup opens Setup again if no supported client is configured. The main panel uses one fixed-width aggregate AI button rather than presenting an unconfigured optional client as a separate red requirement. When one or more registrations are ready, the green button names the ready clients; when none is ready, it displays **Click to set up AI agent**. Restart, runtime, setup, and check failures remain explicit aggregate states, while the Setup page retains per-client details. These statuses do not claim that an AI chat is currently connected. The automatic check runs once with a 75-second timeout, while the refresh icon runs it immediately on demand. Open setup again through the aggregate status or **Settings -> Open AI client setup**. The source-only `scripts\install-chatgpt-codex.bat` remains available to developers; release installation and onboarding use MaxPkg and the first-start window.
+Closing onboarding dismisses its automatic display for the current run without stopping the bridge or disabling readiness checks. The next startup opens Setup again if no supported client is configured. The main panel uses one aggregate AI button rather than presenting an unconfigured optional client as a separate red requirement. When one or more registrations are ready, the green button names the ready clients; when none is ready, it displays **Click to set up AI agent**. Restart, runtime, setup, and check failures remain explicit aggregate states, while the Setup page retains per-client details. These statuses do not claim that an AI chat is currently connected. The automatic check runs once with a 75-second timeout, while the refresh icon runs it immediately on demand. Open setup again through the aggregate status or **Settings -> Open AI client setup**. The source-only `scripts\install-chatgpt-codex.bat` remains available to developers; release installation and onboarding use MaxPkg and the first-start window.
 
 **Antigravity:** click its button in AI Client Setup; setup backs up and updates its server settings automatically. See [Antigravity setup](docs/ANTIGRAVITY.md).
 
 ### Main panel
 
-Activity timestamps use a two-space unfilled gap before the colored status badge; the badge's nearest surrounding space remains filled.
+The resizable Qt panel keeps AI Client Setup, refresh and Hide panel across the top, followed by PID and scene context and the Activity journal. Reconnect, Stop / Exit, Skills and Settings remain below the journal. Closing, stopping and hiding are separate actions. Window position and size persist and are constrained to monitor work areas.
 
-The main panel uses fixed declared coordinates and dimensions. It performs no resize callbacks, client-area measurement, or saved width/height restoration; only its position and Hide state persist. AI Client Setup has Setup, Test prompt, and Manual setup tabs, with full status details on Setup and copyable STDIO values on Manual setup. The window is bounded to the display work area.
+Buttons become compact SVG actions at small widths; text, icons and controls grow above 1024 and at 1800 logical pixels. The journal uses monospace text, colored category badges and compact timestamps. Long messages wrap in wider windows. Search, filters, copying and export use the full session history without enlarging MCP responses. Autoscroll follows the newest entries only while the reader is at the bottom.
 
-The rollout floater uses a fixed 720×621 declared size and compact toolbox chrome with no icon, Minimize, or Maximize buttons; only the close action remains visible, and mouse resizing is disabled. Previously saved custom width and height values are ignored, while window position and Hide state remain persistent. Programmatic `max_panel minimize/restore` behavior remains available. Its four borderless zones are a 44 px AI readiness strip, a 36 px server context strip, a flexible Activity log with **Reconnect**, **Stop / Exit**, and **Settings**, and a 44 px support footer with project links and an accented **Donate** action. The layout accounts for native window chrome so the footer remains visible. The log uses six-pixel native RichEdit margins on both horizontal sides and keeps consecutive entries compact without display-only blank lines. Each category badge includes one filled space before `[` and after `]`. Its status name is padded to seven characters and rendered in a dedicated monospaced font, giving every colored badge the same pixel width. An unfilled ` > ` separator and additional spacing keep the following message on a stable vertical line. This alignment is display-only and does not alter MCP activity responses. The badge background uses the category color; its text uses a darker, more saturated shade of the same color, while light themes use a lighter badge surface to retain contrast. The timestamp and message retain the category foreground color without a fill. Line separators retain the normal log background. Server labels and footer links inherit an opaque `Parent.BackColor` only when it is consistent with the active Max theme; unrelated system-white host colors are rejected and the ColorMan rollout color is used instead. Donate, Refresh, Hide panel, Reconnect, Stop / Exit, and Settings load packaged, ready-to-use white PNG renditions of the Lucide `heart`, `refresh-cw`, `panel-top-close`, `plug-zap`, `power`, and `settings` icons directly through WinForms. They are not rebuilt or recolored at runtime, and no SVG renderer is required. Hide panel uses the same 120 px width as Settings. Reconnect uses `plug-zap`, keeping it visually distinct from the AI status refresh action. The server line uses lighter green text when connected, amber while starting or reconnecting, and lighter red text when stopped or failed. The visible failure message stays at **Please restart the script** so the row does not shift; full diagnostics remain in the Activity log and accessibility description. Server labels do not create WinForms tooltip notifications, avoiding the incompatible `Label.WndProc` path in the .NET 10 host used by 3ds Max 2027. It otherwise shows only endpoint, PID, scene filename, object count, and selection count. **Connect only** has been removed; **Reconnect** remains the manual attach retry for an already-running daemon.
+**Hide panel** retains the connection and logging in a compact green, amber or red status button. Its complete window stays within the monitor work area, including above the Windows taskbar. Expanding restores the main panel's position and size. All owned windows follow Max rather than remaining above unrelated applications.
 
-**Hide panel** preserves the window position and makes the floater invisible without destroying it or stopping the bridge. The compact panel renders **Expand MCP Server** in bold high-contrast text over the current green, amber, or red connection color. Its initial position is fully visible, but manual dragging may lower it until only the 24 px title strip remains above the Windows taskbar, keeping a recovery handle available. **Expand MCP Server** reuses the live floater when possible and recreates it at the saved position only when necessary. In the main panel, the endpoint or connection problem beginning with **Server** is also bold while PID and scene context remain regular. After the first successful connection, the Activity log can show at most three highlighted support reminders: after one minute, ten minutes after the first reminder, and 60 minutes after the second. The underlined **Donate** word in each reminder opens the secure donation checkout only when clicked. Hide/Expand and Reconnect do not restart that schedule.
+After the first successful connection, the journal can show at most three highlighted support reminders: after one minute, ten minutes after the first reminder, and 60 minutes after the second. Hide/Expand and Reconnect do not restart that schedule. The footer rotates product and website promotions every 30 seconds, adapting the wording to the available width, beside the Donate button.
 
-The support footer presents one borderless, rollout-matched RichTextBox beside the dedicated **Donate** button. Its complete underlined message links to maxpkg.dev, 3dground.net, the Max Ultra MCP catalog, or the secure donation checkout. A different random promotion is selected every 30 seconds. The promotion never displays a text caret; the dedicated Donate button remains keyboard-accessible.
+Settings offers editable themes, the user's colorMan palette and 20-100% panel opacity. Changes apply immediately to open script windows. See [UI design](docs/UI_DESIGN.md) for component behavior and source locations.
 
 > The source repository does not contain the portable Node.js binary. Maintainers create it with `scripts\prepare-portable-node.ps1`, then prepare the pinned MaxPkg Packager project with `scripts\prepare-maxpkg.ps1`.
 
@@ -101,7 +105,7 @@ Requirements:
 - Node.js 22 or newer, unless `runtime\win-x64\node.exe` has been prepared.
 - Autodesk 3ds Max only for real integration testing; mock tests do not launch Max.
 
-The optional `tests/ai-setup-ui-test.ms` fixture runs inside an already-open Max to verify Setup buttons, status, clipboard, tabs, and image cleanup. It extracts only UI definitions, substitutes a recording process-launch seam, and uses a temporary synthetic status file. It does not start a bridge, configure real clients, or change the scene. Run it separately from the Node smoke suite; a passing result is not proof of live client connectivity.
+The Python fixtures in `tests/` exercise runtime behavior and Qt layouts with isolated state. The release fixture launches only in an explicitly dedicated, empty Max process and isolates package and user-data directories. Mock or standalone Qt results do not prove real-client or renderer compatibility.
 
 Start the bridge daemon:
 

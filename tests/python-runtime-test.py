@@ -26,11 +26,42 @@ from max_ultra.wire import FrameReader, BoundedQueue, encode, decode, MAX_FRAME
 from max_ultra.settings import Settings
 from max_ultra.transport import Transport, probe
 from max_ultra.updates import verify_package, staged_version, GUID
+from max_ultra.installation import complete_installation, installation_ready
 from max_ultra.processes import launch_helper
 from max_ultra import themes
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_installed_cleanup_preserves_modified_and_user_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = pathlib.Path(folder)
+            root = base / GUID
+            (root / 'assets').mkdir(parents=True)
+            (root / 'manifest.ini').write_text('[package]\npackageGuid=' + GUID + '\nversion=1.5.0\n')
+            (root / 'assets/old.png').write_bytes(b'old packaged icon')
+            (root / 'assets/modified.png').write_bytes(b'user changed this')
+            (root / 'user.txt').write_text('keep')
+            (root / 'maxpkg-files.txt').write_text('manifest.ini\nuser.txt\n')
+            digest = hashlib.sha256(b'old packaged icon').hexdigest()
+            inventory = {'assets/old.png': digest, 'assets/modified.png': digest}
+            (root / 'assets/obsolete-1.4.7.json').write_text(json.dumps(inventory))
+            self.assertFalse(installation_ready(root, base))
+            result = complete_installation(root, base)
+            self.assertEqual(result['removed'], ['assets/old.png'])
+            self.assertEqual(result['preserved'], ['assets/modified.png'])
+            self.assertTrue(installation_ready(root, base))
+            self.assertEqual((root / 'user.txt').read_text(), 'keep')
+            self.assertEqual(complete_installation(root, base)['removed'], [])
+            (root / 'maxpkg-files.txt').write_text('missing.py\n')
+            with self.assertRaisesRegex(ValueError, 'Required installed file'):
+                complete_installation(root, base)
+            (root / 'maxpkg-files.txt').write_text('manifest.ini\n')
+            with self.assertRaises(ValueError):
+                complete_installation(root, base / 'elsewhere')
+            (root / 'assets/obsolete-1.4.7.json').write_text(json.dumps({'../user.txt': digest}))
+            with self.assertRaises(ValueError):
+                complete_installation(root, base)
+
     def test_theme_files_reload_and_invalid_palette_is_atomic(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = pathlib.Path(folder)
@@ -110,6 +141,7 @@ class RuntimeTests(unittest.TestCase):
                     package.mkdir(parents=True)
                     (package / '__init__.py').write_text('')
                 (copies[0] / 'bootstrap.py').write_text(source, encoding='utf-8')
+                (copies[0].parent / '01_START_MAX_ULTRA_MCP_FIRST.ms').write_text('-- synthetic entry')
                 (copies[0] / 'max_ultra/client.py').write_text('class Client:\n    def __init__(self, *args, **kwargs): self.resumed = False\n    def resume_pending_update(self): self.resumed = True\n')
                 (copies[1] / 'max_ultra/client.py').write_text('class Client:\n    def __init__(self, *args, **kwargs): pass\n')
                 # Reproduce a source tree already in sys.path behind an older

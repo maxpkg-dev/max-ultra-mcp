@@ -428,7 +428,8 @@ async function runSmokeTest() {
     const rootReadme = fs.readFileSync(path.join(PROJECT_ROOT, "README.md"), "utf8");
     const detailedReadmePath = path.join(PROJECT_ROOT, "docs", "README.md");
     const detailedReadme = fs.readFileSync(detailedReadmePath, "utf8");
-    assert.ok(rootReadme.length < detailedReadme.length, "Root README must remain the concise primary entry point");
+    assert.match(rootReadme, /docs\/UI_DESIGN\.md/, "Root README links to the current Qt interface contract");
+    assert.match(detailedReadme, /UI_DESIGN\.md/, "Detailed documentation delegates UI specifics to the canonical design guide");
     assert.match(rootReadme, /\[V1 architecture, MCP integration, and tool behavior\]\(docs\/V1\.md\)/);
     assert.match(rootReadme, /\[Privacy and data sanitization policy\]\(docs\/PRIVACY\.md\)/);
     assert.match(rootReadme, /\[Instructions for AI coding agents\]\(AGENTS\.md\)/);

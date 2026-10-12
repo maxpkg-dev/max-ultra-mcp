@@ -26,7 +26,7 @@ MaxPkg Packager 1.2.0 exposes `MaxPkgPackerApi` specifically for AI-agent automa
 
 ## Prepare a versioned release
 
-`version.ini` is the canonical version/channel source. Set its `Version` to the intended release, keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, and use the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat` (or `scripts\prepare-release.ps1`) to read that version, synchronize `core\package.json`, promote the dated changelog section, regenerate MaxPkg inputs with the permanent `Free` license, and run the full suite. `-Version <VERSION>` remains an optional override. The installed MaxScript UI reads its version from `manifest.ini`; a source checkout falls back to `version.ini`. The command never builds an MZP, commits, pushes, tags, or publishes.
+`version.ini` is the canonical version/channel source. Set its `Version` to the intended release, keep user-facing changes under `## Unreleased` in `CHANGELOG.md`, and use the supported Added, Changed, Improved, Fixed, or Removed prefixes. Run `PREPARE_RELEASE.bat` (or `scripts\prepare-release.ps1`) to read that version, synchronize `core\package.json`, promote the dated changelog section, regenerate MaxPkg inputs with the permanent `Free` license, and run the full suite. `-Version <VERSION>` remains an optional override. The installed Qt UI reads its version from `manifest.ini`; a source checkout falls back to `version.ini`. The command never builds an MZP, commits, pushes, tags, or publishes.
 
 The generated `maxpkg-changelog.ini` is derived from the tracked current-version section in `CHANGELOG.md`; release notes are no longer a hard-coded placeholder.
 
@@ -60,10 +60,10 @@ The Python client revalidates a pending package and its SHA-256 on the next expl
 - MaxPkg extracts the package into its GUID-owned temporary package directory.
 - The generated MaxPkg macro runs `01_START_MAX_ULTRA_MCP_FIRST.ms` directly from that directory.
 - Runtime paths are resolved from the executing entry file; no developer-machine path is embedded in the archive.
-- Native code is not required. A future managed helper DLL may be shipped package-relative and loaded explicitly, but it must remain optional and provide a tested Node.js/MaxScript fallback.
+- Python and Qt come from 3ds Max. The bundled Node.js server remains external; no separate user installation of these runtimes is required.
 - Mutable authentication state stays in the stable per-user `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\runtime\state` directory, survives package-root replacement, and is never bundled.
 - Imported skills and their durable registry live separately in `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\user-skills`. Neither updates nor standard uninstall delete this store. Native discovery adapters contain only metadata and a reference to this store; they are removed by the explicit Skills manager Delete action. User source folders and client configurations are never bundled or rewritten. The package includes the manager code, original book icon, creation prompt, and standalone HTML help/submission pages.
-- The modern folder picker uses a small packaged C# COM wrapper compiled by the built-in Windows PowerShell compiler into local UI state on first use, then invoked on the Max UI thread. It uses the OS folder dialog, checks owner process/thread, and requires no third-party assembly. A compilation or ownership error is reported; it is never represented as a successful selection.
+- Folder selection uses the Qt file dialog; the legacy C# folder-picker source is no longer shipped.
 - The standard MaxPkg installer and uninstaller own package files, generated macros, toolbar metadata, and the installed SVG icon.
 - The focused custom uninstall hook unregisters the named MCP server through available official client CLIs and stops only Node processes whose command line contains the exact installed `core\server.js` path. MaxPkg then removes the package directory.
 
@@ -71,7 +71,7 @@ Close ChatGPT Desktop, Codex, Claude Code, and 3ds Max before uninstalling when 
 
 ## Maintainer files
 
-The production allowlist includes the ready-to-use white PNG UI icons under `assets/icons/`. They are derived from the official Lucide geometry and loaded directly by the MaxScript UI; no SVG runtime is packaged.
+The production allowlist includes Python modules, editable theme JSON, original SVG icons, client logos and the portable Node.js runtime. Exclude Python caches and machine-local state.
 
 - `maxpkg-files.txt` is the reviewed production file allowlist.
 - `.agents\plugins\marketplace.json` and `plugins\max-ultra-mcp` provide the installable ChatGPT/Codex workflow plugin; its copied skill tree must remain byte-for-byte synchronized with canonical `skills\` sources.
@@ -83,3 +83,11 @@ The production allowlist includes the ready-to-use white PNG UI icons under `ass
 - `scripts/maxpkg-uninstall.ms` and `scripts/maxpkg-uninstall.ps1` implement focused package-specific cleanup.
 
 Do not add test runners, mocks, source archives, logs, control tokens, ownership records, client configuration files, or developer-machine paths to the package file list.
+
+## Transition from 1.4.7 to 1.5.0
+
+The package identity and entry filename are unchanged. `scripts/maxpkg-install.ms` is a focused custom hook invoked by the original MaxPkg installer after confirmation. It removes only the 11 obsolete packaged files listed in `assets/obsolete-1.4.7.json`, using SHA-256 hashes verified against the published 1.4.7 MZP. Modified files are preserved. Cleanup validates the installed GUID directory under Max's temporary directory and rejects links; it never recursively deletes the package or touches user settings, imported skills or client configuration.
+
+The hook writes an installation-completion receipt for the installed version. The Python bootstrap waits for that receipt when launched by the old updater before the standard installer has been confirmed. Python updates also wait before reporting completion. The original MaxPkg tooling is not modified.
+
+The original standalone MaxPkg installer removes its extracted package directory when cancelled. A cancelled installation can therefore require reinstalling the MZP; the completion receipt prevents reporting that cancellation as success, but does not provide a transactional rollback of MaxPkg extraction. Do not describe this release as a guaranteed seamless update until the real migration acceptance checks pass.

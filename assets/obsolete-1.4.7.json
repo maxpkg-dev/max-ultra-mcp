@@ -1,0 +1,13 @@
+{
+  "assets/icons/heart.png": "6b7d27c309d1561c84c48e760997be599f1cba592c4cb248ae1d562f97844622",
+  "assets/icons/panel-top-close.png": "1fcb2aa0b621d3ca712b670da50c0bd853b3b730a46c468c34af1a8d08f1f6c0",
+  "assets/icons/plug-zap.png": "c05d60186f938b6ad38324f4a2ef21e08044d8fc7c6f6335f3f133caecc63131",
+  "assets/icons/power.png": "f006b5abcdb771dc601ab94be830dbf683453c57e0229fc5b56cc672999402c7",
+  "assets/icons/refresh-cw.png": "2d029b4740ef08713a5ba82cb8ede4ac5a10c99fe542d1361adc950cd2b79854",
+  "assets/icons/settings.png": "a0eb33f89fd77c27e0dddaa72738d8b2784ed08d4b54fb56107454aadeca2a75",
+  "assets/icons/skills.png": "31781ffd943411f2b0d57a823ca2cd5f0f556f4dd12c58631933a443ac9dba12",
+  "assets/client-logos/codex.png": "fbba4b51a4a8378d0c1e98ec26fd59ace6bc02fab453afc2627218dbf4b13df8",
+  "assets/client-logos/claude.png": "9215f0315c844b40c5bce6417d32aa19eecdafee9eaf5aaf3b4d3855162f69db",
+  "assets/client-logos/antigravity.png": "cd1f6aaa800010469a579b3f232df99a82ebcf983a3bbc0a5587cdbe3f43f0db",
+  "scripts/SkillsFolderPicker.cs": "9642aed688d42b946fde138075e706f93bf63e4b09ddf5faf90064f493a8a31f"
+}

@@ -62,9 +62,9 @@ Data-only metadata files are exempt when their format does not support comments.
 ## UI conventions
 
 - Keep the panel compact and readable: concise status/context lines above one tall, full-width activity log.
-- The activity log is a .NET RichTextBox with category colors, at most 30 entries, automatic scroll-to-latest behavior, and a flat one-pixel product-colored outline.
+- The activity log is a paged Qt table backed by the full session journal, with category colors, responsive wrapping, rounded corners and conditional scroll-to-latest behavior. See docs/UI_DESIGN.md.
 - Do not add a redundant recent-errors group. Preserve keyboard/readability accessibility and responsive resizing.
-- Perform every WinForms/3ds Max UI mutation on the Max main thread.
+- Perform every Qt/3ds Max UI mutation on the Max main thread.
 
 ## Protocol and lifecycle safety
 

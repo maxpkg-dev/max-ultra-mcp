@@ -594,6 +594,18 @@ class Client:
     def install_update(self, package, version):
         try:
             self.rt.fileIn(package, quiet=True)
+            self.finish_update_installation(version, time.monotonic() + 300)
+        except Exception as error:
+            self.recover_update(error)
+
+    def finish_update_installation(self, version, deadline):
+        try:
+            from .installation import installation_ready
+            if not installation_ready(self.root, str(self.rt.getDir(self.rt.Name("temp")))):
+                if time.monotonic() > deadline:
+                    raise RuntimeError("Installation confirmation timed out. Confirm in MaxPkg and launch the script again.")
+                QtCore.QTimer.singleShot(250, lambda: self.finish_update_installation(version, deadline))
+                return
             installed = read_ini(self.root / "manifest.ini").get("package", "version", fallback="")
             if installed != version:
                 raise RuntimeError("Installation was cancelled or the installed version was not updated. The staged package remains available for retry.")

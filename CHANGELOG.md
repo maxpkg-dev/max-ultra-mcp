@@ -2,22 +2,16 @@
 
 ## Unreleased
 
-- Added: A persistent 20-100% main-window opacity slider, preserving the selected value when Settings temporarily dims other script windows.
-- Added: Deep Teal and Burgundy interface color schemes.
-- Changed: Each interface theme now loads its complete editable JSON palette on selection, including status, journal, button and scrollbar colors.
-- Improved: AI setup headings and spacing, continuous tab borders, and rounded Settings groups.
-- Improved: Panels narrower than 300 logical pixels use smaller controls, text and spacing to prioritize the journal, with a 240 x 180 minimum window size.
-- Improved: Wide activity journals wrap full messages with continuation lines below the timestamp; compact panels retain single-line elision.
-- Improved: All Copy buttons show Copied with a Lucide check for two seconds, including AI Client Setup prompts and JSON configuration.
-- Changed: Both Skills help buttons use the original Lucide circle-question-mark SVG.
-- Fixed: Theme switching updates all open windows together without calling the incompatible PySide6 item-view update overload.
-- Improved: The activity log uses smaller console text and tighter rows in small windows, restoring normal sizing when expanded.
-- Added: Four persistent Qt color themes with live switching in Settings: Warm Graphite, Forest, Muted Plum, and Coffee.
-- Added: A 3ds Max theme that follows the user's colorMan colors across all windows, including readable SVG icons and log categories with light palettes.
-- Fixed: Pending Qt-client updates are revalidated on launch; installer failures restart the surviving client without an automatic retry loop.
-- Fixed: Python reloads bind to the launching package instead of importing an older installed copy from another search path.
-- Fixed: Manual AI setup follows detected runtime paths and the current port, and autostart status is reconciled with its startup file.
-- Fixed: Restored Donate links in support log entries, Skills Back scroll positions, and in-document anchor navigation.
+## 1.5.0 - 2026-10-12
+
+- Changed: The in-Max controller, transport and owned windows now use embedded Python and Qt; the Node.js MCP server, protocol and MZP entry point are preserved.
+- Added: A responsive interface with compact icon-only actions, larger controls above 1024 and at 1800 logical pixels, native window shadows, SVG icons and rounded journal and progress surfaces.
+- Added: Seven editable JSON color themes, including the user's 3ds Max colorMan palette, applied immediately across open windows.
+- Added: A paged, searchable and exportable full-session journal with colored categories, wide-window wrapping and preserved reading position.
+- Added: Persistent 20-100% panel opacity, modal Settings dimming, monitor-constrained status mini-panel and a Skills loading overlay.
+- Improved: Familiar AI setup and Skills layouts, inline help with copy feedback, protected built-in skills, navigation and scheduled support messages.
+- Fixed: The Python bootstrap waits for confirmed MaxPkg installation before launching an updated package; pending updates retain visible retry status on failure.
+- Removed: Unmodified obsolete 1.4.7 PNG assets and the C# folder-picker source are removed by a bounded install hook; modified files and durable user data are preserved.
 
 ## 1.4.7 - 2026-10-07
 
