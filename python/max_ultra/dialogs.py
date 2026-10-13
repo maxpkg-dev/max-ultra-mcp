@@ -12,7 +12,7 @@ import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE, PillProgressBar
+from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE, PillProgressBar, ThemedComboBox
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -224,7 +224,7 @@ class SettingsWindow(Window):
             themes.set_style(group, "QGroupBox { border:1px solid @group_border; border-radius:3px; margin-top:12px; padding:12px 10px 8px; } QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; left:10px; padding:0 5px; color:@heading_text; }")
             groups[title] = QtWidgets.QVBoxLayout(group)
             layout.addWidget(group)
-        self.theme_picker = QtWidgets.QComboBox()
+        self.theme_picker = ThemedComboBox(client.root)
         self.theme_picker.setAccessibleName("Color theme")
         for identifier, (label, _) in themes.THEMES.items():
             self.theme_picker.addItem(label, identifier)
@@ -267,10 +267,10 @@ class SettingsWindow(Window):
         self.update_status_label = QtWidgets.QLabel()
         self.update_status_label.setWordWrap(True)
         update_row.addWidget(self.update_status_label, 1)
-        self.check_updates = action(client.root, "refresh-cw", "Check now", client.check_updates)
+        self.check_updates = action(client.root, "refresh-cw", "Check Now", client.check_updates)
         update_row.addWidget(self.check_updates)
         groups["Updates"].addLayout(update_row)
-        groups["AI client integration"].addWidget(action(client.root, "settings", "Open AI client setup...", self.open_ai_setup))
+        groups["AI client integration"].addWidget(action(client.root, "settings", "Open AI Client Setup...", self.open_ai_setup))
         about = groups["About"]
         about.setSpacing(0)
         details = QtWidgets.QVBoxLayout()
@@ -421,7 +421,7 @@ class Onboarding(Window):
         progress_row.addWidget(self.elapsed)
         setup_layout.addLayout(progress_row)
         controls = QtWidgets.QHBoxLayout()
-        self.refresh = action(client.root, "refresh-cw", "Refresh status", client.refresh_agents)
+        self.refresh = action(client.root, "refresh-cw", "Refresh Status", client.refresh_agents)
         self.cancel = QtWidgets.QPushButton("Cancel")
         self.cancel.clicked.connect(client.cancel_integration)
         controls.addWidget(self.refresh)
@@ -471,9 +471,9 @@ class Onboarding(Window):
         manual_layout.addStretch()
         manual_controls = QtWidgets.QHBoxLayout()
         manual_controls.setSpacing(8)
-        manual_controls.addWidget(action(client.root, "refresh-cw", "Refresh status", client.refresh_agents))
+        manual_controls.addWidget(action(client.root, "refresh-cw", "Refresh Status", client.refresh_agents))
         manual_controls.addStretch()
-        manual_controls.addWidget(copy_action(client.root, "Copy JSON configuration", client.manual_setup))
+        manual_controls.addWidget(copy_action(client.root, "Copy JSON Configuration", client.manual_setup))
         manual_layout.addLayout(manual_controls)
         manual_scroll = QtWidgets.QScrollArea()
         manual_scroll.setWidgetResizable(True)
@@ -518,7 +518,7 @@ class Onboarding(Window):
                 title = "Connect to " + label
             else:
                 title = label
-            status_text = {"configured": "MCP ready", "not_configured": "Not connected", "restart_required": "Restart required", "cli_missing": "CLI not installed", "desktop_missing": "Desktop app not installed", "check_failed": "Check failed — refresh status", "runtime_missing": "Runtime unavailable", "unknown": "Refresh status", "checking": "Checking..."}.get(state, state.replace("_", " "))
+            status_text = {"configured": "MCP Ready", "not_configured": "Not connected", "restart_required": "Restart required", "cli_missing": "CLI not installed", "desktop_missing": "Desktop app not installed", "check_failed": "Check failed — refresh status", "runtime_missing": "Runtime unavailable", "unknown": "Refresh Status", "checking": "Checking..."}.get(state, state.replace("_", " "))
             if busy:
                 title = label
                 active = not self.client.integration_client or self.client.integration_client == identifier
@@ -558,7 +558,7 @@ class Onboarding(Window):
                 "Internet access is required. The installer manages CLI files and may update user PATH. "
                 "No separate Node.js install is needed.\n\n"
                 "If the desktop app is missing, its official download page will open after CLI verification. "
-                "Install the app yourself, then Refresh status and Connect separately. "
+                "Install the app yourself, then Refresh Status and Connect separately. "
                 "Cancel installation stops the helper but does not undo installed files."
             ).format(label, installer_url)
             reply = QtWidgets.QMessageBox.question(self, "Install " + label, confirmation)
@@ -566,7 +566,7 @@ class Onboarding(Window):
                 self.client.start_integration("InstallCli", identifier, ["-" + switch, "-ConfirmCliInstall"])
         elif state == "desktop_missing" or (identifier == "antigravity" and state == "cli_missing"):
             QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
-            self.client.integration_message = "Install the desktop app, click Refresh status, then Connect on the same client card."
+            self.client.integration_message = "Install the desktop app, click Refresh Status, then Connect on the same client card."
             self.update_status()
         elif state in ("not_configured", "restart_required", "configured"):
             self.client.start_integration("Install", identifier, ["-" + switch])
@@ -576,7 +576,7 @@ class Onboarding(Window):
 
 class SkillHelpWindow(Window):
     def __init__(self, client, parent, submit=False):
-        title = "Submit Your Skill" if submit else "How to create and import skills"
+        title = "Submit Your Skill" if submit else "How to Create and Import Skills"
         super().__init__(client.root, title, parent)
         self.resize(940, 780)
         self.setMinimumSize(320, 300)
@@ -779,7 +779,7 @@ class SkillsWindow(Window):
         self.status.setWordWrap(True)
         self.outer.addWidget(self.status)
         self.controls = QtWidgets.QHBoxLayout()
-        for symbol, title, callback in [("circle-question-mark", "How to create and import skills", lambda: self.help("CUSTOM_SKILLS.html")), ("circle-question-mark", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("heart", "Donate", client.donate)]:
+        for symbol, title, callback in [("circle-question-mark", "How to Create and Import Skills", lambda: self.help("CUSTOM_SKILLS.html")), ("circle-question-mark", "Submit Your Skill", lambda: self.help("SUBMIT_SKILL.html")), ("heart", "Donate", client.donate)]:
             if title == "Donate":
                 self.controls.addStretch()
             button = donate_action(client.root, callback) if title == "Donate" else action(client.root, symbol, title, callback)

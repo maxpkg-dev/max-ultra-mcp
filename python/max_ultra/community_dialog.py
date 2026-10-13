@@ -7,7 +7,7 @@ import json
 import time
 from datetime import datetime
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, action, DESTRUCTIVE_STYLE, PillProgressBar
+from .widgets import Window, action, DESTRUCTIVE_STYLE, PillProgressBar, SEARCH_STYLE
 from .wire import decode
 from . import themes
 
@@ -108,7 +108,7 @@ class CommunityWindow(Window):
         self.install_buttons = []
         self.busy = False
         self.search = QtWidgets.QLineEdit()
-        themes.set_style(self.search, "QLineEdit { background:@field_background; color:@field_text; border:1px solid @field_border; border-radius:7px; padding:3px; selection-background-color:@selection_background; } QLineEdit:focus { border-color:@focus_border; }")
+        themes.set_style(self.search, SEARCH_STYLE)
         self.search.setPlaceholderText("Search skills, descriptions or authors")
         self.search.textChanged.connect(self.filter_cards)
         self.outer.addWidget(self.search)
@@ -248,7 +248,7 @@ class CommunityWindow(Window):
                 notice = QtWidgets.QLabel("The installed copy needs attention. Inspect it in Custom." if state == "needs-attention" else "Another version is installed. Your local copy will not be overwritten.")
                 notice.setWordWrap(True)
                 layout.addWidget(notice)
-                button = action(self.client.root, "folder-open", "Manage installed", self.manage_installed)
+                button = action(self.client.root, "folder-open", "Manage Installed", self.manage_installed)
             self.install_buttons.append((button, state != "installed"))
             actions = QtWidgets.QHBoxLayout()
             actions.addWidget(button)

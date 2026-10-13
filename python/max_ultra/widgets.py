@@ -24,7 +24,6 @@ QToolButton:focus, QPushButton:focus, QLineEdit:focus { border: 1px solid @focus
 QToolButton:disabled, QPushButton:disabled { color: @disabled_text; border-color: @disabled_border; }
 QLineEdit, QPlainTextEdit, QTextBrowser, QTableView, QTreeWidget, QListWidget, QComboBox { background: @field_background; border: 1px solid @field_border; padding: 3px; selection-background-color: @selection_background; }
 QLineEdit, QPlainTextEdit, QComboBox { border-radius:4px; }
-QComboBox::drop-down { border:none; border-top-right-radius:4px; border-bottom-right-radius:4px; }
 QTreeWidget::item { padding: 3px; }
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
@@ -277,6 +276,33 @@ class PillProgressBar(QtWidgets.QProgressBar):
 
 def icon(root, name):
     return QtGui.QIcon(str(Path(root) / "assets" / "icons" / (name + ".svg")))
+
+
+SEARCH_STYLE = "QLineEdit { background:@field_background; color:@field_text; border:1px solid @field_border; border-radius:7px; padding:3px; selection-background-color:@selection_background; } QLineEdit:focus { border-color:@focus_border; }"
+
+
+class ThemedComboBox(QtWidgets.QComboBox):
+    def __init__(self, root, parent=None):
+        super().__init__(parent)
+        self.arrow_source = (Path(root) / 'assets/icons/chevron-down.svg').read_text(encoding='utf-8')
+        themes.set_style(self, "QComboBox { border-radius:7px; padding-right:24px; } QComboBox::drop-down { width:22px; border:none; background:transparent; } QComboBox::down-arrow { image:none; }")
+        self.setView(QtWidgets.QListView())
+        themes.set_style(self.view(), "QListView { background:@window_background; color:@text; border:1px solid @field_border; border-radius:6px; padding:4px; outline:0; } QListView::item { padding:4px 10px; border-radius:4px; } QListView::item:hover, QListView::item:selected { background:@selection_background; color:@selected_text; }")
+
+    def showPopup(self):
+        super().showPopup()
+        popup = self.view().window()
+        outline = QtGui.QPainterPath()
+        outline.addRoundedRect(QtCore.QRectF(popup.rect()), 6, 6)
+        popup.setMask(QtGui.QRegion(outline.toFillPolygon().toPolygon()))
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        color = themes.style('@text' if self.isEnabled() else '@disabled_text')
+        renderer = QtSvg.QSvgRenderer(QtCore.QByteArray(self.arrow_source.replace('currentColor', color).encode('utf-8')))
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        renderer.render(painter, QtCore.QRectF(self.width() - 20, (self.height() - 14) / 2, 14, 14))
 
 
 class ScenePills(QtWidgets.QLabel):
@@ -973,9 +999,9 @@ class Panel(Window):
         self.ai.setFocusPolicy(Qt.StrongFocus)
         self.ai.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.ai.setMinimumWidth(100)
-        self.ai_refresh = action(client.root, "refresh-cw", "Refresh AI client status", client.refresh_agents)
+        self.ai_refresh = action(client.root, "refresh-cw", "Refresh AI Client Status", client.refresh_agents)
         self.ai_refresh.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.hide_button = action(client.root, "panel-top-close", "Hide panel", client.hide_panel)
+        self.hide_button = action(client.root, "panel-top-close", "Hide Panel", client.hide_panel)
         for button in (self.ai_refresh, self.hide_button):
             button.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         top_row = QtWidgets.QHBoxLayout()
@@ -997,9 +1023,10 @@ class Panel(Window):
         filters = QtWidgets.QHBoxLayout(self.filters)
         filters.setContentsMargins(0, 0, 0, 0)
         self.search = QtWidgets.QLineEdit()
+        themes.set_style(self.search, SEARCH_STYLE)
         self.search.setPlaceholderText("Search complete session history")
         self.search.setAccessibleName("Search complete session history")
-        self.categories = QtWidgets.QComboBox()
+        self.categories = ThemedComboBox(client.root)
         self.categories.addItems(["All"] + list(COLORS))
         filters.addWidget(self.search, 1)
         filters.addWidget(self.categories)
@@ -1032,7 +1059,7 @@ class Panel(Window):
         themes.set_style(self.storage_error, "color: @storage_error")
         self.storage_error.hide()
         self.outer.addWidget(self.storage_error)
-        self.latest = QtWidgets.QPushButton("Go to latest")
+        self.latest = QtWidgets.QPushButton("Go to Latest")
         self.latest.clicked.connect(self.go_latest)
         self.latest.hide()
         self.outer.addWidget(self.latest)
@@ -1095,7 +1122,7 @@ class Panel(Window):
         record = self.model.record(index.row()) if index.isValid() else None
         if record and record[2] == "support" and "Donate" in record[3]:
             menu.addAction(icon(self.client.root, "heart"), "Donate", self.client.donate)
-        for symbol, label, callback in [("search", "Search / filter (Ctrl+F)", self.show_search), ("copy", "Copy selected (Ctrl+C)", self.copy_selected), ("download", "Export (Ctrl+E)", self.export), ("expand", "Go to latest", self.go_latest)]:
+        for symbol, label, callback in [("search", "Search / Filter (Ctrl+F)", self.show_search), ("copy", "Copy Selected (Ctrl+C)", self.copy_selected), ("download", "Export (Ctrl+E)", self.export), ("expand", "Go to Latest", self.go_latest)]:
             item = menu.addAction(icon(self.client.root, symbol), label)
             item.triggered.connect(callback)
         for item in menu.actions():
@@ -1121,6 +1148,9 @@ class Panel(Window):
             compact = self.width() < required
             for button in self.buttons:
                 button.setToolButtonStyle(Qt.ToolButtonIconOnly if compact else Qt.ToolButtonTextBesideIcon)
+            settings_width = max(24 if self.width() < 350 else 32, self.buttons[3].sizeHint().width())
+            self.buttons[2].setFixedWidth(settings_width)
+            self.buttons[3].setFixedWidth(settings_width)
             self.hide_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 520 else Qt.ToolButtonTextBesideIcon)
             self.donate_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 400 else Qt.ToolButtonTextBesideIcon)
             self.update_ai()
@@ -1211,7 +1241,7 @@ class Panel(Window):
             self.go_latest()
         elif self.model.total > previous:
             self._unread += self.model.total - previous
-            self.latest.setText("{} new messages - go to latest".format(self._unread))
+            self.latest.setText("{} New Messages - Go to Latest".format(self._unread))
             self.latest.show()
         self.scene_label.setText(getattr(self.client, "scene_context", ""))
         self.scene_label.setToolTip(getattr(self.client, "scene_context", ""))
@@ -1281,7 +1311,7 @@ class MiniPanel(Window):
         row = QtWidgets.QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(2)
-        self.drag_grip = action(client.root, "grip-vertical", "Drag to move", lambda: None)
+        self.drag_grip = action(client.root, "grip-vertical", "Drag to Move", lambda: None)
         self.drag_grip.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.drag_grip.setMinimumSize(0, 0)
         self.drag_grip.setFixedSize(14, 24)

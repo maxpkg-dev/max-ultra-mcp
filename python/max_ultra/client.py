@@ -87,7 +87,7 @@ class Client:
         self.cancelled = set()
         self.integration = self.skills_helper = self.update_helper = None
         self.integration_result = None
-        self.integration_message = "Refresh status to detect AI clients."
+        self.integration_message = "Refresh Status to detect AI clients."
         self.integration_client = ""
         self.integration_action = ""
         self.integration_automatic = False
@@ -419,7 +419,7 @@ class Client:
 
     def ai_status(self):
         if self.integration:
-            return "Checking AI clients...", "checking"
+            return "Checking AI Clients...", "checking"
         if self.integration_failed:
             return "Setup AI Client | check failed", "issue"
         states = [self.client_state(identifier) for identifier, _, _, _ in CLIENTS]
@@ -429,7 +429,7 @@ class Client:
             return "Setup AI Client | restart required", "issue"
         ready = [label for identifier, label, _, _ in CLIENTS if self.client_state(identifier) == "configured"]
         if ready:
-            return " / ".join(ready) + " | MCP ready", "ready"
+            return " / ".join(ready) + " | MCP Ready", "ready"
         return "Setup AI Client", "setup"
 
     def start_integration(self, operation, identifier="", switches=None, automatic=False):
@@ -505,7 +505,7 @@ class Client:
                             state = helper.snapshot.get(self.integration_client, "state", fallback="check_failed")
                             self.integration_failed = self.integration_failed or state in ("install_failed", "check_failed", "runtime_check_failed", "runtime_missing")
                     if self.integration_failed:
-                        self.integration_message = "Cancelled" if helper.cancelled else "AI setup failed. Refresh status before retrying."
+                        self.integration_message = "Cancelled" if helper.cancelled else "AI setup failed. Refresh Status before retrying."
                         self.log("warning" if helper.cancelled else "error", self.integration_message)
                         self.integration_step(self.integration_message, "warning" if helper.cancelled else "error")
                     else:
@@ -515,7 +515,7 @@ class Client:
                             record = next(entry for entry in CLIENTS if entry[0] == self.integration_client)
                             if helper.snapshot.get(self.integration_client, "desktopstate", fallback="") != "installed":
                                 QtGui.QDesktopServices.openUrl(QtCore.QUrl(record[3]))
-                            self.integration_message = "CLI verified. Install the desktop app if needed, then Refresh status and Connect on the same card."
+                            self.integration_message = "CLI verified. Install the desktop app if needed, then Refresh Status and Connect on the same card."
                         states = [self.client_state(entry[0]) for entry in CLIENTS]
                         conclusive = {"configured", "not_configured", "restart_required", "cli_missing", "runtime_missing", "desktop_missing"}
                         if self.integration_automatic and all(state in conclusive for state in states) and "configured" not in states:

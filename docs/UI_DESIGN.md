@@ -66,6 +66,10 @@ Interface action icons come from **Lucide Icons**, stored in `assets/icons`, wit
 
 Copy actions temporarily display `Copied` with a check icon, then restore their original caption and copy icon after two seconds. Enabled buttons and other interactive controls use the pointing-hand cursor.
 
+Button captions use title case, preserving acronyms and lowercase short connecting words such as `to`, `and`, `a` and `the`. Skills and Settings share the same width in the main action row.
+
+Changes to a shared control must apply across all windows. `ThemedComboBox` provides the same rounded dropdown and Lucide chevron with a transparent arrow area for the journal filter and Settings theme picker. `SEARCH_STYLE` keeps the main journal and Community Skills search fields consistent; checkbox appearance comes from the shared window stylesheet.
+
 ## Colors and themes
 
 Colors live in `assets/themes/*.json`, separately from dimensions and layout rules. The available themes are Warm Graphite, Forest, Muted Plum, Coffee, Deep Teal, Burgundy and the user's 3ds Max colors. See [Editing interface themes](THEMES.md).

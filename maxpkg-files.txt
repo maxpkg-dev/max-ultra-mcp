@@ -148,6 +148,7 @@ plugins/max-ultra-mcp/skills/max-ultra-small-house-detailing/references/openings
 skills/max-ultra-small-house-detailing/references/trim-and-ornaments.md
 plugins/max-ultra-mcp/skills/max-ultra-small-house-detailing/references/trim-and-ornaments.md
 assets/icons/close.svg
+assets/icons/chevron-down.svg
 assets/icons/copy.svg
 assets/icons/download.svg
 assets/icons/expand.svg

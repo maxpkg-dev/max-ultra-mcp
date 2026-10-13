@@ -206,7 +206,7 @@ try:
             assert install.toolButtonStyle() == Qt.ToolButtonTextBesideIcon
             imports = [button for button in skills.buttons if button.text() in ('Import Folder', 'Import ZIPs')]
             assert imports[0].toolButtonStyle() == imports[1].toolButtonStyle()
-            help_buttons = [button for button in skills.buttons if button.text() in ('How to create and import skills', 'Submit Your Skill')]
+            help_buttons = [button for button in skills.buttons if button.text() in ('How to Create and Import Skills', 'Submit Your Skill')]
             assert all(button.toolButtonStyle() == Qt.ToolButtonTextBesideIcon for button in help_buttons)
             assert all(button.width() > button.iconSize().width() + 20 for button in help_buttons)
             assert help_buttons[0].geometry().right() + 4 < help_buttons[1].geometry().left(), [button.geometry() for button in help_buttons]

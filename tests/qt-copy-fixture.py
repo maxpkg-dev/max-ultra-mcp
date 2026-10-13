@@ -18,7 +18,7 @@ def wait(milliseconds):
     loop.exec_()
 
 app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-labels = ['Copy', 'Copy JSON configuration', 'Copy Prompt', 'Copy Template']
+labels = ['Copy', 'Copy JSON Configuration', 'Copy Prompt', 'Copy Template']
 value = ['Initial text']
 buttons = [copy_action(ROOT, label, lambda: value[0]) for label in labels]
 icons = [button.icon().cacheKey() for button in buttons]
