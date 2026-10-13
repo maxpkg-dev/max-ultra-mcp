@@ -366,6 +366,8 @@ class Onboarding(Window):
         self.outer.addWidget(self.tabs)
         setup = QtWidgets.QWidget()
         setup_layout = QtWidgets.QVBoxLayout(setup)
+        setup_layout.setContentsMargins(12, 12, 12, 12)
+        setup_layout.setSpacing(8)
         self.cards = []
         self.card_panels = []
         self.card_statuses = []
@@ -432,6 +434,8 @@ class Onboarding(Window):
         for title, content in [("Test prompt", TEST_PROMPT)]:
             page = QtWidgets.QWidget()
             layout = QtWidgets.QVBoxLayout(page)
+            layout.setContentsMargins(12, 12, 12, 12)
+            layout.setSpacing(8)
             box = QtWidgets.QPlainTextEdit(content)
             box.setReadOnly(True)
             layout.addWidget(box)
@@ -441,26 +445,34 @@ class Onboarding(Window):
         manual = QtWidgets.QWidget()
         manual_layout = QtWidgets.QVBoxLayout(manual)
         manual_layout.setContentsMargins(12, 12, 12, 12)
+        manual_layout.setSpacing(8)
         explanation = QtWidgets.QLabel("For clients configured manually, use these STDIO values. Automatic setup is available on the Setup tab.")
         explanation.setWordWrap(True)
         manual_layout.addWidget(explanation)
         self.manual_fields = []
         self._manual_text = None
         for label in ("Command", "Arguments (one per line)", "Environment"):
-            manual_layout.addWidget(QtWidgets.QLabel(label))
+            field_group = QtWidgets.QVBoxLayout()
+            field_group.setSpacing(4)
+            field_group.addWidget(QtWidgets.QLabel(label))
             field = QtWidgets.QPlainTextEdit()
             field.setReadOnly(True)
             field.setAccessibleName(label)
             themes.set_style(field, "font-family:Consolas; font-size:11pt;")
-            field.setMaximumHeight(70)
-            manual_layout.addWidget(field)
+            field.setMinimumHeight(56)
+            field.setMaximumHeight(110)
+            field_group.addWidget(field)
+            manual_layout.addLayout(field_group, 1)
             self.manual_fields.append(field)
         self.runtime_status = QtWidgets.QLabel()
         self.runtime_status.setWordWrap(True)
         manual_layout.addWidget(self.runtime_status)
-        manual_layout.addWidget(action(client.root, "refresh-cw", "Refresh status", client.refresh_agents))
-        manual_layout.addStretch()
-        manual_layout.addWidget(copy_action(client.root, "Copy JSON configuration", client.manual_setup))
+        manual_controls = QtWidgets.QHBoxLayout()
+        manual_controls.setSpacing(8)
+        manual_controls.addWidget(action(client.root, "refresh-cw", "Refresh status", client.refresh_agents))
+        manual_controls.addStretch()
+        manual_controls.addWidget(copy_action(client.root, "Copy JSON configuration", client.manual_setup))
+        manual_layout.addLayout(manual_controls)
         manual_scroll = QtWidgets.QScrollArea()
         manual_scroll.setWidgetResizable(True)
         manual_scroll.setWidget(manual)
@@ -483,6 +495,8 @@ class Onboarding(Window):
             self._manual_text = config_text
         parser = self.client.integration_result
         self.runtime_status.setText("Runtime check: " + (parser.get("runtime", "detail", fallback="Runtime not checked.") if parser is not None else "Runtime not checked."))
+        runtime_ready = parser is not None and parser.get("runtime", "ready", fallback="false").lower() == "true"
+        themes.set_style(self.runtime_status, "color:" + (COLORS["success"] if runtime_ready else COLORS["error"]))
         busy = self.client.integration is not None
         self.progress.setVisible(busy)
         self.elapsed.setVisible(busy)

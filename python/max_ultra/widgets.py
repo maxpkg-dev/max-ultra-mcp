@@ -277,6 +277,63 @@ def icon(root, name):
     return QtGui.QIcon(str(Path(root) / "assets" / "icons" / (name + ".svg")))
 
 
+class ScenePills(QtWidgets.QLabel):
+    def capsule_font(self):
+        font = QtGui.QFont(self.font())
+        if font.pointSizeF() > 0:
+            font.setPointSizeF(max(7.0, font.pointSizeF() * 0.9))
+        else:
+            font.setPixelSize(max(9, round(font.pixelSize() * 0.9)))
+        return font
+
+    def sizeHint(self):
+        size = super().sizeHint()
+        size.setHeight(QtGui.QFontMetrics(self.capsule_font()).height() + 12)
+        return size
+
+    def minimumSizeHint(self):
+        return QtCore.QSize(0, QtGui.QFontMetrics(self.capsule_font()).height() + 12)
+
+    def paintEvent(self, event):
+        parts = self.text().split(' | ')
+        if not self.text():
+            return
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        font = self.capsule_font()
+        painter.setFont(font)
+        metrics = QtGui.QFontMetrics(font)
+        gap = 4
+        widths = [metrics.horizontalAdvance(part) + 24 for part in parts]
+        available = max(0, self.width() - gap * (len(parts) - 1))
+        if sum(widths) > available and len(parts) == 4:
+            parts = [parts[0][4:] if parts[0].startswith('PID ') else parts[0],
+                     parts[1][6:] if parts[1].startswith('Scene ') else parts[1],
+                     parts[2].replace('Objects ', 'O: ', 1),
+                     parts[3].replace('Selection ', 'S: ', 1)]
+            widths = [metrics.horizontalAdvance(part) + 24 for part in parts]
+            # Preserve complete counts first; the filename can use its tooltip.
+            widths[1] = max(0, min(widths[1], available - widths[0] - widths[2] - widths[3]))
+            if widths[1] < metrics.horizontalAdvance('...') + 24:
+                del parts[1]
+                del widths[1]
+                available = max(0, self.width() - gap * (len(parts) - 1))
+        # Only exceptionally long numeric values need further elision.
+        while sum(widths) > available and max(widths) > 0:
+            index = widths.index(max(widths))
+            widths[index] -= 1
+        x = 0
+        for part, width in zip(parts, widths):
+            capsule = QtCore.QRectF(x + 0.5, 0.5, max(0, width - 1), self.height() - 1)
+            painter.setPen(QtGui.QPen(QtGui.QColor(themes.style('@field_border')), 1))
+            painter.setBrush(QtGui.QColor(themes.style('@recessed_background')))
+            painter.drawRoundedRect(capsule, capsule.height() / 2, capsule.height() / 2)
+            painter.setPen(QtGui.QColor(themes.style('@field_text')))
+            caption = metrics.elidedText(part, Qt.ElideRight, max(0, width - 24))
+            painter.drawText(capsule, Qt.AlignCenter, caption)
+            x += width + gap
+
+
 class ActionButton(QtWidgets.QToolButton):
     def minimumSizeHint(self):
         size = super().minimumSizeHint()
@@ -928,7 +985,7 @@ class Panel(Window):
         top_row.addWidget(self.hide_button)
         self.outer.addLayout(top_row)
         status_row = QtWidgets.QHBoxLayout()
-        self.scene_label = OverflowLabel()
+        self.scene_label = ScenePills()
         self.scene_label.setMinimumWidth(0)
         self.scene_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.scene_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)

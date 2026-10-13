@@ -6,7 +6,7 @@
 from collections import deque
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import time
 import uuid
 import datetime
@@ -221,7 +221,8 @@ class Client:
 
     def send_status(self):
         scene = self.api.scene_status()
-        self.scene_context = "PID {} | Scene {} | Objects {} | Selection {}".format(os.getpid(), scene[0] or "Untitled", scene[2], scene[3])
+        scene_name = PureWindowsPath(scene[0]).name if scene[0] else "Untitled"
+        self.scene_context = "PID {} | Scene {} | Objects {} | Selection {}".format(os.getpid(), scene_name, scene[2], scene[3])
         self.transport.outbound.put("\t".join(["STATUS", encode(scene[0]), str(scene[1]).lower(), str(scene[2]), str(scene[3]), encode(scene[4])]))
 
     def process_request(self, fields):
