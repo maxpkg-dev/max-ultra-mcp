@@ -143,7 +143,7 @@ def run():
         settings.close()
         assert skills.windowOpacity() == 1.0
         settings.show()
-        assert [group.title() for group in settings.findChildren(QtWidgets.QGroupBox)] == ['Appearance', 'Autostart', 'Server console', 'Updates', 'AI client integration', 'About']
+        assert [group.title() for group in settings.findChildren(QtWidgets.QGroupBox)] == ['Appearance', 'Autostart', 'Server console', 'Updates', 'AI client integration']
         checkboxes = settings.findChildren(QtWidgets.QCheckBox)
         assert len(checkboxes) == 4
         assert [box.isChecked() for box in checkboxes] == [True, False, False, True]

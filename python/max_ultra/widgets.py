@@ -1130,6 +1130,8 @@ class Panel(Window):
             self.buttons.append(button)
             self.actions.addWidget(button)
         self.actions.addStretch(1)
+        self.about_button = action(client.root, "circle-question-mark", "About", client.show_about)
+        self.actions.addWidget(self.about_button)
         self.actions.setSpacing(8)
         self.outer.addLayout(self.actions)
         footer = QtWidgets.QHBoxLayout()
@@ -1212,6 +1214,10 @@ class Panel(Window):
             self.buttons[1].setFixedWidth(settings_width)
             self.hide_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 520 else Qt.ToolButtonTextBesideIcon)
             self.donate_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 400 else Qt.ToolButtonTextBesideIcon)
+            self.about_button.setToolButtonStyle(self.donate_button.toolButtonStyle())
+            footer_width = max(self.about_button.sizeHint().width(), self.donate_button.sizeHint().width())
+            self.about_button.setFixedWidth(footer_width)
+            self.donate_button.setFixedWidth(footer_width)
             self.update_ai()
             self.update_journal_density()
 
@@ -1244,7 +1250,7 @@ class Panel(Window):
         self.actions.setSpacing(action_spacing)
         self.footer.setSpacing(spacing)
         button_size = 24 if tiny else 56 if extra_large else 44 if large else 32
-        for button in self.buttons + [self.ai, self.ai_refresh, self.hide_button, self.donate_button, self.latest]:
+        for button in self.buttons + [self.ai, self.ai_refresh, self.hide_button, self.donate_button, self.about_button, self.latest]:
             button.setProperty('ultraCompact', tiny)
             button.setProperty('largeControls', large)
             button.setProperty('extraLargeControls', extra_large)

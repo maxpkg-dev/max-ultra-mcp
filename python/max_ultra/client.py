@@ -15,7 +15,7 @@ import sys
 from .qt import QtCore, QtWidgets, QtGui, max_parent, protect_keyboard, release_keyboard
 from . import themes
 from .widgets import Panel, MiniPanel
-from .dialogs import SettingsWindow, Onboarding, SkillsWindow, CLIENTS
+from .dialogs import SettingsWindow, AboutWindow, Onboarding, SkillsWindow, CLIENTS
 from .settings import Settings, read_ini
 from .journal import Journal
 from .max_api import MaxApi
@@ -377,6 +377,9 @@ class Client:
     def show_onboarding(self):
         self.show_dialog("onboarding", Onboarding)
 
+    def show_about(self):
+        self.show_dialog("about", AboutWindow)
+
     def show_settings(self):
         self.show_dialog("settings", SettingsWindow)
 
@@ -553,6 +556,7 @@ class Client:
                     state = helper.snapshot.get("update", "state", fallback="error")
                     message = helper.snapshot.get("update", "message", fallback="Update result unavailable")
                     self.update_message = message
+                    self.update_state = state
                     self.log("success" if state in ("ready", "current") else "warning", message)
                     if state == "ready":
                         self.stage_update(helper.snapshot)
@@ -564,6 +568,7 @@ class Client:
                     self.dialogs["community"].show_error(str(error))
                 if name == "update_helper":
                     self.update_message = str(error)
+                    self.update_state = "error"
                 helper.dispose()
                 if name == "integration":
                     self.integration_failed = True

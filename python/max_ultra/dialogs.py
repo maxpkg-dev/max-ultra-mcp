@@ -228,6 +228,84 @@ class InlineHelpBrowser(PassiveBrowser):
         self.fit_height()
 
 
+class AboutWindow(Window):
+    def __init__(self, client, parent):
+        super().__init__(client.root, "About", parent)
+        self.setMinimumWidth(320)
+        about = self.outer
+        about.setContentsMargins(0, 0, 0, 0)
+        about.setSpacing(0)
+        self.header.setContentsMargins(8, 6, 8, 6)
+        self.header.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        content = QtWidgets.QVBoxLayout()
+        content.setContentsMargins(24, 18, 24, 18)
+        content.setSpacing(12)
+        hero_panel = QtWidgets.QWidget()
+        hero_panel.setObjectName('aboutHero')
+        themes.set_style(hero_panel, 'QWidget#aboutHero { background:@button_background; } QLabel { background:transparent; }')
+        hero = QtWidgets.QHBoxLayout(hero_panel)
+        hero.setContentsMargins(24, 18, 24, 18)
+        hero_panel.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+        hero.setSpacing(12)
+        logo = QtWidgets.QLabel()
+        ratio = self.devicePixelRatioF()
+        logo_path = client.root / 'icons/icon.svg'
+        if not logo_path.is_file():
+            logo_path = client.root / 'maxpkg-icon.svg'
+        pixmap = QtGui.QIcon(str(logo_path)).pixmap(round(60 * ratio), round(60 * ratio))
+        pixmap.setDevicePixelRatio(ratio)
+        logo.setPixmap(pixmap)
+        hero.addWidget(logo)
+        title = QtWidgets.QLabel('Max Ultra MCP')
+        themes.set_style(title, 'font-size:20pt; font-weight:600; color:@heading_text;')
+        heading = QtWidgets.QVBoxLayout()
+        heading.setSpacing(0)
+        heading.setAlignment(Qt.AlignVCenter)
+        heading.addWidget(title)
+        subtitle = QtWidgets.QLabel('AI-powered tools for 3ds Max')
+        themes.set_style(subtitle, 'font-size:10pt; color:@muted_text;')
+        heading.addWidget(subtitle)
+        hero.addLayout(heading, 1)
+        about.addWidget(hero_panel)
+        separator = QtWidgets.QFrame()
+        separator.setFixedHeight(2)
+        themes.set_style(separator, 'background:@accent; border:none;')
+        about.addWidget(separator)
+        body = QtWidgets.QWidget()
+        body.setLayout(content)
+        themes.set_style(body, 'QLabel, QToolButton { font-size:10pt; }')
+        about.addWidget(body)
+        description = QtWidgets.QLabel('Connect AI workflows to Autodesk 3ds Max.\nScene inspection, modeling and automation.')
+        description.setWordWrap(True)
+        content.addWidget(description)
+        details = QtWidgets.QFormLayout()
+        details.setHorizontalSpacing(20)
+        details.setVerticalSpacing(10)
+        for name, text in [('Version', client.version), ('Developer', 'Lukianenko Vasyl'), ('Project', '3DGROUND - Max Ultra MCP')]:
+            label = QtWidgets.QLabel(text)
+            label.setWordWrap(True)
+            details.addRow(name, label)
+        content.addLayout(details)
+        links = QtWidgets.QHBoxLayout()
+        links.setSpacing(16)
+        content.addLayout(links)
+        for address in ["3dground.net", "maxpkg.dev"]:
+            link = QtWidgets.QLabel()
+            themes.set_label(link, '<a href="https://' + address + '" style="color:@support_link">' + address + '</a>')
+            link.setOpenExternalLinks(True)
+            links.addWidget(link)
+        links.addStretch()
+        content.addStretch()
+        buttons = QtWidgets.QHBoxLayout()
+        buttons.addWidget(donate_action(client.root, client.donate))
+        buttons.addStretch()
+        buttons.addWidget(action(client.root, "close", "Close", self.close))
+        content.addSpacing(36)
+        content.addLayout(buttons)
+        self.adjustSize()
+        self.resize(460, self.height())
+
+
 class SettingsWindow(Window):
     def __init__(self, client, parent):
         super().__init__(client.root, "Settings", parent)
@@ -244,7 +322,7 @@ class SettingsWindow(Window):
         scroll.setWidget(content)
         self.outer.addWidget(scroll)
         groups = {}
-        for title in ["Appearance", "Autostart", "Server console", "Updates", "AI client integration", "About"]:
+        for title in ["Appearance", "Autostart", "Server console", "Updates", "AI client integration"]:
             group = QtWidgets.QGroupBox(title)
             themes.set_style(group, "QGroupBox { border:1px solid @group_border; border-radius:3px; margin-top:12px; padding:12px 10px 8px; } QGroupBox::title { subcontrol-origin:margin; subcontrol-position:top left; left:10px; padding:0 5px; color:@heading_text; }")
             groups[title] = QtWidgets.QVBoxLayout(group)
@@ -296,28 +374,6 @@ class SettingsWindow(Window):
         update_row.addWidget(self.check_updates)
         groups["Updates"].addLayout(update_row)
         groups["AI client integration"].addWidget(action(client.root, "settings", "Open AI Client Setup...", self.open_ai_setup))
-        about = groups["About"]
-        about.setSpacing(0)
-        details = QtWidgets.QVBoxLayout()
-        details.setSpacing(4)
-        about.addLayout(details)
-        for text in ["3DGROUND - Max Ultra MCP", client.version, "Lukianenko Vasyl"]:
-            label = QtWidgets.QLabel(text)
-            label.setWordWrap(True)
-            label.setAlignment(Qt.AlignCenter)
-            details.addWidget(label)
-        about.addSpacing(8)
-        links = QtWidgets.QVBoxLayout()
-        links.setSpacing(4)
-        about.addLayout(links)
-        for address in ["3dground.net", "maxpkg.dev"]:
-            link = QtWidgets.QLabel()
-            themes.set_label(link, '<a href="https://' + address + '" style="color:@support_link">' + address + '</a>')
-            link.setAlignment(Qt.AlignCenter)
-            link.setOpenExternalLinks(True)
-            links.addWidget(link)
-        about.addSpacing(16)
-        about.addWidget(donate_action(client.root, client.donate), 0, Qt.AlignHCenter)
         self.update_status()
         self.ensurePolished()
         layout.activate()
@@ -379,6 +435,10 @@ class SettingsWindow(Window):
         busy = self.client.update_helper is not None
         self.check_updates.setEnabled(not busy)
         self.update_status_label.setText("Checking for updates..." if busy else getattr(self.client, "update_message", "Check for available updates."))
+        state = getattr(self.client, "update_state", "")
+        role = "text" if busy else ("log_success" if state == "current" else
+                "log_error" if state == "error" else "log_warning" if state else "text")
+        themes.set_style(self.update_status_label, "color:@" + role + ";")
 
 
 class Onboarding(Window):

@@ -17,6 +17,7 @@
 - Fixed: The Python bootstrap waits for confirmed MaxPkg installation before launching an updated package; pending updates retain visible retry status on failure.
 - Added: Optional translucent category backgrounds in the journal, enabled by default with a persistent Settings switch.
 - Improved: Shared themed dropdowns, rounded text fields, consistent button labels and adaptive journal spacing.
+- Added: A dedicated About window with product information, version, author and website links, available above Donate in the main panel.
 - Changed: The main refresh action reconnects the bridge before checking AI clients; redundant Reconnect and Stop / Exit buttons were removed.
 - Fixed: Resizing during Skills HTML loading no longer duplicates the introductory metadata block.
 - Removed: Unmodified obsolete 1.4.7 PNG assets and the C# folder-picker source are removed by a bounded install hook; modified files and durable user data are preserved.
