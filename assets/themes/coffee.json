@@ -1,6 +1,13 @@
 {
   "name": "Coffee",
   "colors": {
+    "log_info_background": { "mix": ["#372d26", "#8ed0e0", 0.18] },
+    "log_system_background": { "mix": ["#372d26", "#bea5ff", 0.18] },
+    "log_success_background": { "mix": ["#372d26", "#78e196", 0.18] },
+    "log_warning_background": { "mix": ["#372d26", "#ffc350", 0.18] },
+    "log_error_background": { "mix": ["#372d26", "#ff7d7d", 0.18] },
+    "log_debug_background": { "mix": ["#372d26", "#bebe8c", 0.18] },
+    "log_support_background": "#4d3d30",
     "dropdown_background": { "mix": ["#2c241f", "#e8e3da", 0.10] },
     "window_background": "#2c241f",
     "tab_pane_background": "#2c241f",

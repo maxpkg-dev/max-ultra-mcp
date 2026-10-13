@@ -1,6 +1,13 @@
 {
   "name": "3ds Max (user colors)",
   "colors": {
+    "log_info_background": { "mix": ["$window", "#8ed0e0", 0.18] },
+    "log_system_background": { "mix": ["$window", "#bea5ff", 0.18] },
+    "log_success_background": { "mix": ["$window", "#78e196", 0.18] },
+    "log_warning_background": { "mix": ["$window", "#ffc350", 0.18] },
+    "log_error_background": { "mix": ["$window", "#ff7d7d", 0.18] },
+    "log_debug_background": { "mix": ["$window", "#bebe8c", 0.18] },
+    "log_support_background": "$itemHilight",
     "dropdown_background": { "mix": ["$background", "$text", 0.10] },
     "window_background": "$background",
     "tab_pane_background": "$background",

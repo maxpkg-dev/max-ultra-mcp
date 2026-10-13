@@ -831,8 +831,19 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
             return
         painter.save()
         painter.setClipRect(option.rect)
+        category = record[2] if record[2] in COLORS else "info"
+        background = QtGui.QColor(themes.style("@log_" + category + "_background"))
+        background.setAlpha(150)
+        block_rect = QtCore.QRectF(option.rect.adjusted(0, 0, 0, -1))
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(background)
+        painter.drawRoundedRect(block_rect, 3, 3)
         if option.state & QtWidgets.QStyle.State_Selected:
-            painter.fillRect(option.rect, QtGui.QColor(themes.style("@journal_selection")))
+            selection = QtGui.QColor(themes.style(COLORS[category]))
+            selection.setAlpha(55)
+            painter.setBrush(selection)
+            painter.drawRoundedRect(block_rect, 3, 3)
         color = QtGui.QColor(themes.style(COLORS.get(record[2], COLORS["info"])))
         font = self.journal_font()
         painter.setFont(font)

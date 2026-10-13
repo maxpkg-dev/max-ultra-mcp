@@ -1,6 +1,13 @@
 {
   "name": "Deep Teal",
   "colors": {
+    "log_info_background": { "mix": ["#263332", "#8ed0e0", 0.18] },
+    "log_system_background": { "mix": ["#263332", "#bea5ff", 0.18] },
+    "log_success_background": { "mix": ["#263332", "#78e196", 0.18] },
+    "log_warning_background": { "mix": ["#263332", "#ffc350", 0.18] },
+    "log_error_background": { "mix": ["#263332", "#ff7d7d", 0.18] },
+    "log_debug_background": { "mix": ["#263332", "#bebe8c", 0.18] },
+    "log_support_background": "#38514d",
     "dropdown_background": { "mix": ["#202a2a", "#e1eeea", 0.10] },
     "window_background": "#202a2a",
     "tab_pane_background": "#202a2a",

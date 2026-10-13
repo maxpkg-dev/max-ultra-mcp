@@ -1,6 +1,13 @@
 {
   "name": "Muted Plum",
   "colors": {
+    "log_info_background": { "mix": ["#332c39", "#8ed0e0", 0.18] },
+    "log_system_background": { "mix": ["#332c39", "#bea5ff", 0.18] },
+    "log_success_background": { "mix": ["#332c39", "#78e196", 0.18] },
+    "log_warning_background": { "mix": ["#332c39", "#ffc350", 0.18] },
+    "log_error_background": { "mix": ["#332c39", "#ff7d7d", 0.18] },
+    "log_debug_background": { "mix": ["#332c39", "#bebe8c", 0.18] },
+    "log_support_background": "#493d52",
     "dropdown_background": { "mix": ["#29232d", "#e8e3da", 0.10] },
     "window_background": "#29232d",
     "tab_pane_background": "#29232d",

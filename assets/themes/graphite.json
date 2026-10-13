@@ -1,6 +1,13 @@
 {
   "name": "Warm Graphite",
   "colors": {
+    "log_info_background": { "mix": ["#302f2b", "#8ed0e0", 0.18] },
+    "log_system_background": { "mix": ["#302f2b", "#bea5ff", 0.18] },
+    "log_success_background": { "mix": ["#302f2b", "#78e196", 0.18] },
+    "log_warning_background": { "mix": ["#302f2b", "#ffc350", 0.18] },
+    "log_error_background": { "mix": ["#302f2b", "#ff7d7d", 0.18] },
+    "log_debug_background": { "mix": ["#302f2b", "#bebe8c", 0.18] },
+    "log_support_background": "#493b2c",
     "dropdown_background": { "mix": ["#242320", "#e8e3da", 0.10] },
     "window_background": "#242320",
     "tab_pane_background": "#292823",
