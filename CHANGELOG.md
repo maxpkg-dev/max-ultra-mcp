@@ -5,11 +5,15 @@
 ## 1.5.0 - 2026-10-12
 
 - Changed: The in-Max controller, transport and owned windows now use embedded Python and Qt; the Node.js MCP server, protocol and MZP entry point are preserved.
-- Added: A responsive interface with compact icon-only actions, larger controls above 1024 and at 1800 logical pixels, native window shadows, SVG icons and rounded journal and progress surfaces.
+- Added: A responsive interface with compact icon-only actions, larger controls above 1250 and at 1800 logical pixels, native window shadows, SVG icons and rounded journal and progress surfaces.
 - Added: Seven editable JSON color themes, including the user's 3ds Max colorMan palette, applied immediately across open windows.
 - Added: A paged, searchable and exportable full-session journal with colored categories, wide-window wrapping and preserved reading position.
 - Added: Persistent 20-100% panel opacity, modal Settings dimming, monitor-constrained status mini-panel and a Skills loading overlay.
 - Improved: Familiar AI setup and Skills layouts, inline help with copy feedback, protected built-in skills, navigation and scheduled support messages.
+- Added: An in-app Community Skills catalog with verified downloads, explicit installation, publication dates, detail links, download progress and elapsed time.
+- Improved: Skills tables support sorting by name, description, author and date, plus context actions for information, opening folders and deleting custom skills.
+- Improved: Responsive Skills buttons retain readable help labels, and compact scene-status capsules preserve counts while showing only the scene filename.
+- Improved: Manual Setup uses compact fields, consistent spacing, aligned actions and runtime verification colors.
 - Fixed: The Python bootstrap waits for confirmed MaxPkg installation before launching an updated package; pending updates retain visible retry status on failure.
 - Removed: Unmodified obsolete 1.4.7 PNG assets and the C# folder-picker source are removed by a bounded install hook; modified files and durable user data are preserved.
 

@@ -23,6 +23,8 @@ QToolButton:hover, QPushButton:hover { background: @button_hover; border-color: 
 QToolButton:focus, QPushButton:focus, QLineEdit:focus { border: 1px solid @focus_border; }
 QToolButton:disabled, QPushButton:disabled { color: @disabled_text; border-color: @disabled_border; }
 QLineEdit, QPlainTextEdit, QTextBrowser, QTableView, QTreeWidget, QListWidget, QComboBox { background: @field_background; border: 1px solid @field_border; padding: 3px; selection-background-color: @selection_background; }
+QLineEdit, QPlainTextEdit, QComboBox { border-radius:4px; }
+QComboBox::drop-down { border:none; border-top-right-radius:4px; border-bottom-right-radius:4px; }
 QTreeWidget::item { padding: 3px; }
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
@@ -1086,7 +1088,9 @@ class Panel(Window):
         self.search.setFocus()
 
     def journal_menu(self, position):
-        menu = QtWidgets.QMenu(self)
+        # Resolve after module initialization; dialogs also uses these widgets.
+        from .dialogs import SkillsMenu
+        menu = SkillsMenu(self)
         index = self.log.indexAt(position)
         record = self.model.record(index.row()) if index.isValid() else None
         if record and record[2] == "support" and "Donate" in record[3]:
@@ -1094,7 +1098,12 @@ class Panel(Window):
         for symbol, label, callback in [("search", "Search / filter (Ctrl+F)", self.show_search), ("copy", "Copy selected (Ctrl+C)", self.copy_selected), ("download", "Export (Ctrl+E)", self.export), ("expand", "Go to latest", self.go_latest)]:
             item = menu.addAction(icon(self.client.root, symbol), label)
             item.triggered.connect(callback)
-        menu.exec_(self.log.viewport().mapToGlobal(position))
+        for item in menu.actions():
+            item.setIconVisibleInMenu(True)
+        try:
+            menu.exec_(self.log.viewport().mapToGlobal(position))
+        finally:
+            menu.deleteLater()
 
     def update_ai(self):
         label, state = self.client.ai_status()
