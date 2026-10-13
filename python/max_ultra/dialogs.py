@@ -249,7 +249,7 @@ class SettingsWindow(Window):
         self.opacity_slider.valueChanged.connect(self.change_opacity)
         groups["Appearance"].addWidget(self.opacity_slider)
         check_icon = (client.root / "assets/icons/check.svg").as_posix()
-        for group, label, section, key, default in [("Autostart", "Autostart with 3ds Max", "settings", "autostart", False), ("Server console", "Show server console when starting", "settings", "showServerConsole", False), ("Updates", "Check and install updates automatically", "updates", "automatic", True)]:
+        for group, label, section, key, default in [("Appearance", "Highlight Log Backgrounds", "settings", "highlightLogBackgrounds", True), ("Autostart", "Autostart with 3ds Max", "settings", "autostart", False), ("Server console", "Show server console when starting", "settings", "showServerConsole", False), ("Updates", "Check and install updates automatically", "updates", "automatic", True)]:
             checkbox = QtWidgets.QCheckBox(label)
             checkbox.setMinimumHeight(30)
             themes.set_style(checkbox, 'QCheckBox { color:@text; spacing:9px; } '
@@ -325,7 +325,7 @@ class SettingsWindow(Window):
         self.client.set_panel_opacity(value)
         self._opacity_dirty = True
         if self._opacity_dragging:
-            self.client.panel.setWindowOpacity(self.client.panel_opacity / 100.0)
+            self.client.panel.preview_base_opacity(True)
         else:
             self.save_opacity()
 
@@ -333,7 +333,7 @@ class SettingsWindow(Window):
         if watched is getattr(self, 'opacity_slider', None):
             if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 self._opacity_dragging = True
-                self.client.panel.setWindowOpacity(self.client.panel_opacity / 100.0)
+                self.client.panel.preview_base_opacity(True)
             elif event.type() == QtCore.QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 self._opacity_dragging = False
                 self.save_opacity()
@@ -341,6 +341,7 @@ class SettingsWindow(Window):
 
     def save_opacity(self):
         self.client.set_panel_opacity(self.opacity_slider.value(), persist=True)
+        self.client.panel.preview_base_opacity(False)
         self._opacity_dirty = False
 
     def change_theme(self, index):

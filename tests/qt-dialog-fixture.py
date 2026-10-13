@@ -20,6 +20,25 @@ from max_ultra.wire import encode
 def run():
     application = QtWidgets.QApplication.instance()
     from max_ultra.client import Client
+    refresh_client = SimpleNamespace(disposed=False, integration=None, reconnect_pending=False,
+        connection_state='reconnecting', reconnect=Mock(), refresh_agents=Mock(), panel=SimpleNamespace(update_ai=Mock()))
+    Client.reconnect_and_refresh(refresh_client)
+    Client.reconnect_and_refresh(refresh_client)
+    assert refresh_client.reconnect.call_count == 1
+    Client.poll_connection_refresh(refresh_client)
+    assert not refresh_client.refresh_agents.called
+    refresh_client.connection_state = 'connected'
+    Client.poll_connection_refresh(refresh_client)
+    Client.poll_connection_refresh(refresh_client)
+    assert refresh_client.refresh_agents.call_count == 1
+    refresh_client.integration = object()
+    Client.reconnect_and_refresh(refresh_client)
+    assert refresh_client.reconnect.call_count == 1
+    refresh_client.integration = None
+    refresh_client.connection_state = 'reconnecting'
+    refresh_client.refresh_connection_deadline = 1
+    Client.poll_connection_refresh(refresh_client)
+    assert refresh_client.refresh_agents.call_count == 2
     status_client = SimpleNamespace(connection_state='connected', status='Synthetic connection',
         transport=SimpleNamespace(connection=object()), reconnect_pending=False,
         integration_failed=False, integration=None, ai_status=lambda: ('Ready', 'ready'))
@@ -72,15 +91,15 @@ def run():
         onboarding.show()
         settings.show()
         application.processEvents()
-        assert abs(skills.windowOpacity() - 0.5) < 0.01
-        assert abs(onboarding.windowOpacity() - original_opacity * 0.5) < 0.01
+        assert skills.windowOpacity() == 1.0 and skills.settings_veil.isVisible()
+        assert abs(onboarding.windowOpacity() - original_opacity) < 0.01 and onboarding.settings_veil.isVisible()
         assert settings.windowOpacity() == 1.0
         settings.show()
-        assert abs(skills.windowOpacity() - 0.5) < 0.01
+        assert skills.windowOpacity() == 1.0 and skills.settings_veil.isVisible()
         from max_ultra.widgets import Window
         late_window = Window(ROOT, 'Synthetic late window', None)
         late_window.show()
-        assert abs(late_window.windowOpacity() - 0.5) < 0.01
+        assert late_window.windowOpacity() == 1.0 and late_window.settings_veil.isVisible()
         settings.close()
         application.processEvents()
         assert skills.windowOpacity() == 1.0
@@ -109,7 +128,7 @@ def run():
         settings.opacity_slider.setValue(70)
         assert abs(skills.windowOpacity() - 0.7) < 0.01
         opacity_mouse(QtCore.QEvent.MouseButtonRelease, Qt.NoButton)
-        assert abs(skills.windowOpacity() - 0.35) < 0.01
+        assert abs(skills.windowOpacity() - 0.7) < 0.01 and skills.settings_veil.isVisible()
         opacity_mouse(QtCore.QEvent.MouseButtonPress, Qt.LeftButton)
         settings.opacity_slider.setValue(60)
         settings.close()
@@ -126,8 +145,10 @@ def run():
         settings.show()
         assert [group.title() for group in settings.findChildren(QtWidgets.QGroupBox)] == ['Appearance', 'Autostart', 'Server console', 'Updates', 'AI client integration', 'About']
         checkboxes = settings.findChildren(QtWidgets.QCheckBox)
-        assert len(checkboxes) == 3
-        assert [box.isChecked() for box in checkboxes] == [False, False, True]
+        assert len(checkboxes) == 4
+        assert [box.isChecked() for box in checkboxes] == [True, False, False, True]
+        checkboxes[0].setChecked(False)
+        client.save_setting.assert_called_with('settings', {'highlightLogBackgrounds': False})
         assert all('check.svg' in box.styleSheet() for box in checkboxes)
         client.update_helper = object()
         settings.update_status()

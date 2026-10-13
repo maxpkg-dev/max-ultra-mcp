@@ -53,7 +53,7 @@ def run():
         for category, message in [("system", "Initializing Max Ultra MCP services"), ("success", "Connected to the example server"), ("info", "Read scene summary completed in 12 ms"), ("warning", "Example warning with detailed diagnostic information"), ("error", "Example operation failed; inspect details")]:
             journal.append(category, message)
         callback = lambda *args: None
-        client = types.SimpleNamespace(root=ROOT, version="Qt preview", journal=journal, status="Server 127.0.0.1:47635", disposed=True, integration=None, ai_status=lambda: ("ChatGPT / Codex | MCP Ready", "ready"), refresh_agents=callback, donate=callback, show_onboarding=callback, reconnect=callback, close=callback, show_skills=callback, show_settings=callback, hide_panel=callback, show_panel=callback, storage_failure=lambda message: None)
+        client = types.SimpleNamespace(root=ROOT, version="Qt preview", journal=journal, status="Server 127.0.0.1:47635", disposed=True, integration=None, ai_status=lambda: ("ChatGPT / Codex | MCP Ready", "ready"), refresh_agents=callback, donate=callback, show_onboarding=callback, reconnect=callback, reconnect_and_refresh=callback, close=callback, show_skills=callback, show_settings=callback, hide_panel=callback, show_panel=callback, storage_failure=lambda message: None)
         panel = Panel(client, max_parent())
         mini = MiniPanel(client, max_parent())
         try:

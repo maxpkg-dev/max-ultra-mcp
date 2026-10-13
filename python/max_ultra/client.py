@@ -154,6 +154,9 @@ class Client:
     def save_setting(self, section, values):
         try:
             self.settings.set_many(section, values)
+            if section == "settings" and "highlightLogBackgrounds" in values and hasattr(self, "panel"):
+                self.panel.log.setProperty("highlightLogBackgrounds", bool(values["highlightLogBackgrounds"]))
+                self.panel.log.viewport().update()
             return True
         except OSError as error:
             self.storage_failure(str(error))
@@ -218,6 +221,22 @@ class Client:
         self.pending.clear()
         self.cancelled.clear()
         self.reconnect_pending = True
+
+    def reconnect_and_refresh(self):
+        if self.disposed or self.integration or self.reconnect_pending or getattr(self, "refresh_connection_deadline", 0):
+            return
+        self.refresh_connection_deadline = time.monotonic() + 30
+        self.reconnect()
+        self.panel.update_ai()
+
+    def poll_connection_refresh(self):
+        deadline = getattr(self, "refresh_connection_deadline", 0)
+        if not deadline:
+            return
+        connected = self.connection_state == "connected" and not self.reconnect_pending
+        if connected or self.connection_state == "error" or time.monotonic() >= deadline:
+            self.refresh_connection_deadline = 0
+            self.refresh_agents()
 
     def send_status(self):
         scene = self.api.scene_status()
@@ -306,6 +325,7 @@ class Client:
             if self.pending and self.transport.inbound.empty() and self.transport.connection is not None and not self.reconnect_pending and not self.transport.stop_event.is_set():
                 self.process_request(self.pending.popleft())
             now = time.monotonic()
+            self.poll_connection_refresh()
             self.poll_support_reminder(now)
             if now - self.last_status > 1:
                 if themes.current == "max" and themes.read_max_colors(self.rt):
@@ -315,7 +335,7 @@ class Client:
                 self.panel.refresh()
                 self.mini.update_status(*self.mini_status())
                 self.last_status = now
-            if self.automatic_due and now >= self.automatic_due:
+            if self.automatic_due and now >= self.automatic_due and not getattr(self, "refresh_connection_deadline", 0):
                 self.automatic_due = 0
                 self.start_integration("Status", automatic=True)
                 if not self.automatic_update_suppressed and (self.launch_count - 1) % 3 == 0 and self.settings.boolean("updates", "automatic", True):

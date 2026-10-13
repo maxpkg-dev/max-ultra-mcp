@@ -565,6 +565,26 @@ class TabHeading(QtWidgets.QWidget):
         painter.end()
 
 
+class SettingsVeil(QtWidgets.QWidget):
+    """A non-animated overlay marking a window inactive while Settings is open."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_NoSystemBackground)
+        self.setCursor(Qt.ArrowCursor)
+        parent.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if event.type() == QtCore.QEvent.Resize:
+            self.setGeometry(watched.rect())
+        return False
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        color = QtGui.QColor(themes.style('@recessed_background'))
+        color.setAlpha(150)
+        painter.fillRect(self.rect(), color)
+
+
 class Window(QtWidgets.QDialog):
     _windows = weakref.WeakSet()
     _dimmed = weakref.WeakKeyDictionary()
@@ -616,14 +636,22 @@ class Window(QtWidgets.QDialog):
     def dim_for_settings(self):
         if self not in Window._dimmed:
             Window._dimmed[self] = self.windowOpacity()
-            self.setWindowOpacity(self.windowOpacity() * 0.5)
+        if not hasattr(self, 'settings_veil'):
+            self.settings_veil = SettingsVeil(self)
+        self.settings_veil.setGeometry(self.rect())
+        self.settings_veil.show()
+        self.settings_veil.raise_()
+
+    def preview_base_opacity(self, enabled):
+        if self in Window._dimmed and hasattr(self, 'settings_veil'):
+            self.settings_veil.setVisible(not enabled)
+            if not enabled:
+                self.settings_veil.raise_()
 
     def set_base_opacity(self, opacity):
         if self in Window._dimmed:
             Window._dimmed[self] = opacity
-            self.setWindowOpacity(opacity * 0.5)
-        else:
-            self.setWindowOpacity(opacity)
+        self.setWindowOpacity(opacity)
 
     def set_settings_dimming(self, enabled):
         if enabled:
@@ -640,9 +668,9 @@ class Window(QtWidgets.QDialog):
             if owner is not self:
                 return
             Window._opacity_owner = None
-            for window, opacity in list(Window._dimmed.items()):
+            for window in list(Window._dimmed):
                 try:
-                    window.setWindowOpacity(opacity)
+                    window.settings_veil.hide()
                 except RuntimeError:
                     pass
             Window._dimmed.clear()
@@ -837,8 +865,9 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         block_rect = QtCore.QRectF(option.rect.adjusted(0, 0, 0, -1))
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(background)
-        painter.drawRoundedRect(block_rect, 3, 3)
+        if self.parent().property("highlightLogBackgrounds") is not False:
+            painter.setBrush(background)
+            painter.drawRoundedRect(block_rect, 3, 3)
         if option.state & QtWidgets.QStyle.State_Selected:
             selection = QtGui.QColor(themes.style(COLORS[category]))
             selection.setAlpha(55)
@@ -1018,7 +1047,7 @@ class Panel(Window):
         self.ai.setFocusPolicy(Qt.StrongFocus)
         self.ai.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.ai.setMinimumWidth(100)
-        self.ai_refresh = action(client.root, "refresh-cw", "Refresh AI Client Status", client.refresh_agents)
+        self.ai_refresh = action(client.root, "refresh-cw", "Reconnect and Refresh AI Client Status", client.reconnect_and_refresh)
         self.ai_refresh.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.hide_button = action(client.root, "panel-top-close", "Hide Panel", client.hide_panel)
         for button in (self.ai_refresh, self.hide_button):
@@ -1053,6 +1082,8 @@ class Panel(Window):
         self.filters.hide()
         self.model = JournalModel(client.journal, self)
         self.log = JournalView()
+        settings = getattr(client, "settings", None)
+        self.log.setProperty("highlightLogBackgrounds", settings.boolean("settings", "highlightLogBackgrounds", True) if settings else True)
         self.log.setObjectName("activityJournal")
         self.log.setMinimumHeight(24)
         self.log.setModel(self.model)
@@ -1084,12 +1115,11 @@ class Panel(Window):
         self.outer.addWidget(self.latest)
         self.actions = QtWidgets.QHBoxLayout()
         self.buttons = []
-        for symbol, title, callback in [("plug-zap", "Reconnect", client.reconnect), ("power", "Stop / Exit", client.close), ("skills", "Skills", client.show_skills), ("settings", "Settings", client.show_settings)]:
-            if title == "Skills":
-                self.actions.addStretch(1)
+        for symbol, title, callback in [("skills", "Skills", client.show_skills), ("settings", "Settings", client.show_settings)]:
             button = action(client.root, symbol, title, callback)
             self.buttons.append(button)
             self.actions.addWidget(button)
+        self.actions.addStretch(1)
         self.actions.setSpacing(8)
         self.outer.addLayout(self.actions)
         footer = QtWidgets.QHBoxLayout()
@@ -1157,7 +1187,7 @@ class Panel(Window):
         self.ai.setToolTip(label + " — open AI Client Setup")
         background = {"ready": "@ready_background", "issue": "@issue_background", "checking": "@checking_background"}.get(state, "@setup_background")
         themes.set_style(self.ai, "QToolButton { background:" + background + "; border-color:" + background + "; color:@status_button_text; } QToolButton:hover { border-color:@heading_text; }")
-        self.ai_refresh.setEnabled(self.client.integration is None)
+        self.ai_refresh.setEnabled(self.client.integration is None and not getattr(self.client, "refresh_connection_deadline", 0) and not getattr(self.client, "reconnect_pending", False))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1167,9 +1197,9 @@ class Panel(Window):
             compact = self.width() < required
             for button in self.buttons:
                 button.setToolButtonStyle(Qt.ToolButtonIconOnly if compact else Qt.ToolButtonTextBesideIcon)
-            settings_width = max(24 if self.width() < 350 else 32, self.buttons[3].sizeHint().width())
-            self.buttons[2].setFixedWidth(settings_width)
-            self.buttons[3].setFixedWidth(settings_width)
+            settings_width = max(24 if self.width() < 350 else 32, self.buttons[1].sizeHint().width())
+            self.buttons[0].setFixedWidth(settings_width)
+            self.buttons[1].setFixedWidth(settings_width)
             self.hide_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 520 else Qt.ToolButtonTextBesideIcon)
             self.donate_button.setToolButtonStyle(Qt.ToolButtonIconOnly if self.width() < 400 else Qt.ToolButtonTextBesideIcon)
             self.update_ai()

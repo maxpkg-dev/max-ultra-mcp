@@ -6,7 +6,7 @@ This document describes the current Python/Qt interface of **3DGROUND - Max Ultr
 
 The interface uses Qt Widgets supplied by 3ds Max: PySide2 for Max 2022-2024 and PySide6 for Max 2025-2027. `python/max_ultra/qt.py` provides the compatibility imports. The script uses Max's existing Qt application; users do not install another Python or Qt runtime.
 
-The familiar layout was retained: AI Client Setup, Refresh and Hide panel at the top; scene context and a flexible journal in the middle; Reconnect, Stop / Exit, Skills and Settings below; promotions and Donate at the bottom. Layouts allocate the remaining height to the journal instead of positioning every control at fixed coordinates.
+The familiar layout was retained: AI Client Setup, Refresh and Hide panel at the top; scene context and a flexible journal in the middle; Skills and Settings below; promotions and Donate at the bottom. Refresh reconnects the bridge before checking AI client status, with repeated clicks disabled during the operation. The main close button stops the script. Layouts allocate the remaining height to the journal instead of positioning every control at fixed coordinates.
 
 Background helpers perform I/O. Qt widgets and Max APIs are updated on the main thread. Long blocking Max operations can still pause the embedded interface.
 
@@ -106,7 +106,7 @@ The shared `Window` class uses a custom header with `Qt.Tool | Qt.FramelessWindo
 
 `qt.enable_window_shadow()` requests Windows DWM non-client rendering and extends a one-pixel frame to obtain a native outer shadow. It runs on show and after DWM composition changes. If the cosmetic request is unavailable, the window still opens normally. Windows controls native outer-corner rounding; the code does not enforce a universal rounded window shape on every Windows version.
 
-Settings is modal and dims other script windows while open. Main-panel opacity is saved and limited to 20-100%. Dragging its slider previews the real opacity; releasing the mouse restores Settings dimming. The mini-panel remains constrained to monitor work areas, including the taskbar boundary.
+Settings is modal and covers other script windows with a full-window translucent veil, without reducing their window opacity. Main-panel opacity is saved and limited to 20-100%. Dragging its slider temporarily hides the veil to preview the real opacity; releasing the mouse restores the veil. The mini-panel remains constrained to monitor work areas, including the taskbar boundary.
 
 Donate is the preferred main-panel focus target at startup and restoration. Status refreshes should not steal focus from editing or journal reading.
 

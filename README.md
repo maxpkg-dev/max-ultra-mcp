@@ -83,7 +83,7 @@ Closing onboarding dismisses its automatic display for the current run without s
 
 ### Main panel
 
-The resizable Qt panel keeps AI Client Setup, refresh and Hide panel across the top, followed by PID and scene context and the Activity journal. Reconnect, Stop / Exit, Skills and Settings remain below the journal. Closing, stopping and hiding are separate actions. Window position and size persist and are constrained to monitor work areas.
+The resizable Qt panel keeps AI Client Setup, refresh and Hide panel across the top, followed by PID and scene context and the Activity journal. Skills and Settings remain below the journal. The top refresh button reconnects the bridge, then checks AI client status. Closing the main window stops the script; Hide panel keeps the connection active. Window position and size persist and are constrained to monitor work areas.
 
 Buttons become compact SVG actions at small widths; text, icons and controls grow above 1024 and at 1800 logical pixels. The journal uses monospace text, colored category badges and compact timestamps. Long messages wrap in wider windows. Search, filters, copying and export use the full session history without enlarging MCP responses. Autoscroll follows the newest entries only while the reader is at the bottom.
 
