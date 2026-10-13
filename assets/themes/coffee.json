@@ -1,6 +1,7 @@
 {
   "name": "Coffee",
   "colors": {
+    "dropdown_background": { "mix": ["#2c241f", "#e8e3da", 0.10] },
     "window_background": "#2c241f",
     "tab_pane_background": "#2c241f",
     "field_background": "#241c17",

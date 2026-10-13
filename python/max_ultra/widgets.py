@@ -287,11 +287,19 @@ class ThemedComboBox(QtWidgets.QComboBox):
         self.arrow_source = (Path(root) / 'assets/icons/chevron-down.svg').read_text(encoding='utf-8')
         themes.set_style(self, "QComboBox { border-radius:7px; padding-right:24px; } QComboBox::drop-down { width:22px; border:none; background:transparent; } QComboBox::down-arrow { image:none; }")
         self.setView(QtWidgets.QListView())
-        themes.set_style(self.view(), "QListView { background:@window_background; color:@text; border:1px solid @field_border; border-radius:6px; padding:4px; outline:0; } QListView::item { padding:4px 10px; border-radius:4px; } QListView::item:hover, QListView::item:selected { background:@selection_background; color:@selected_text; }")
+        themes.set_style(self.view(), "QListView { background:@dropdown_background; color:@text; border:1px solid @field_border; border-radius:6px; padding:4px; outline:0; } QListView::item { padding:4px 10px; border-radius:4px; } QListView::item:hover, QListView::item:selected { background:@selection_background; color:@selected_text; }")
 
     def showPopup(self):
         super().showPopup()
         popup = self.view().window()
+        below = self.mapToGlobal(QtCore.QPoint(0, self.height())).y() + 4
+        above = self.mapToGlobal(QtCore.QPoint(0, 0)).y() - popup.height() - 4
+        screen = QtGui.QGuiApplication.screenAt(self.mapToGlobal(self.rect().center()))
+        available = screen.availableGeometry() if screen else None
+        target_y = below if available is None or below + popup.height() <= available.bottom() + 1 else above
+        if available is not None:
+            target_y = max(available.top(), min(target_y, available.bottom() + 1 - popup.height()))
+        popup.move(popup.x(), target_y)
         outline = QtGui.QPainterPath()
         outline.addRoundedRect(QtCore.QRectF(popup.rect()), 6, 6)
         popup.setMask(QtGui.QRegion(outline.toFillPolygon().toPolygon()))

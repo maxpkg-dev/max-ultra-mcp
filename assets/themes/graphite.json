@@ -1,6 +1,7 @@
 {
   "name": "Warm Graphite",
   "colors": {
+    "dropdown_background": { "mix": ["#242320", "#e8e3da", 0.10] },
     "window_background": "#242320",
     "tab_pane_background": "#292823",
     "field_background": "#1c1c1a",

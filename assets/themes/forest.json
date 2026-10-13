@@ -1,6 +1,7 @@
 {
   "name": "Forest",
   "colors": {
+    "dropdown_background": { "mix": ["#202824", "#e8e3da", 0.10] },
     "window_background": "#202824",
     "tab_pane_background": "#202824",
     "field_background": "#19211d",

@@ -1,6 +1,7 @@
 {
   "name": "Deep Teal",
   "colors": {
+    "dropdown_background": { "mix": ["#202a2a", "#e1eeea", 0.10] },
     "window_background": "#202a2a",
     "tab_pane_background": "#202a2a",
     "field_background": "#172121",

@@ -1,6 +1,7 @@
 {
   "name": "3ds Max (user colors)",
   "colors": {
+    "dropdown_background": { "mix": ["$background", "$text", 0.10] },
     "window_background": "$background",
     "tab_pane_background": "$background",
     "field_background": "$window",

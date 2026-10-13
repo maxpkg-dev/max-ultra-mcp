@@ -1,6 +1,7 @@
 {
   "name": "Muted Plum",
   "colors": {
+    "dropdown_background": { "mix": ["#29232d", "#e8e3da", 0.10] },
     "window_background": "#29232d",
     "tab_pane_background": "#29232d",
     "field_background": "#211c25",
