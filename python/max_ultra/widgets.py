@@ -281,6 +281,15 @@ def icon(root, name):
 SEARCH_STYLE = "QLineEdit { background:@field_background; color:@field_text; border:1px solid @field_border; border-radius:7px; padding:3px; selection-background-color:@selection_background; } QLineEdit:focus { border-color:@focus_border; }"
 
 
+class RoundedTextEdit(QtWidgets.QPlainTextEdit):
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Clip the native viewport as well as the styled outer frame.
+        outline = QtGui.QPainterPath()
+        outline.addRoundedRect(QtCore.QRectF(self.rect()), 4, 4)
+        self.setMask(QtGui.QRegion(outline.toFillPolygon().toPolygon()))
+
+
 class ThemedComboBox(QtWidgets.QComboBox):
     def __init__(self, root, parent=None):
         super().__init__(parent)
@@ -862,7 +871,8 @@ class JournalDelegate(QtWidgets.QStyledItemDelegate):
         category = record[2] if record[2] in COLORS else "info"
         background = QtGui.QColor(themes.style("@log_" + category + "_background"))
         background.setAlpha(150)
-        block_rect = QtCore.QRectF(option.rect.adjusted(0, 0, 0, -1))
+        gutter = self.parent().property("journalPadding") or 4
+        block_rect = QtCore.QRectF(option.rect.adjusted(0, 0, -gutter, -1))
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
         if self.parent().property("highlightLogBackgrounds") is not False:
@@ -1221,6 +1231,9 @@ class Panel(Window):
             return
         self._layout_mode = mode
         self._ultra_compact = tiny
+        journal_padding = 3 if tiny else 8 if extra_large else 6 if large else 4
+        self.log.setProperty("journalPadding", journal_padding)
+        themes.set_style(self.log, "QTableView#activityJournal { padding:%dpx; }" % journal_padding)
         self.outer.setContentsMargins(*((4, 3, 4, 3) if tiny else (16, 12, 16, 12) if extra_large else (12, 9, 12, 9) if large else (8, 6, 8, 6)))
         spacing = 3 if tiny else 12 if extra_large else 9 if large else 6
         action_spacing = 3 if tiny else 16 if extra_large else 12 if large else 8
@@ -1303,7 +1316,7 @@ class Panel(Window):
 
     def show_message(self, index):
         dialog = Window(self.client.root, "Activity message", self)
-        layout = QtWidgets.QPlainTextEdit()
+        layout = RoundedTextEdit()
         layout.setReadOnly(True)
         layout.setPlainText(self.model.data(index))
         dialog.outer.addWidget(layout)

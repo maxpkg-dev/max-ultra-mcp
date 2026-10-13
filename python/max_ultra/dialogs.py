@@ -12,7 +12,7 @@ import time
 
 from . import themes
 from .qt import QtWidgets, QtCore, QtGui, Qt
-from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE, PillProgressBar, ThemedComboBox
+from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionButton, action, icon, copy_action, donate_action, COLORS, DESTRUCTIVE_STYLE, PillProgressBar, ThemedComboBox, RoundedTextEdit
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
@@ -73,6 +73,15 @@ class ResponsiveSkillBrowser(PassiveBrowser):
             menu.deleteLater()
 
     def setHtml(self, content):
+        self._rendering_html = True
+        try:
+            self._render_html(content)
+        finally:
+            self._rendering_html = False
+            if getattr(self, '_reflow_pending', False):
+                QtCore.QTimer.singleShot(0, self._reflow_document)
+
+    def _render_html(self, content):
         self._theme_html = content
         points = self._text_points
         rules = "html,body,p,li,td,th,pre,code { font-size:%spt; color:@field_text; }" % points
@@ -155,6 +164,22 @@ class ResponsiveSkillBrowser(PassiveBrowser):
         anchor_y = self.cursorRect(anchor).top()
         selection = self.textCursor()
         super().resizeEvent(event)
+        if getattr(self, '_rendering_html', False):
+            self._reflow_pending = True
+            return
+        self._reflow_document((anchor, anchor_y, selection))
+
+    def _reflow_document(self, saved=None):
+        if getattr(self, '_rendering_html', False):
+            self._reflow_pending = True
+            return
+        self._reflow_pending = False
+        if saved is None:
+            anchor = self.cursorForPosition(QtCore.QPoint(0, 0))
+            anchor_y = self.cursorRect(anchor).top()
+            selection = self.textCursor()
+        else:
+            anchor, anchor_y, selection = saved
         width = self.window().width()
         points = 8 if width < 420 else 9 if width < 600 else 10 if width < 900 else 32 if width >= 3600 else 28 if width >= 3000 else 24 if width >= 2400 else 20 if width >= 1800 else 16 if width >= 1280 else 14 if width > 1250 else 11
         padding = max(16, min(40, round(16 + (self.viewport().width() - 360) / 100)))
@@ -437,7 +462,7 @@ class Onboarding(Window):
             layout = QtWidgets.QVBoxLayout(page)
             layout.setContentsMargins(8, 6, 8, 6)
             layout.setSpacing(6)
-            box = QtWidgets.QPlainTextEdit(content)
+            box = RoundedTextEdit(content)
             box.setReadOnly(True)
             layout.addWidget(box)
             copy_button = copy_action(client.root, "Copy", content)
@@ -456,7 +481,7 @@ class Onboarding(Window):
             field_group = QtWidgets.QVBoxLayout()
             field_group.setSpacing(4)
             field_group.addWidget(QtWidgets.QLabel(label))
-            field = QtWidgets.QPlainTextEdit()
+            field = RoundedTextEdit()
             field.setReadOnly(True)
             field.setAccessibleName(label)
             themes.set_style(field, "font-family:Consolas; font-size:11pt;")
@@ -621,7 +646,7 @@ class SkillHelpWindow(Window):
         self.copy_button = copy_action(client.root, self.copy_label, lambda: self.copy_text)
         heading.addWidget(self.copy_button)
         layout.addLayout(heading)
-        self.text = QtWidgets.QPlainTextEdit(self.copy_text)
+        self.text = RoundedTextEdit(self.copy_text)
         self.text.setReadOnly(True)
         themes.set_style(self.text, "font-family:Consolas; font-size:11pt;")
         self.text.setFixedHeight(180)

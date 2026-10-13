@@ -376,6 +376,21 @@ def run():
         effective_left = body_rect.left() + body_layout.lineAt(0).x()
         assert 15 <= effective_left <= 18, effective_left
         skills.preview.grab().save(str(ROOT / 'dist/skills-actual-narrow.png'))
+        # A resize while QTextDocument removes the old contents used to nest
+        # setHtml inside itself and insert the metadata twice.
+        skills.preview.setHtml('<p>Welcome</p>')
+        resized_during_load = [False]
+        def resize_during_load(*args):
+            if not resized_during_load[0]:
+                resized_during_load[0] = True
+                skills.resize(1000, 800)
+                application.processEvents()
+        skills.preview.document().contentsChange.connect(resize_during_load)
+        skills.set_preview_html(actual_html)
+        application.processEvents()
+        skills.preview.document().contentsChange.disconnect(resize_during_load)
+        assert skills.preview.toPlainText().count('narrow-example') == 1
+        assert len(skills.preview.document().rootFrame().childFrames()) == 1
         skills.preview.setHtml('<p>Example text and <a href="https://example.com/skill">reference</a></p>')
         skills.preview.selectAll()
         menu = skills.preview.document_menu(QtCore.QPoint(0, 0))
