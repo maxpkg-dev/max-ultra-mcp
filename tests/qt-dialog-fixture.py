@@ -247,6 +247,12 @@ def run():
         onboarding.update_status()
         assert onboarding.manual_fields[0].toPlainText() == 'updated-node'
         assert '49000' in onboarding.manual_fields[2].toPlainText()
+        onboarding.tabs.setCurrentIndex(2)
+        onboarding.resize(670, 570)
+        application.processEvents()
+        application.processEvents()
+        assert onboarding.tabs.widget(2).verticalScrollBar().maximum() == 0
+        onboarding.tabs.setCurrentIndex(0)
         onboarding.resize(670, 570)
         application.processEvents()
         first = onboarding.detail.height()

@@ -4,6 +4,7 @@
 # Developed by Lukianenko Vasyl
 
 import json
+import time
 from datetime import datetime
 from .qt import QtWidgets, QtCore, QtGui, Qt
 from .widgets import Window, action, DESTRUCTIVE_STYLE, PillProgressBar
@@ -118,7 +119,21 @@ class CommunityWindow(Window):
         self.progress = PillProgressBar()
         self.progress.setRange(0, 0)
         self.progress.setTextVisible(False)
-        self.outer.addWidget(self.progress)
+        self.elapsed = QtWidgets.QLabel("0 s")
+        self.elapsed.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.elapsed.setMinimumWidth(48)
+        self.elapsed.setToolTip("Elapsed time for the current operation")
+        self.elapsed.setAccessibleName("Elapsed operation time")
+        self.elapsed_timer = QtCore.QTimer(self)
+        self.elapsed_timer.setInterval(250)
+        self.elapsed_timer.timeout.connect(self.update_elapsed)
+        self.operation_started = None
+        progress_row = QtWidgets.QHBoxLayout()
+        progress_row.addWidget(self.progress, 1)
+        progress_row.addWidget(self.elapsed)
+        self.outer.addLayout(progress_row)
+        self.progress.hide()
+        self.elapsed.hide()
         self.scroll = QtWidgets.QScrollArea()
         self.scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.scroll.setWidgetResizable(True)
@@ -144,11 +159,22 @@ class CommunityWindow(Window):
     def set_busy(self, busy):
         if busy and not self.busy:
             self.progress.setRange(0, 0)
+            self.operation_started = time.monotonic()
+            self.elapsed.setText("0 s")
+            self.elapsed_timer.start()
+        elif not busy:
+            self.elapsed_timer.stop()
+            self.operation_started = None
         self.busy = busy
         self.progress.setVisible(busy)
+        self.elapsed.setVisible(busy)
         self.retry.setEnabled(not busy)
         for button, available in self.install_buttons:
             button.setEnabled(not busy and available)
+
+    def update_elapsed(self):
+        if self.busy and self.operation_started is not None:
+            self.elapsed.setText("{} s".format(max(0, int(time.monotonic() - self.operation_started))))
 
     def show_progress(self, state):
         if not isinstance(state, dict) or not self.busy:

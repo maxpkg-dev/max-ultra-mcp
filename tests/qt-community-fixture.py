@@ -51,6 +51,16 @@ try:
     window.install_buttons[0][0].click()
     assert calls[0] == ('community-install', ['-SkillId', 'example-skill', '-Source', '1.0.0', '-Revision', 'a'*64])
     window.set_busy(True)
+    started = window.operation_started
+    with patch('max_ultra.community_dialog.time.monotonic', return_value=started + 12.9):
+        window.update_elapsed()
+    assert window.elapsed.text() == '12 s' and window.elapsed_timer.isActive()
+    window.set_busy(True)
+    assert window.operation_started == started
+    window.set_busy(False)
+    assert window.elapsed.isHidden() and not window.elapsed_timer.isActive()
+    window.set_busy(True)
+    assert window.elapsed.text() == '0 s'
     app.processEvents()
     assert window.progress.height() == 12
     window.show_progress({'phase': 'download', 'bytes': 512, 'total': 1024})
