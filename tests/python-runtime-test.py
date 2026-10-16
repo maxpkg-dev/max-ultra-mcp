@@ -32,6 +32,54 @@ from max_ultra import themes
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_journal_fallback_after_native_import_failure(self):
+        import builtins
+        import importlib.util
+        source = pathlib.Path(__file__).resolve().parents[1] / "python/max_ultra/journal.py"
+        original_import = builtins.__import__
+
+        def broken_import(name, *args, **kwargs):
+            if name == "sqlite3":
+                raise ImportError("DLL load failed while importing _sqlite3")
+            return original_import(name, *args, **kwargs)
+
+        spec = importlib.util.spec_from_file_location("journal_without_sqlite", str(source))
+        module = importlib.util.module_from_spec(spec)
+        with mock.patch("builtins.__import__", side_effect=broken_import):
+            spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as folder:
+            database = pathlib.Path(folder) / "history.sqlite3"
+            database.write_bytes(b"existing database must remain untouched")
+            journal = module.Journal(database)
+            self.assertIn("fallback file storage", journal.fallback_warning)
+            self.assertEqual(journal.append("info", "First message"), 1)
+            self.assertEqual(journal.append("warning", "Second message\napi_key=secret"), 2)
+            self.assertEqual(journal.count(), 2)
+            self.assertEqual(journal.count(search="SECOND", category="warning"), 1)
+            self.assertEqual(journal.page(offset=1, limit=1)[0][0], 2)
+            self.assertEqual(journal.tail(1)[0][0], 2)
+            self.assertIn("<REDACTED>", journal.tail(1)[0][3])
+            exported = pathlib.Path(folder) / "export.txt"
+            journal.export(exported, category="warning")
+            self.assertIn("Second message", exported.read_text(encoding="utf-8"))
+            self.assertNotIn("First message", exported.read_text(encoding="utf-8"))
+            with self.assertRaises(ValueError):
+                journal.page(limit=1001)
+            with self.assertRaises(ValueError):
+                journal.export(journal.filename)
+            with mock.patch("builtins.open", side_effect=PermissionError("Disk unavailable")):
+                with self.assertRaises(PermissionError):
+                    journal.append("error", "Cannot persist")
+            self.assertEqual(journal.count(), 2)
+            journal.close()
+            with self.assertRaises(RuntimeError):
+                journal.append("info", "Closed")
+            reopened = module.Journal(database)
+            self.assertEqual(reopened.append("info", "After restart"), 3)
+            self.assertEqual(reopened.count(), 3)
+            reopened.close()
+            self.assertEqual(database.read_bytes(), b"existing database must remain untouched")
+
     def test_installed_cleanup_preserves_modified_and_user_files(self):
         with tempfile.TemporaryDirectory() as folder:
             base = pathlib.Path(folder)

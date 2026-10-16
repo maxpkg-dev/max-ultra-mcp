@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.5.2 - 2026-10-16
+
+- Fixed: A host SQLite import failure now uses file-backed activity history instead of preventing the Python controller from starting.
+
 ## 1.5.1 - 2026-10-13
 
 - Changed: The in-Max controller, transport and owned windows now use embedded Python and Qt; the Node.js MCP server, protocol and MZP entry point are preserved.

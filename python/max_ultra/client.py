@@ -117,6 +117,8 @@ class Client:
         self.reconnect_pending = False
         self.start_transport(restart=restart)
         self.log("system", "Initializing Max Ultra MCP services")
+        if self.journal.fallback_warning:
+            self.log("warning", self.journal.fallback_warning)
         if theme_error:
             self.log("error", "Could not load saved color theme: " + theme_error)
         if self.update_message:
