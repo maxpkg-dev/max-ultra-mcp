@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.5.3 - 2026-10-17
+
 - Added: Click scene-status badges to copy the PID, full scene path (or Untitled), object count, or selection count, with a check icon and two-second Copied feedback.
 - Improved: Compact scene-status badges use smaller vertical padding while preserving generous horizontal spacing.
 - Fixed: The activity log corner radius and viewport clipping now match the buttons, including the smallest layout.
