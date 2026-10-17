@@ -29,7 +29,7 @@ QTreeWidget::item:selected { background: @selection_background; color: @selected
 QTreeWidget::item:selected { background: @selection_background; color: @selected_text; }
 QHeaderView::section { background: @button_background; padding: 4px; border: none; }
 QTableView::item:selected, QListWidget::item:selected { background: @selection_background; color: @list_selected_text; }
-QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; border-radius: 8px; }
+QTableView#activityJournal { background: @journal_background; border: 1px solid @journal_border; border-radius: 4px; }
 QTextBrowser#setupJournal { border-radius:5px; }
 QScrollBar:vertical { width:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
 QScrollBar:horizontal { height:13px; background:@recessed_background; border:none; border-radius:6px; margin:0; }
@@ -323,6 +323,56 @@ class ThemedComboBox(QtWidgets.QComboBox):
 
 
 class ScenePills(QtWidgets.QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.scene_path = ""
+        self._hit_regions = []
+        self._copied = set()
+        self._copy_timers = {}
+        self.setMouseTracking(True)
+        self._check = QtSvg.QSvgRenderer(self)
+        self._check_source = (Path(__file__).resolve().parents[2] / "assets/icons/check.svg").read_text(encoding="utf-8")
+
+    def copy_value(self, index):
+        parts = self.text().split(' | ')
+        return (self.scene_path or "Untitled") if index == 1 else (parts[index] if index < len(parts) else "")
+
+    def capsule_at(self, position):
+        for index, rectangle in self._hit_regions:
+            if rectangle.contains(position) and self.copy_value(index):
+                return index
+        return None
+
+    def mouseMoveEvent(self, event):
+        index = self.capsule_at(event.pos())
+        self.setCursor(Qt.PointingHandCursor if index is not None else Qt.ArrowCursor)
+        self.setToolTip("Click to copy: " + self.copy_value(index) if index is not None else "")
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event):
+        self._pressed_capsule = self.capsule_at(event.pos()) if event.button() == Qt.LeftButton else None
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        index = self.capsule_at(event.pos())
+        if event.button() == Qt.LeftButton and index is not None and index == getattr(self, '_pressed_capsule', None):
+            QtWidgets.QApplication.clipboard().setText(self.copy_value(index))
+            self._copied.add(index)
+            if index not in self._copy_timers:
+                timer = QtCore.QTimer(self)
+                timer.setSingleShot(True)
+                timer.setInterval(2000)
+                timer.timeout.connect(lambda index=index: self.reset_copy(index))
+                self._copy_timers[index] = timer
+            self._copy_timers[index].start()
+            self.update()
+        self._pressed_capsule = None
+        super().mouseReleaseEvent(event)
+
+    def reset_copy(self, index):
+        self._copied.discard(index)
+        self.update()
+
     def capsule_font(self):
         font = QtGui.QFont(self.font())
         if font.pointSizeF() > 0:
@@ -333,14 +383,16 @@ class ScenePills(QtWidgets.QLabel):
 
     def sizeHint(self):
         size = super().sizeHint()
-        size.setHeight(QtGui.QFontMetrics(self.capsule_font()).height() + 12)
+        size.setHeight(QtGui.QFontMetrics(self.capsule_font()).height() + 6)
         return size
 
     def minimumSizeHint(self):
-        return QtCore.QSize(0, QtGui.QFontMetrics(self.capsule_font()).height() + 12)
+        return QtCore.QSize(0, QtGui.QFontMetrics(self.capsule_font()).height() + 6)
 
     def paintEvent(self, event):
         parts = self.text().split(' | ')
+        indices = list(range(len(parts)))
+        self._hit_regions = []
         if not self.text():
             return
         painter = QtGui.QPainter(self)
@@ -362,20 +414,34 @@ class ScenePills(QtWidgets.QLabel):
             if widths[1] < metrics.horizontalAdvance('...') + 24:
                 del parts[1]
                 del widths[1]
+                del indices[1]
                 available = max(0, self.width() - gap * (len(parts) - 1))
+        for position, index in enumerate(indices):
+            if index in self._copied:
+                widths[position] = max(widths[position], metrics.horizontalAdvance('Copied') + metrics.height() + 28)
         # Only exceptionally long numeric values need further elision.
         while sum(widths) > available and max(widths) > 0:
             index = widths.index(max(widths))
             widths[index] -= 1
         x = 0
-        for part, width in zip(parts, widths):
+        for index, part, width in zip(indices, parts, widths):
             capsule = QtCore.QRectF(x + 0.5, 0.5, max(0, width - 1), self.height() - 1)
             painter.setPen(QtGui.QPen(QtGui.QColor(themes.style('@field_border')), 1))
             painter.setBrush(QtGui.QColor(themes.style('@recessed_background')))
             painter.drawRoundedRect(capsule, capsule.height() / 2, capsule.height() / 2)
             painter.setPen(QtGui.QColor(themes.style('@field_text')))
-            caption = metrics.elidedText(part, Qt.ElideRight, max(0, width - 24))
-            painter.drawText(capsule, Qt.AlignCenter, caption)
+            self._hit_regions.append((index, capsule))
+            if index in self._copied:
+                edge = metrics.height()
+                caption = metrics.elidedText("Copied", Qt.ElideRight, max(0, width - edge - 28))
+                total = edge + 4 + metrics.horizontalAdvance(caption)
+                left = capsule.center().x() - total / 2
+                self._check.load(QtCore.QByteArray(self._check_source.replace('currentColor', themes.style('@field_text')).encode('utf-8')))
+                self._check.render(painter, QtCore.QRectF(left, (self.height() - edge) / 2, edge, edge))
+                painter.drawText(QtCore.QRectF(left + edge + 4, 0, metrics.horizontalAdvance(caption), self.height()), Qt.AlignCenter, caption)
+            else:
+                caption = metrics.elidedText(part, Qt.ElideRight, max(0, width - 24))
+                painter.drawText(capsule, Qt.AlignCenter, caption)
             x += width + gap
 
 
@@ -1000,12 +1066,16 @@ class JournalView(QtWidgets.QTableView):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.update_corner_mask()
+        self.schedule_rows()
+
+    def update_corner_mask(self):
         # A scroll area's viewport and scrollbar containers are child widgets:
         # stylesheet rounding alone does not clip their square backgrounds.
         outline = QtGui.QPainterPath()
-        outline.addRoundedRect(QtCore.QRectF(self.rect()), 8, 8)
+        radius = self.property("controlRadius") or 4
+        outline.addRoundedRect(QtCore.QRectF(self.rect()), radius, radius)
         self.setMask(QtGui.QRegion(outline.toFillPolygon().toPolygon()))
-        self.schedule_rows()
 
     def layout_visible_rows(self):
         model, delegate = self.model(), self.itemDelegate()
@@ -1073,7 +1143,7 @@ class Panel(Window):
         status_row = QtWidgets.QHBoxLayout()
         self.scene_label = ScenePills()
         self.scene_label.setMinimumWidth(0)
-        self.scene_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        self.scene_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
         self.scene_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         status_row.addWidget(self.scene_label, 1)
         self.outer.addLayout(status_row)
@@ -1239,7 +1309,10 @@ class Panel(Window):
         self._ultra_compact = tiny
         journal_padding = 3 if tiny else 8 if extra_large else 6 if large else 4
         self.log.setProperty("journalPadding", journal_padding)
-        themes.set_style(self.log, "QTableView#activityJournal { padding:%dpx; }" % journal_padding)
+        radius = 3 if tiny else 4
+        self.log.setProperty("controlRadius", radius)
+        themes.set_style(self.log, "QTableView#activityJournal { padding:%dpx; border-radius:%dpx; }" % (journal_padding, radius))
+        self.log.update_corner_mask()
         self.outer.setContentsMargins(*((4, 3, 4, 3) if tiny else (16, 12, 16, 12) if extra_large else (12, 9, 12, 9) if large else (8, 6, 8, 6)))
         spacing = 3 if tiny else 12 if extra_large else 9 if large else 6
         action_spacing = 3 if tiny else 16 if extra_large else 12 if large else 8
@@ -1311,6 +1384,7 @@ class Panel(Window):
             self._unread += self.model.total - previous
             self.latest.setText("{} New Messages - Go to Latest".format(self._unread))
             self.latest.show()
+        self.scene_label.scene_path = getattr(self.client, "scene_path", "")
         self.scene_label.setText(getattr(self.client, "scene_context", ""))
         self.scene_label.setToolTip(getattr(self.client, "scene_context", ""))
         self.update_ai()

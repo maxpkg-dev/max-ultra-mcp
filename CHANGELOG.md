@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-## 1.5.2 - 2026-10-16
-
+- Added: Click scene-status badges to copy the PID, full scene path (or Untitled), object count, or selection count, with a check icon and two-second Copied feedback.
+- Improved: Compact scene-status badges use smaller vertical padding while preserving generous horizontal spacing.
+- Fixed: The activity log corner radius and viewport clipping now match the buttons, including the smallest layout.
 - Fixed: A host SQLite import failure now uses file-backed activity history instead of preventing the Python controller from starting.
 
 ## 1.5.1 - 2026-10-13
