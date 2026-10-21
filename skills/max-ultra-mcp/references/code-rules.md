@@ -130,6 +130,73 @@ global ExampleToolFloater
 
 These examples guard absent or closed windows without swallowing operational errors. Add the script's resource cleanup before recreation when it owns resources beyond its controls. Verify first run, rerun while open, and rerun after manual close.
 
+### Session-only window and control state
+
+When creating or editing a reusable script UI, remember its last window position and user-editable control values between openings within the current 3ds Max process, unless the user requests a reset or different behavior.
+
+- Restore spinners, radio buttons, checkboxes, dropdowns, and other user-editable controls. Do not treat temporary status messages, progress, scene selections, or cached node references as reusable preferences.
+- Store this state in the existing lifecycle owner or persistent MacroScript scope when practical. A standalone script may use a documented, uniquely tool-prefixed global state container to retain values across evaluations; group related values in a struct.
+- Initialize defaults only when no saved state exists. Do not reset the state container when the dialog opens or the script is evaluated again.
+- Capture values and position before destroying or replacing the owned UI. Reuse normal close/lifecycle cleanup and stop owned timers, callbacks, and event handlers before replacement.
+- Restore dependent control states explicitly after assigning values. Assigning a radio-button state programmatically must also restore whether its related spinner is enabled.
+- Use session memory by default. Do not introduce an INI file or another disk-based settings store solely for this behavior. If the script already uses an INI file, reuse that existing settings mechanism where appropriate. Persistence across Max restarts requires an explicit user request.
+- Validate restored control values against current ranges and choices. Check saved window positions against the current monitor work areas; if a position is no longer visible, use a visible default.
+
+Minimal standalone session-state example for an unchanged screen layout (use tool-specific names and validate window placement in production):
+
+```maxscript
+-- Keep this example's dialog and UI state in memory across evaluations.
+global ExampleSessionDialog
+global ExampleSessionState
+
+-- Save through the old handler before replacing its rollout definition.
+if (ExampleSessionDialog != undefined) do (
+    if (ExampleSessionDialog.inDialog) do destroyDialog ExampleSessionDialog
+)
+
+struct ExampleSessionUiState (
+    dialogPosition = undefined,
+    fromID = 7,
+    toID = 4,
+    sourceMode = 2
+)
+if (ExampleSessionState == undefined) do (
+    ExampleSessionState = ExampleSessionUiState()
+)
+
+rollout ExampleSessionDialog "Session State Example" width: 220 (
+    radiobuttons rbSource "" labels: #("ANY", "ID") default: 2
+    spinner spnFromID "From ID:" range: [1,999,7] type: #integer
+    spinner spnToID "To ID:" range: [1,999,4] type: #integer
+
+    on ExampleSessionDialog open do (
+        spnFromID.value = ExampleSessionState.fromID
+        spnToID.value = ExampleSessionState.toID
+        rbSource.state = ExampleSessionState.sourceMode
+        spnFromID.enabled = (rbSource.state == 2)
+    )
+
+    on rbSource changed sourceMode do (
+        spnFromID.enabled = (sourceMode == 2)
+    )
+
+    on ExampleSessionDialog close do (
+        ExampleSessionState.dialogPosition = getDialogPos ExampleSessionDialog
+        ExampleSessionState.fromID = spnFromID.value
+        ExampleSessionState.toID = spnToID.value
+        ExampleSessionState.sourceMode = rbSource.state
+    )
+)
+
+if (ExampleSessionState.dialogPosition == undefined) then (
+    createDialog ExampleSessionDialog
+) else (
+    createDialog ExampleSessionDialog pos: ExampleSessionState.dialogPosition
+)
+```
+
+Verify first-run defaults, manual close/reopen, re-evaluation while open, both source modes, and restoration of the disabled control. A fresh 3ds Max process must use defaults again when no existing disk settings mechanism is involved.
+
 ## Verification before execution or handoff
 
 1. Review the final diff and search for stale identifiers, old control names, hard-coded paths, unfinished markers, and accidental globals.
