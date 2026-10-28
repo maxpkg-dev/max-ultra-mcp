@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.5.4 - 2026-10-28
+
+- Improved: The README now opens with requirements, the download link, step-by-step setup for each AI client and example requests, and shows the main panel.
+
 ## 1.5.3 - 2026-10-17
 
 - Added: Click scene-status badges to copy the PID, full scene path (or Untitled), object count, or selection count, with a check icon and two-second Copied feedback.

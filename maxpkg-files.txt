@@ -25,6 +25,7 @@ docs/SKILL_CREATION_PROMPT.md
 docs/SUBMIT_SKILL.md
 docs/SUBMIT_SKILL.html
 README.md
+docs/images/main-panel.png
 AGENTS.md
 CLAUDE.md
 .agents/agent-interop.md
