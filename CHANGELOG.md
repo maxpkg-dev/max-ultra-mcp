@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.5.5 - 2026-11-06
+
 - Added: A maxpkg.dev publishing skill. After a package build, the agent offers to publish it. After your explicit yes and your own sign-in, it uploads the MZP, description, tags, FAQ, links, cover and screenshots in the browser and verifies each step.
 - Improved: The MaxPkg packaging skill guards against the packager's silent 3ds Max 2012 minimum fallback and offers publication after a successful build.
 - Improved: The read-only Test prompt now tells the AI to stop and explain how to switch to Codex mode in ChatGPT or to a Claude Code Local session in the Claude desktop app when it is pasted into an ordinary chat without Max Ultra MCP tools.
