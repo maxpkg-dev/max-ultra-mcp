@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Improved: The read-only Test prompt now tells the AI to stop and explain how to switch to Codex mode in ChatGPT or to a Claude Code Local session in the Claude desktop app when it is pasted into an ordinary chat without Max Ultra MCP tools.
+
 ## 1.5.4 - 2026-10-28
 
 - Improved: The README now opens with requirements, the download link, step-by-step setup for each AI client and example requests, and shows the main panel.

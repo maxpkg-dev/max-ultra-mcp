@@ -26,6 +26,12 @@ function verify(root) {
     assert.doesNotMatch(read(asset), /<(?:mask|filter|image)\b/, "Client logos must render as vectors in Qt 5");
   }
   assert.doesNotMatch(read("python/max_ultra/dialogs.py"), /(?:codex|claude|antigravity)\.png/);
+  const testPrompt = read("python/max_ultra/dialogs.py").match(/^TEST_PROMPT = \(([\s\S]*?)^\)/m);
+  assert.ok(testPrompt, "TEST_PROMPT must stay a parenthesized string constant");
+  for (const phrase of [/Do not create, modify, save or render anything/, /tools are not available/, /do not guess or simulate/,
+    /ordinary chat/, /Codex mode/, /Code tab/, /Local session/, /Chat, Cowork, Cloud and WSL/, /Refresh Status/]) {
+    assert.match(testPrompt[1], phrase, "Test prompt lost guidance: " + phrase);
+  }
   assert.doesNotMatch(read("python/max_ultra/transport.py"), /import pymxs|from pymxs|import Qt|from PySide/);
   assert.doesNotMatch(read("core/max-operations.ms") + read("core/layers.ms") + read("scripts/maxpkg-uninstall.ms"), /dotNetObject|dotNetClass|dotNetControl/);
   assert.match(read("python/max_ultra/client.py"), /self\.api\.request/);

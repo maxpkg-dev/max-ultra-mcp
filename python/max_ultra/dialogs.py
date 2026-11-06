@@ -16,7 +16,22 @@ from .widgets import Window, LoadingOverlay, JoinedTabBar, TabHeading, ActionBut
 from .wire import decode
 
 CLIENTS = [("openai", "Codex", "InstallOpenAI", "https://chatgpt.com/download/"), ("claudeCode", "Claude Code", "InstallClaudeCode", "https://claude.ai/download"), ("antigravity", "Antigravity", "InstallAntigravity", "https://antigravity.google/download")]
-TEST_PROMPT = "Use Max Ultra MCP to list connected 3ds Max instances. If exactly one is connected, select it and report its version, connection health, scene summary and capabilities. Do not create, modify, save or render anything."
+TEST_PROMPT = (
+    "Use Max Ultra MCP to list connected 3ds Max instances. If exactly one is connected, select it and report its version, "
+    "connection health, scene summary and capabilities. If none are connected, tell me to start "
+    "01_START_MAX_ULTRA_MCP_FIRST.ms in 3ds Max. If several are connected, list them and ask which one to use. "
+    "Do not create, modify, save or render anything.\n"
+    "\n"
+    "If Max Ultra MCP tools are not available in this conversation, do not guess or simulate any result. "
+    "This usually means I am in an ordinary chat, which cannot reach local MCP servers on this computer. "
+    "Tell me that I need to switch modes and explain how:\n"
+    "- ChatGPT desktop app: switch to Codex mode on this Windows computer, then send this prompt again in a new Codex conversation.\n"
+    "- Claude desktop app: open the Code tab and start a Local session on this Windows computer, then send this prompt again. "
+    "Chat, Cowork, Cloud and WSL sessions cannot reach Max Ultra MCP.\n"
+    "- If you cannot tell which app this is, show both instructions.\n"
+    "If I am already in Codex or a Claude Code Local session and the tools are still missing, tell me to restart or reconnect "
+    "the AI client and click Refresh Status in AI Client Setup in 3ds Max."
+)
 
 
 class PassiveBrowser(QtWidgets.QTextBrowser):
