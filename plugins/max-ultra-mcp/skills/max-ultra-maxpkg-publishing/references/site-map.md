@@ -18,7 +18,8 @@ Every package page is a sibling below `/dashboard/packages/<id>/`, where `<id>` 
 
 ## Packages: Quick MZP import
 
-- File input: `input.file-dropzone__input[accept=".mzp"]`.
+- File input: `input.file-dropzone__input[accept=".mzp"]`, single file, up to 100 MB. The Versions page uses the same input.
+- After a successful upload the site clears the input, so a script that reads `input.files` afterwards sees 0 files.
 - The file name must be the original packager name `<slug>@<major.minor.patch>@<guid>.mzp`.
 - The first upload creates the package with status Pending Review.
 - Wait for "Upload complete", then open the new package from the list.

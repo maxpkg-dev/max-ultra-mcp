@@ -14,6 +14,7 @@ The maxpkg.dev Content Security Policy blocks the page from fetching localhost, 
 
 - Keep each navigation under about 2 MB of URL; `relay.html` refuses longer URLs. Base64 adds a third, so one navigation carries about 1.4 MB of files. An MZP of about 320 KB fits. Send screenshots about three at a time.
 - When one image is too large, export it again in a smaller encoding, such as optimized PNG or WEBP, without changing what it shows.
+- A larger file, such as an MZP that bundles a runtime, goes through [chunk mode](#chunk-mode-for-large-files): about 1.45 MB per navigation, kept in a temporary IndexedDB database on the maxpkg.dev page, then assembled and verified. This was verified on 2026-11-06 with a 37 MB MZP in 26 chunks. The MZP input accepts up to 100 MB.
 - `relay.html` sends files only to `https://maxpkg.dev` pages.
 
 ## Steps
@@ -51,7 +52,7 @@ The maxpkg.dev Content Security Policy blocks the page from fetching localhost, 
    ```
 
    `localhost:8765` works the same way. The relay page replaces itself with the target page plus the fragment. If it shows "Relay failed", fix the reported cause and retry.
-5. **Inject the files.** When the maxpkg.dev page has loaded, fill `selector` and `expectedSha256` in the injector below and run it with the browser's JavaScript tool. It clears the fragment first. It assigns nothing when the fragment is missing, a hash differs, a file is missing, or the input is not found. If it returns `NO_RELAY_FRAGMENT`, run the relay again.
+5. **Inject the files.** When the maxpkg.dev page has loaded, fill `selector` and `expectedSha256` in the injector below and run it with the browser's JavaScript tool. It clears the fragment first. It assigns nothing when the fragment is missing, a hash differs, a file is missing, or the input is not found. If it returns `NO_RELAY_FRAGMENT`, run the relay again. The returned `assigned` count can be 0 even on success, because the site takes the file and clears its input; watch the page instead.
 6. **Confirm the upload.** Wait for "Upload complete" or the new image previews, then verify as the skill describes. Repeat steps 4 to 6 for the next batch.
 7. **Clean up.** Stop the server (`preview_stop`, or end the process), remove the temporary launch entry, any `relay.html` copy, and the staging folder, and confirm that nothing listens on the port anymore.
 
@@ -97,6 +98,99 @@ Most browser JavaScript tools await a returned promise. If yours does not, prefi
 })();
 ```
 
+## Chunk mode for large files
+
+Use chunk mode for one file whose base64 does not fit in one URL. Staging, the server, the target page, and cleanup stay as in the steps above.
+
+1. Compute the chunk count: `ceil(size / 1450000)`.
+2. For every index from 0 to count - 1, in the signed-in tab, navigate to:
+
+   ```text
+   http://127.0.0.1:8765/relay.html?target=<encoded page URL>&files=<encoded file name>&chunk=<index>&chunkSize=1450000
+   ```
+
+   Wait about 3 seconds, then run the chunk receiver below. It stores the chunk and returns how many are stored. If it returns `NO_RELAY_CHUNK`, the page has not finished loading or lost the fragment: wait and run it again, or repeat that index. When the browser tools can batch steps, send several chunks per call as navigate, wait, run.
+3. When `stored` equals the count, fill `expected` and `selector` in the chunk assembler and run it. It joins the chunks in order, checks size and SHA-256 against the local file, deletes the temporary database in every case, and only on a match hands the file to the input.
+4. Wait for "Upload complete", then verify as the skill describes. Confirm that `indexedDB.databases()` no longer lists `max-ultra-relay`.
+
+Chunk receiver:
+
+```javascript
+(async () => {
+  const prefix = "#mrchunk=";
+  if (location.hostname !== "maxpkg.dev" || !location.hash.startsWith(prefix)) return { ok: false, code: "NO_RELAY_CHUNK" };
+  const fragment = location.hash.slice(prefix.length);
+  history.replaceState(history.state, "", location.pathname + location.search);
+  const [encodedName, type, index, total, size, base64] = fragment.split("|");
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let offset = 0; offset < binary.length; offset += 1) bytes[offset] = binary.charCodeAt(offset);
+  const name = decodeURIComponent(encodedName);
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open("max-ultra-relay", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("chunks");
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction("chunks", "readwrite");
+    transaction.objectStore("chunks").put({ name, type, index: Number(index), total: Number(total), size: Number(size), blob: new Blob([bytes]) }, name + ":" + index);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+  });
+  const stored = await new Promise((resolve, reject) => {
+    const request = db.transaction("chunks").objectStore("chunks").count();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return { ok: true, index: Number(index), total: Number(total), bytes: bytes.length, stored };
+})();
+```
+
+Chunk assembler:
+
+```javascript
+(async () => {
+  // Fill these values before running: the file name, its SHA-256, and its size in bytes.
+  const expected = { name: "<FILE NAME>", sha256: "<SHA-256>", size: 0 };
+  const selector = 'input.file-dropzone__input[accept=".mzp"]';
+  if (location.hostname !== "maxpkg.dev") return { ok: false, code: "WRONG_PAGE" };
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open("max-ultra-relay", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("chunks");
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const records = await new Promise((resolve, reject) => {
+    const request = db.transaction("chunks").objectStore("chunks").getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  const removeDatabase = () => new Promise((resolve) => {
+    const request = indexedDB.deleteDatabase("max-ultra-relay");
+    request.onsuccess = request.onerror = request.onblocked = () => resolve();
+  });
+  const parts = records.filter((record) => record.name === expected.name).sort((left, right) => left.index - right.index);
+  const total = parts.length ? parts[0].total : 0;
+  const complete = parts.length > 0 && parts.length === total && parts.every((record, index) => record.index === index && record.total === total && record.size === expected.size);
+  if (!complete) { await removeDatabase(); return { ok: false, code: "CHUNKS_INCOMPLETE", count: parts.length, total }; }
+  const file = new File(parts.map((record) => record.blob), expected.name, { type: parts[0].type || "application/octet-stream" });
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
+  const sha256 = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  await removeDatabase();
+  if (file.size !== expected.size || sha256 !== String(expected.sha256).toLowerCase()) return { ok: false, code: "HASH_MISMATCH", size: file.size, sha256 };
+  const matches = document.querySelectorAll(selector);
+  if (matches.length !== 1 || matches[0].type !== "file") return { ok: false, code: "INPUT_NOT_FOUND", count: matches.length, sha256 };
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  matches[0].files = transfer.files;
+  matches[0].dispatchEvent(new Event("change", { bubbles: true }));
+  return { ok: true, name: file.name, size: file.size, sha256 };
+})();
+```
+
 ## relay.html listing
 
 The canonical file is [`scripts/relay.html`](../scripts/relay.html). A skill loaded through `max_skill_read` exposes only its Markdown and text files, so recreate the page byte for byte from this listing when the `scripts` folder is not readable, and delete the copy afterwards.
@@ -121,32 +215,50 @@ The canonical file is [`scripts/relay.html`](../scripts/relay.html). A skill loa
 // Carries local release files into a maxpkg.dev tab through the URL fragment.
 // Usage: relay.html?target=<encoded https://maxpkg.dev page URL>&files=<encoded comma-separated file names>
 // Each fragment part is encodeURIComponent(name)|type|base64; parts are joined with ";".
+// Chunk mode for one large file: add &chunk=<zero-based index>&chunkSize=<bytes>.
+// The fragment is then #mrchunk=encodeURIComponent(name)|type|index|total|size|base64.
 (async () => {
   const MAX_URL_LENGTH = 2000000;
   const status = document.getElementById("status");
   const show = (text) => { status.textContent = text; };
+  const toBase64 = (bytes) => {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 0x8000));
+    return btoa(binary);
+  };
   try {
     const query = new URLSearchParams(location.search);
     const target = new URL(query.get("target") || "about:blank");
     if (target.protocol !== "https:" || target.hostname !== "maxpkg.dev") throw new Error("The target must be an https://maxpkg.dev page.");
     const names = (query.get("files") || "").split(",").map((name) => name.trim()).filter(Boolean);
     if (!names.length) throw new Error("No files were requested.");
+    const chunked = query.has("chunk");
+    if (chunked && names.length !== 1) throw new Error("Chunk mode sends exactly one file.");
     const parts = [];
     for (const name of names) {
       if (/[\\/:]/.test(name) || name.startsWith(".")) throw new Error("Invalid file name: " + name);
       const response = await fetch("files/" + encodeURIComponent(name), { cache: "no-store" });
       if (!response.ok) throw new Error("Cannot read " + name + " (HTTP " + response.status + ").");
       const bytes = new Uint8Array(await response.arrayBuffer());
-      let binary = "";
-      for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 0x8000));
       const type = (response.headers.get("content-type") || "application/octet-stream").split(";")[0].trim();
-      parts.push(encodeURIComponent(name) + "|" + type + "|" + btoa(binary));
-      show("Prepared " + parts.length + " of " + names.length + " files...");
+      if (chunked) {
+        const chunkSize = Number(query.get("chunkSize"));
+        const index = Number(query.get("chunk"));
+        if (!Number.isInteger(chunkSize) || chunkSize < 1) throw new Error("chunkSize must be a positive whole number of bytes.");
+        const total = Math.max(1, Math.ceil(bytes.length / chunkSize));
+        if (!Number.isInteger(index) || index < 0 || index >= total) throw new Error("chunk must be between 0 and " + (total - 1) + ".");
+        const slice = bytes.subarray(index * chunkSize, Math.min(bytes.length, (index + 1) * chunkSize));
+        parts.push(encodeURIComponent(name) + "|" + type + "|" + index + "|" + total + "|" + bytes.length + "|" + toBase64(slice));
+        show("Prepared chunk " + (index + 1) + " of " + total + "...");
+      } else {
+        parts.push(encodeURIComponent(name) + "|" + type + "|" + toBase64(bytes));
+        show("Prepared " + parts.length + " of " + names.length + " files...");
+      }
     }
     target.hash = "";
-    const url = target.href + "#mrfiles=" + parts.join(";");
-    if (url.length > MAX_URL_LENGTH) throw new Error("The relay URL has " + url.length + " characters; the limit is " + MAX_URL_LENGTH + ". Send fewer or smaller files.");
-    show("Opening " + target.origin + target.pathname + " with " + names.length + " files...");
+    const url = target.href + (chunked ? "#mrchunk=" : "#mrfiles=") + parts.join(";");
+    if (url.length > MAX_URL_LENGTH) throw new Error("The relay URL has " + url.length + " characters; the limit is " + MAX_URL_LENGTH + ". Send fewer or smaller files, or use a smaller chunkSize.");
+    show("Opening " + target.origin + target.pathname + "...");
     location.replace(url);
   } catch (error) {
     show("Relay failed: " + error.message);

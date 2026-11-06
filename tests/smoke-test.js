@@ -660,6 +660,8 @@ async function runSmokeTest() {
     assert.match(publishingSkillDocumentation, /input\.file-dropzone__input\[accept="\.mzp"\]/);
     assert.match(publishingSkillDocumentation, /Synthetic `element\.click\(\)`|synthetic `element\.click\(\)`/);
     assert.match(publishingSkillDocumentation, /#mrfiles=/);
+    assert.match(publishingSkillDocumentation, /#mrchunk=/);
+    assert.match(publishingSkillDocumentation, /Chunk mode for large files[\s\S]*indexedDB\.deleteDatabase\("max-ultra-relay"\)/);
     assert.match(publishingSkillDocumentation, /crypto\.subtle\.digest/);
     assert.match(publishingSkillDocumentation, /new DataTransfer\(\)/);
     assert.match(publishingSkillDocumentation, /connect-src 'self'/);

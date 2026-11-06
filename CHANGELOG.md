@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Improved: The maxpkg.dev publishing skill uploads large MZP files, such as packages with a bundled runtime, through the browser relay in SHA-256 verified chunks.
+
 ## 1.5.5 - 2026-11-06
 
 - Added: A maxpkg.dev publishing skill. After a package build, the agent offers to publish it. After your explicit yes and your own sign-in, it uploads the MZP, description, tags, FAQ, links, cover and screenshots in the browser and verifies each step.

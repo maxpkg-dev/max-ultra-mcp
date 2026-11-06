@@ -17,32 +17,50 @@
 // Carries local release files into a maxpkg.dev tab through the URL fragment.
 // Usage: relay.html?target=<encoded https://maxpkg.dev page URL>&files=<encoded comma-separated file names>
 // Each fragment part is encodeURIComponent(name)|type|base64; parts are joined with ";".
+// Chunk mode for one large file: add &chunk=<zero-based index>&chunkSize=<bytes>.
+// The fragment is then #mrchunk=encodeURIComponent(name)|type|index|total|size|base64.
 (async () => {
   const MAX_URL_LENGTH = 2000000;
   const status = document.getElementById("status");
   const show = (text) => { status.textContent = text; };
+  const toBase64 = (bytes) => {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 0x8000));
+    return btoa(binary);
+  };
   try {
     const query = new URLSearchParams(location.search);
     const target = new URL(query.get("target") || "about:blank");
     if (target.protocol !== "https:" || target.hostname !== "maxpkg.dev") throw new Error("The target must be an https://maxpkg.dev page.");
     const names = (query.get("files") || "").split(",").map((name) => name.trim()).filter(Boolean);
     if (!names.length) throw new Error("No files were requested.");
+    const chunked = query.has("chunk");
+    if (chunked && names.length !== 1) throw new Error("Chunk mode sends exactly one file.");
     const parts = [];
     for (const name of names) {
       if (/[\\/:]/.test(name) || name.startsWith(".")) throw new Error("Invalid file name: " + name);
       const response = await fetch("files/" + encodeURIComponent(name), { cache: "no-store" });
       if (!response.ok) throw new Error("Cannot read " + name + " (HTTP " + response.status + ").");
       const bytes = new Uint8Array(await response.arrayBuffer());
-      let binary = "";
-      for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 0x8000));
       const type = (response.headers.get("content-type") || "application/octet-stream").split(";")[0].trim();
-      parts.push(encodeURIComponent(name) + "|" + type + "|" + btoa(binary));
-      show("Prepared " + parts.length + " of " + names.length + " files...");
+      if (chunked) {
+        const chunkSize = Number(query.get("chunkSize"));
+        const index = Number(query.get("chunk"));
+        if (!Number.isInteger(chunkSize) || chunkSize < 1) throw new Error("chunkSize must be a positive whole number of bytes.");
+        const total = Math.max(1, Math.ceil(bytes.length / chunkSize));
+        if (!Number.isInteger(index) || index < 0 || index >= total) throw new Error("chunk must be between 0 and " + (total - 1) + ".");
+        const slice = bytes.subarray(index * chunkSize, Math.min(bytes.length, (index + 1) * chunkSize));
+        parts.push(encodeURIComponent(name) + "|" + type + "|" + index + "|" + total + "|" + bytes.length + "|" + toBase64(slice));
+        show("Prepared chunk " + (index + 1) + " of " + total + "...");
+      } else {
+        parts.push(encodeURIComponent(name) + "|" + type + "|" + toBase64(bytes));
+        show("Prepared " + parts.length + " of " + names.length + " files...");
+      }
     }
     target.hash = "";
-    const url = target.href + "#mrfiles=" + parts.join(";");
-    if (url.length > MAX_URL_LENGTH) throw new Error("The relay URL has " + url.length + " characters; the limit is " + MAX_URL_LENGTH + ". Send fewer or smaller files.");
-    show("Opening " + target.origin + target.pathname + " with " + names.length + " files...");
+    const url = target.href + (chunked ? "#mrchunk=" : "#mrfiles=") + parts.join(";");
+    if (url.length > MAX_URL_LENGTH) throw new Error("The relay URL has " + url.length + " characters; the limit is " + MAX_URL_LENGTH + ". Send fewer or smaller files, or use a smaller chunkSize.");
+    show("Opening " + target.origin + target.pathname + "...");
     location.replace(url);
   } catch (error) {
     show("Relay failed: " + error.message);
