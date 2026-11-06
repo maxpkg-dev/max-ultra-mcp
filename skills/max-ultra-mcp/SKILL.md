@@ -5,7 +5,7 @@ description: Use Max Ultra MCP when the user asks to create, edit, inspect, rend
 
 # Max Ultra MCP
 
-Use `max-ultra-renderer-settings` for renderer configuration based on runtime property introspection. Use `max-ultra-camera-composition` for camera placement, Safe Frame, lens, and visual-composition tasks. Use `max-ultra-maxpkg-packaging` when a new or existing script must be adapted, configured, built, or verified for MaxPkg. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
+Use `max-ultra-renderer-settings` for renderer configuration based on runtime property introspection. Use `max-ultra-camera-composition` for camera placement, Safe Frame, lens, and visual-composition tasks. Use `max-ultra-maxpkg-packaging` when a new or existing script must be adapted, configured, built, or verified for MaxPkg, and `max-ultra-maxpkg-publishing` when the user says yes to publishing a built MZP on maxpkg.dev. Keep this general skill for ordinary scene, viewport, file, script, and diagnostic work.
 
 Use the semantic MCP surface to produce a verified result in the selected 3ds Max process. Keep raw MaxScript and UI automation as explicit fallbacks, not the default implementation path.
 

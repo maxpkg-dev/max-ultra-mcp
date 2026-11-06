@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "title": "Max Ultra MaxPkg Publishing",
+  "description": "Publish a built MaxPkg package on maxpkg.dev through the browser, with listing, images and verification.",
+  "version": "1.0.0",
+  "source": "Max Ultra MCP",
+  "author": "Lukianenko Vasyl",
+  "website": "https://3dground.net"
+}

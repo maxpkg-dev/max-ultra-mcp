@@ -129,7 +129,7 @@ Update checks are on by default. Only a stable official GitHub Release with a ma
 
 ## Optional agent skills
 
-Skills teach the agent proven workflows. The MCP server is fully usable without them, and installing them is client-specific and never required for bridge startup or onboarding. The release includes nine:
+Skills teach the agent proven workflows. The MCP server is fully usable without them, and installing them is client-specific and never required for bridge startup or onboarding. The release includes ten:
 
 | Skill | Use it for |
 |---|---|
@@ -142,10 +142,11 @@ Skills teach the agent proven workflows. The MCP server is fully usable without 
 | [`max-ultra-floor-plan`](skills/max-ultra-floor-plan/SKILL.md) | dimensional image or drawing to model, with a preserved wall spline |
 | [`max-ultra-small-house-detailing`](skills/max-ultra-small-house-detailing/SKILL.md) | small-house scenes from plans through roofs, cladding and fitted furnishings |
 | [`max-ultra-maxpkg-packaging`](skills/max-ultra-maxpkg-packaging/SKILL.md) | adapting new or existing 3ds Max scripts to the official MaxPkg workflow |
+| [`max-ultra-maxpkg-publishing`](skills/max-ultra-maxpkg-publishing/SKILL.md) | publishing a built MZP on maxpkg.dev in your signed-in browser, after your explicit yes |
 
-The small-house detailing skill also supports detailing an existing house; it does not produce construction documentation. It reuses the floor-plan, camera, and renderer skills and adds no MCP tools. The MaxPkg skill resolves the current official repository commit at execution time, reads its prompts and automation API documentation from GitHub, and prepares every project with the matching original `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms`. The general skill loads its packaged MaxScript code rules before creating or editing reusable scripts; target-project rules take precedence when they are stricter.
+The small-house detailing skill also supports detailing an existing house; it does not produce construction documentation. It reuses the floor-plan, camera, and renderer skills and adds no MCP tools. The MaxPkg skill resolves the current official repository commit at execution time, reads its prompts and automation API documentation from GitHub, and prepares every project with the matching original `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms`. After a build it can offer to publish the package; the publishing skill then uploads the MZP, description, FAQ, cover and screenshots on maxpkg.dev only after you say yes and sign in yourself, and verifies each step. The general skill loads its packaged MaxScript code rules before creating or editing reusable scripts; target-project rules take precedence when they are stricter.
 
-For ChatGPT Desktop and Codex, the `plugins/max-ultra-mcp` plugin packages the same nine skills through the `3dground-max-ultra-mcp` marketplace (see [installation step 3](#chatgpt-desktop-and-codex)). The plugin supplies workflow routing; the registered local MCP server remains the tool transport. The installer does not modify an agent's skill directory automatically.
+For ChatGPT Desktop and Codex, the `plugins/max-ultra-mcp` plugin packages the same ten skills through the `3dground-max-ultra-mcp` marketplace (see [installation step 3](#chatgpt-desktop-and-codex)). The plugin supplies workflow routing; the registered local MCP server remains the tool transport. The installer does not modify an agent's skill directory automatically.
 
 ## First AI-assisted house plan
 

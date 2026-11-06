@@ -65,6 +65,8 @@ Do not stop at a table of recommended values when the selected packager can be c
 - Use a supported semantic version and release channel.
 - Use a real `YYYY-MM-DD` release date.
 - Set minimum 3ds Max version from code and test evidence, not aspiration.
+- Setting `version` makes the packager load that version's changelog section. When the section has no `min3dsMax`, the minimum silently falls back to 2012 and the channel to `stable`. Set `releaseChannel` and `min3dsMax` explicitly after `version`, then confirm them with `MaxPkgPackerApi.getState()`. `max3dsMax` is derived by the packager and cannot be set.
+- Set the `description` option to the final marketplace short description before building; the manifest carries it into maxpkg.dev uploads.
 - Add at least one factual changelog item for the current version.
 
 ## MCP-assisted configuration and build

@@ -54,6 +54,9 @@ Keep the public listing portable and anonymous. Do not include absolute local pa
 
 ## Write factual marketplace copy
 
+For maxpkg.dev, the full description structure, length, tag, FAQ, cover, and screenshot rules are in the `max-ultra-maxpkg-publishing` skill's listing reference. Follow them when generating `maxpkg-marketplace-listing.md`, even when the user will upload by hand.
+
+- Write for an ordinary 3ds Max user who has never heard of the tool: what it does, what they can do with it, and how to use it. Leave out internal technical details, test statistics, thanks lists, credits to helpers, and links the user did not ask for.
 - Use concise plain English and describe the user outcome before implementation details.
 - Do not invent features, test results, compatibility, legal terms, authorship, support promises, prices, links, or categories.
 - Distinguish verified behavior from planned behavior. Do not advertise backlog items.
@@ -65,6 +68,8 @@ Keep the public listing portable and anonymous. Do not include absolute local pa
 ## Prepare screenshots and Assets
 
 Use real product UI, real workflow states, and real results. Do not fabricate screenshots, use stock images as proof, or show a success state that was not reached.
+
+Plain screenshots are required: the tool exactly as a user sees it, including at least one inside 3ds Max with the tool window over the viewport. Designed presentation cards with a title on a background are optional extras and never replace plain screenshots.
 
 Prepare a coherent ordered set:
 
@@ -98,9 +103,17 @@ For UI screenshots, show the real tool at a useful scale with representative non
 
 If screenshots cannot be captured in the current environment, do not substitute fake images. Leave an exact shot list that the user or a later connected Max session can reproduce.
 
+## Offer publication
+
+When the listing package is ready, or after a successful build, offer to do the upload in one line:
+
+> I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in the browser, and I will do the rest.
+
+The offer is not consent. Only after the user's explicit yes, load the `max-ultra-maxpkg-publishing` skill and follow it. That skill holds the verified maxpkg.dev page map, the release preflight that catches wrong channel, 3ds Max range, or description before an unfixable upload, the file-attach methods including a loopback relay for browsers that cannot attach files, and the step-by-step verification. The user signs in themselves; the agent never types a password.
+
 ## Explain and perform the upload safely
 
-Use the current labels from the live site when available. The documented flow is:
+Use this section when the user wants to upload by hand or asks how the flow works. Use the current labels from the live site when available. The documented flow is:
 
 1. Sign in to maxpkg.dev and complete the developer onboarding exposed by the account interface.
 2. Open the developer dashboard and create a package.

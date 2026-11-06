@@ -42,6 +42,7 @@ On 2026-10-12 the repository owner explicitly confirmed the rule: credit people 
 | Max Ultra Character and Object Modeling | Lukianenko Vasyl | Owner-confirmed default; no external contributor identified in source/history |
 | Max Ultra Floor Plan | Anastasiia Reznichenko | Explicit owner attribution on 2026-10-12 |
 | Max Ultra MaxPkg Packaging | Lukianenko Vasyl | Owner-confirmed default; official tooling references are not skill authorship |
+| Max Ultra MaxPkg Publishing | Lukianenko Vasyl | Owner-confirmed default; written from the owner's verified maxpkg.dev publication session |
 | Max Ultra MCP | Lukianenko Vasyl | Owner-confirmed default; links to other skills do not transfer their attribution |
 | Max Ultra Renderer Settings | Lukianenko Vasyl | Owner-confirmed default; no external contributor identified in source/history |
 | Max Ultra House and Interior Architectural Detailing | Yuriy Bobak, Anastasiia Reznichenko | SKILL.md, ATTRIBUTION.md, commits 08093fd and ddbbc2d, owner confirmation |

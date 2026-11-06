@@ -48,6 +48,13 @@ plugins/max-ultra-mcp/skills/max-ultra-maxpkg-packaging/references/build-and-ver
 plugins/max-ultra-mcp/skills/max-ultra-maxpkg-packaging/references/marketplace-publishing.md
 plugins/max-ultra-mcp/skills/max-ultra-maxpkg-packaging/scripts/get-maxpkg-upstream.ps1
 plugins/max-ultra-mcp/skills/max-ultra-maxpkg-packaging/SKILL.md
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/SKILL.md
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/references/file-relay.md
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/references/listing-content.md
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/references/site-map.md
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/scripts/inspect-mzp.ps1
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/scripts/relay.html
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/scripts/serve-relay.ps1
 plugins/max-ultra-mcp/skills/max-ultra-mcp/references/capabilities-and-boundaries.md
 plugins/max-ultra-mcp/skills/max-ultra-mcp/references/code-rules.md
 plugins/max-ultra-mcp/skills/max-ultra-mcp/references/maxscript.md
@@ -109,6 +116,13 @@ skills/max-ultra-maxpkg-packaging/references/adaptation-workflow.md
 skills/max-ultra-maxpkg-packaging/references/build-and-verify.md
 skills/max-ultra-maxpkg-packaging/references/marketplace-publishing.md
 skills/max-ultra-maxpkg-packaging/scripts/get-maxpkg-upstream.ps1
+skills/max-ultra-maxpkg-publishing/SKILL.md
+skills/max-ultra-maxpkg-publishing/references/file-relay.md
+skills/max-ultra-maxpkg-publishing/references/listing-content.md
+skills/max-ultra-maxpkg-publishing/references/site-map.md
+skills/max-ultra-maxpkg-publishing/scripts/inspect-mzp.ps1
+skills/max-ultra-maxpkg-publishing/scripts/relay.html
+skills/max-ultra-maxpkg-publishing/scripts/serve-relay.ps1
 scripts/agent-integration.ps1
 scripts/antigravity-integration.ps1
 core/antigravity-config.js
@@ -215,6 +229,8 @@ skills/max-ultra-floor-plan/skill.json
 plugins/max-ultra-mcp/skills/max-ultra-floor-plan/skill.json
 skills/max-ultra-maxpkg-packaging/skill.json
 plugins/max-ultra-mcp/skills/max-ultra-maxpkg-packaging/skill.json
+skills/max-ultra-maxpkg-publishing/skill.json
+plugins/max-ultra-mcp/skills/max-ultra-maxpkg-publishing/skill.json
 skills/max-ultra-renderer-settings/skill.json
 plugins/max-ultra-mcp/skills/max-ultra-renderer-settings/skill.json
 skills/max-ultra-small-house-detailing/skill.json

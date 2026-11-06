@@ -1,6 +1,6 @@
 ---
 name: max-ultra-maxpkg-packaging
-description: Adapt a new or existing 3ds Max MaxScript or Python project for MaxPkg, configure the official packager, build or verify its MZP through Max Ultra MCP, and prepare a maxpkg.dev marketplace listing and assets. Use when a user asks to make a script MaxPkg-compatible, replace a legacy installer, prepare a MaxPkg release, or publish/add an MZP on maxpkg.dev. Do not use merely to run an existing third-party MZP or package non-3ds Max software.
+description: Adapt a new or existing 3ds Max MaxScript or Python project for MaxPkg, configure the official packager, build or verify its MZP through Max Ultra MCP, and prepare a maxpkg.dev marketplace listing and assets. Use when a user asks to make a script MaxPkg-compatible, replace a legacy installer, prepare a MaxPkg release, or prepare an MZP and listing for maxpkg.dev; the browser upload itself belongs to max-ultra-maxpkg-publishing. Do not use merely to run an existing third-party MZP or package non-3ds Max software.
 ---
 
 # Max Ultra MaxPkg Packaging
@@ -34,6 +34,7 @@ Use this concise confirmation request after the read-only audit:
 - For automatic packager configuration, MZP output, release readiness, or marketplace onboarding, also read [references/build-and-verify.md](references/build-and-verify.md).
 - For maxpkg.dev listing text, form guidance, categories, screenshots, Assets, version upload, or review preparation, also read [references/marketplace-publishing.md](references/marketplace-publishing.md). Refresh the official website and linked repositories before relying on field or asset requirements.
 - A request to adapt a project for MaxPkg normally includes configuring the packager and attempting a local build when the required facts and 3ds Max environment are available. It never includes publishing, uploading, account changes, marketplace submission, or a Git commit unless separately requested.
+- Publishing on maxpkg.dev is a separate step owned by the `max-ultra-maxpkg-publishing` skill. After a successful build or listing preparation, make the offer described under Handoff, and start that skill only after the user's explicit yes.
 
 ## Required workflow
 
@@ -58,8 +59,14 @@ Use this concise confirmation request after the read-only audit:
 - Do not overwrite or delete existing user settings during install or update. Uninstall removes only verified package-owned integrations unless the user explicitly requests a separate user-data purge.
 - Do not invent license terms, URLs, authorship, version compatibility, test results, product capabilities, or marketplace categories.
 - Treat the package GUID as private identity metadata. Preserve it in package configuration, but never place it in public descriptions, screenshots, captions, keywords, or other marketplace copy.
-- Do not publish, upload, commit, or push unless the user separately requests that action.
+- Do not publish, upload, commit, or push unless the user separately requests that action. An offer to publish is not consent; only the user's explicit yes is.
 
 ## Handoff
 
 Report the resolved upstream commit, official prompt used, adapted runtime entry, installer-action mapping, changed and package-excluded files, automatic MaxPkg configuration, exact archive path and filename when built, generated marketplace-listing and asset-plan paths, validation performed, real-Max tests performed, untested manual checks, assumptions, and facts still requiring confirmation. Report an exact local MZP path or GUID only in the private task handoff, clearly marked as non-public metadata.
+
+After a successful build or listing preparation, end the handoff with this one-line offer, unless the user already declined or already asked for publication:
+
+> I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in the browser, and I will do the rest.
+
+On an explicit yes, load `max-ultra-maxpkg-publishing` and follow it. Without a yes, do nothing on the site.

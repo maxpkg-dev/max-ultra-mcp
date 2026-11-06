@@ -8,7 +8,7 @@ Read this reference completely before creating or editing a persistent MaxScript
 2. Read its `AGENTS.md`, `.agents/coding-rules.md`, `code-rules.md`, contribution guide, and nearby source conventions when present.
 3. Follow the target project's stricter rules first.
 4. Use this reference for every uncovered MaxScript decision.
-5. For MaxPkg adaptation, also use `max-ultra-maxpkg-packaging`; its live-fetched official `code-rules.md` and prompt govern package-specific behavior.
+5. For MaxPkg adaptation, also use `max-ultra-maxpkg-packaging`; its live-fetched official `code-rules.md` and prompt govern package-specific behavior. Publishing on maxpkg.dev belongs to `max-ultra-maxpkg-publishing` and needs the user's explicit yes.
 
 Do not add 3DGROUND attribution, a Max Ultra product name, or another author's copyright to a user's project unless that project already requires it or the user explicitly requests it.
 

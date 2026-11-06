@@ -10,6 +10,7 @@ All automated verification code and test-only fixtures live in this directory.
 - `diagnostics-cli-test.js` verifies help and dynamic skill discovery without Max, Codex/Claude setup instructions, the source-only launcher, MaxPkg exclusion, and read-only status/health/capabilities/skill checks against a mock Max.
 - `helpers/mock-max-client.js` simulates supported 3ds Max protocol endpoints without opening 3ds Max.
 - `fixtures/ui-automation-rollout/` contains the MaxScript rollout used for real-Max UI Automation verification.
+- `maxpkg-publishing-relay-test.js` verifies the maxpkg.dev publishing skill helpers with synthetic files: the loopback-only relay server and its host and path guards, the URL-fragment relay page, SHA-256 verified page-side injection against a fake file input, and MZP manifest inspection. It opens no browser and contacts no site.
 - `ui-automation-helper-test.ps1` verifies direct HWND capture and bounded native WinForms diagnostics against a temporary synthetic process named `3dsmax.exe`.
 
 Run every automated suite from the repository root:

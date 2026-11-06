@@ -107,7 +107,7 @@ async function run() {
     assert.ok(setup.claudeCode.command.includes("user"));
 
     const skillsWithoutMax = await parseCliJson(["skills"], environment);
-    assert.ok(skillsWithoutMax.count >= 9);
+    assert.ok(skillsWithoutMax.count >= 10);
     const skillNames = new Set(skillsWithoutMax.skills.map((skill) => skill.name));
     for (const requiredSkill of [
       "max-ultra-mcp",
@@ -119,6 +119,7 @@ async function run() {
       "max-ultra-renderer-settings",
       "max-ultra-spline-modeling",
       "max-ultra-maxpkg-packaging",
+      "max-ultra-maxpkg-publishing",
     ]) assert.ok(skillNames.has(requiredSkill), `Missing discovered skill ${requiredSkill}`);
     const generalSkill = skillsWithoutMax.skills.find((skill) => skill.name === "max-ultra-mcp");
     const floorPlanSkill = skillsWithoutMax.skills.find((skill) => skill.name === "max-ultra-floor-plan");

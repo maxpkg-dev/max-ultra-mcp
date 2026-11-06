@@ -547,7 +547,7 @@ async function runSmokeTest() {
       .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(skillsRoot, entry.name, "SKILL.md")))
       .map((entry) => entry.name)
       .sort();
-    assert.deepEqual(skillNames, ["max-ultra-armchair-modeling", "max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-maxpkg-packaging", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-small-house-detailing", "max-ultra-spline-modeling"]);
+    assert.deepEqual(skillNames, ["max-ultra-armchair-modeling", "max-ultra-camera-composition", "max-ultra-character-object-modeling", "max-ultra-floor-plan", "max-ultra-maxpkg-packaging", "max-ultra-maxpkg-publishing", "max-ultra-mcp", "max-ultra-renderer-settings", "max-ultra-small-house-detailing", "max-ultra-spline-modeling"]);
     assert.equal(pluginManifest.name, "max-ultra-mcp");
     assert.equal(pluginManifest.version, versionIniSource.match(/^Version=(.+)$/m)[1].trim());
     assert.equal(pluginManifest.skills, "./skills/");
@@ -643,6 +643,41 @@ async function runSmokeTest() {
     assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/scripts\/get-maxpkg-upstream\.ps1/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/references\/marketplace-publishing\.md/);
+    const publishOffer = "I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in the browser, and I will do the rest.";
+    assert.ok(maxPkgSkillDocumentation.includes(publishOffer), "The packaging skill must make the one-line publish offer");
+    assert.match(maxPkgSkillDocumentation, /max-ultra-maxpkg-publishing/);
+    assert.match(maxPkgSkillDocumentation, /offer is not consent/i);
+    assert.match(maxPkgSkillDocumentation, /min3dsMax[\s\S]*falls back to 2012/);
+    const publishingSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-maxpkg-publishing")];
+    assert.ok(publishingSkillDocumentation.includes(publishOffer), "The publishing skill must use the same offer text");
+    assert.match(publishingSkillDocumentation, /Publish only after the user's explicit yes/);
+    assert.match(publishingSkillDocumentation, /Never type a password/);
+    assert.match(publishingSkillDocumentation, /Terms of Use/);
+    assert.match(publishingSkillDocumentation, /Never delete anything on the site\. Archiving a version needs its own explicit yes/);
+    assert.match(publishingSkillDocumentation, /GUID and personal data/);
+    assert.match(publishingSkillDocumentation, /releaseChannel` must be `stable`/);
+    assert.match(publishingSkillDocumentation, /setOption "min3dsMax"[\s\S]*getState\(\)/);
+    assert.match(publishingSkillDocumentation, /input\.file-dropzone__input\[accept="\.mzp"\]/);
+    assert.match(publishingSkillDocumentation, /Synthetic `element\.click\(\)`|synthetic `element\.click\(\)`/);
+    assert.match(publishingSkillDocumentation, /#mrfiles=/);
+    assert.match(publishingSkillDocumentation, /crypto\.subtle\.digest/);
+    assert.match(publishingSkillDocumentation, /new DataTransfer\(\)/);
+    assert.match(publishingSkillDocumentation, /connect-src 'self'/);
+    assert.match(publishingSkillDocumentation, /Computer use/);
+    assert.match(publishingSkillDocumentation, /Upload complete/);
+    assert.match(publishingSkillDocumentation, /cdn\.maxpkg\.dev\/scripts\/<id>\/cover\/cover-thumb\.webp/);
+    assert.match(publishingSkillDocumentation, /1920 x 1080/);
+    assert.match(publishingSkillDocumentation, /Plain screenshots, required[\s\S]*inside 3ds Max with the tool window open over the viewport/);
+    assert.match(publishingSkillDocumentation, /Presentation cards, optional/);
+    assert.match(publishingSkillDocumentation, /ordinary 3ds Max user who has never heard of the tool/);
+    assert.match(publishingSkillDocumentation, /## How to use it/);
+    assert.match(publishingSkillDocumentation, /thanks lists, credits to people who helped, or links the user did not ask for/);
+    assert.match(publishingSkillDocumentation, /package is their own work/);
+    assert.match(maxPkgSkillDocumentation, /Plain screenshots are required/);
+    assert.doesNotMatch(publishingSkillDocumentation, /^# (?!Max Ultra MaxPkg Publishing$|maxpkg\.dev Site Map$|URL-Fragment File Relay$|Listing Content and Images$)/m);
+    for (const publishingFile of ["SKILL.md", "skill.json", "references/file-relay.md", "references/listing-content.md", "references/site-map.md", "scripts/inspect-mzp.ps1", "scripts/relay.html", "scripts/serve-relay.ps1"]) {
+      assert.match(maxPkgFilesSource, new RegExp(`^skills/max-ultra-maxpkg-publishing/${publishingFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"), `Missing MaxPkg allowlist entry for ${publishingFile}`);
+    }
     const generalSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-mcp")];
     assert.match(generalSkillDocumentation, /references\/code-rules\.md/);
     assert.match(generalSkillDocumentation, /Define every helper before/i);
