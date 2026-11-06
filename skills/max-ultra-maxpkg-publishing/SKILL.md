@@ -36,11 +36,13 @@ If any check fails, stop, fix the project with `max-ultra-maxpkg-packaging`, and
 
 ## Attach local files to the page
 
-Getting a local file into the page's file input is the hard part of browser publishing. Use the first method the current browser tools support:
+Getting a local file into the page's file input is the hard part of browser publishing. Check what the agent can actually do, then use the first method that works:
 
-1. **Native file attach.** Claude in Chrome has `file_upload`; Playwright-style browsers have `setInputFiles`. Any tool that sets files on an `<input type="file">` works.
-2. **URL-fragment relay**, the fallback for browsers that cannot attach files, including the Claude desktop built-in browser. Read [references/file-relay.md](references/file-relay.md). It serves the files from 127.0.0.1 with [scripts/serve-relay.ps1](scripts/serve-relay.ps1), carries them into the maxpkg.dev tab in the URL fragment with [scripts/relay.html](scripts/relay.html), verifies SHA-256, and hands them to the site's own input.
-3. **Computer use**, only as an alternative: in the Claude desktop app it is a setting, Settings > This computer > Computer use, off by default. It can drive a native Open dialog in desktop apps, but browsers are read-only at its tier, so prefer the browser tools.
+1. **Browser file attach.** Claude in Chrome has `file_upload`; Playwright-style browsers have `setInputFiles`. Any tool that sets files on an `<input type="file">` works.
+2. **Computer use**, when the agent has it and it may click and type in the browser window. Click the page's upload area with a real click, and in the system Open dialog type the full path of the file into the file name field and press Enter. Select several screenshots in one dialog when the input accepts several files. Then confirm the page shows the expected file names. Typing the local path into the local dialog is fine; it never goes into a public field. Check this right before relying on it: some clients allow computer use only read-only for browsers. In the Claude desktop app, for example, computer use is a setting (Settings > This computer > Computer use, off by default), and browsers are read-only at its tier, so it cannot click in them; use the relay there.
+3. **URL-fragment relay**, the fallback when neither of the above works, including the Claude desktop built-in browser. Read [references/file-relay.md](references/file-relay.md). It serves the files from 127.0.0.1 with [scripts/serve-relay.ps1](scripts/serve-relay.ps1), carries them into the maxpkg.dev tab in the URL fragment with [scripts/relay.html](scripts/relay.html), verifies SHA-256, and hands them to the site's own input.
+
+After methods 1 and 2, the page has no hash to check. Instead, compare the file name and size the page shows with the local file, and check the uploaded version or image itself as described under verification.
 
 Do not retry what is known to fail in the Claude desktop built-in browser: `form_input` on a file input, a synthetic click (it does not open the native file chooser), Ctrl+V sent through the tool (there is no system clipboard), `navigator.clipboard.readText` (permission denied), and `window.open` (it replaced the tab, so there is no opener). The maxpkg.dev Content Security Policy also blocks the page from fetching localhost.
 

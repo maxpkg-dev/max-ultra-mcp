@@ -663,7 +663,8 @@ async function runSmokeTest() {
     assert.match(publishingSkillDocumentation, /crypto\.subtle\.digest/);
     assert.match(publishingSkillDocumentation, /new DataTransfer\(\)/);
     assert.match(publishingSkillDocumentation, /connect-src 'self'/);
-    assert.match(publishingSkillDocumentation, /Computer use/);
+    assert.match(publishingSkillDocumentation, /Computer use\*\*, when the agent has it and it may click and type in the browser window/);
+    assert.match(publishingSkillDocumentation, /URL-fragment relay\*\*, the fallback when neither of the above works/);
     assert.match(publishingSkillDocumentation, /Upload complete/);
     assert.match(publishingSkillDocumentation, /cdn\.maxpkg\.dev\/scripts\/<id>\/cover\/cover-thumb\.webp/);
     assert.match(publishingSkillDocumentation, /1920 x 1080/);
