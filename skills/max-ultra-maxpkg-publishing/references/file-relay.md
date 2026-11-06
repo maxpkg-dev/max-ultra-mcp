@@ -1,6 +1,6 @@
 # URL-Fragment File Relay
 
-Read this reference only when the first two file-attach methods are unavailable or fail: a browser tool that sets the file directly, such as Claude in Chrome `file_upload` or Playwright `setInputFiles`, and computer use that clicks "Choose MZP" or "Choose screenshots" and fills the Windows Open dialog or drags files from Explorer. A typical case is the Claude desktop built-in browser without usable computer use. This relay is the last resort. The relay was verified on maxpkg.dev on 2026-11-06.
+Read this reference only when the first two file-attach methods are unavailable or fail: the user's own browser through an extension that attaches files, such as Claude in Chrome `file_upload`, or another tool that sets files directly, such as Playwright `setInputFiles`; and computer use that clicks "Choose MZP" or "Choose screenshots" and fills the Windows Open dialog or drags files from Explorer. When an extension could work but is not installed or connected, ask the user whether to set it up first. A typical case is the Claude desktop built-in browser without usable computer use. This relay is the last resort. The relay was verified on maxpkg.dev on 2026-11-06.
 
 ## How it works
 

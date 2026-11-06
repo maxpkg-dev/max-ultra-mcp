@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Improved: The maxpkg.dev publishing skill prefers your own signed-in Chrome through a browser extension such as Claude in Chrome, which attaches files of any size directly, and asks whether to set it up when it is missing.
 - Improved: The maxpkg.dev publishing skill uploads large MZP files, such as packages with a bundled runtime, through the browser relay in SHA-256 verified chunks.
 
 ## 1.5.5 - 2026-11-06

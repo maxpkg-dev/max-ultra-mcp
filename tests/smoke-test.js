@@ -643,7 +643,7 @@ async function runSmokeTest() {
     assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/scripts\/get-maxpkg-upstream\.ps1/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/references\/marketplace-publishing\.md/);
-    const publishOffer = "I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in the browser, and I will do the rest.";
+    const publishOffer = "I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in your browser, and I will do the rest.";
     assert.ok(maxPkgSkillDocumentation.includes(publishOffer), "The packaging skill must make the one-line publish offer");
     assert.match(maxPkgSkillDocumentation, /max-ultra-maxpkg-publishing/);
     assert.match(maxPkgSkillDocumentation, /offer is not consent/i);
@@ -668,6 +668,9 @@ async function runSmokeTest() {
     assert.match(publishingSkillDocumentation, /Computer use\*\*, when the agent has it and it may click and type in the browser window/);
     assert.match(publishingSkillDocumentation, /URL-fragment relay\*\*, only when 1 and 2 are unavailable or fail/);
     assert.match(publishingSkillDocumentation, /Try these methods strictly in order/);
+    assert.match(publishingSkillDocumentation, /Best: the user's own Chrome through a browser extension[\s\S]*file_upload[\s\S]*no helper server is needed, even for a large package/);
+    assert.match(publishingSkillDocumentation, /If the extension is not installed or connected, ask the user whether to set it up/);
+    assert.match(maxPkgSkillDocumentation, /user's own browser through an extension such as Claude in Chrome/);
     assert.match(publishingSkillDocumentation, /"Choose MZP" or "Choose screenshots"[\s\S]*Windows Open dialog[\s\S]*drag the files from Explorer/);
     assert.match(publishingSkillDocumentation, /Upload complete/);
     assert.match(publishingSkillDocumentation, /cdn\.maxpkg\.dev\/scripts\/<id>\/cover\/cover-thumb\.webp/);

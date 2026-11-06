@@ -67,6 +67,6 @@ Report the resolved upstream commit, official prompt used, adapted runtime entry
 
 After a successful build or listing preparation, end the handoff with this one-line offer, unless the user already declined or already asked for publication:
 
-> I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in the browser, and I will do the rest.
+> I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in your browser, and I will do the rest.
 
 On an explicit yes, load `max-ultra-maxpkg-publishing` and follow it. Without a yes, do nothing on the site.
