@@ -109,7 +109,7 @@ When the listing package is ready, or after a successful build, offer to do the 
 
 > I can publish this on maxpkg.dev for you: MZP, description, FAQ, cover and screenshots. Say yes and sign in to maxpkg.dev in the browser, and I will do the rest.
 
-The offer is not consent. Only after the user's explicit yes, load the `max-ultra-maxpkg-publishing` skill and follow it. That skill holds the verified maxpkg.dev page map, the release preflight that catches wrong channel, 3ds Max range, or description before an unfixable upload, the file-attach methods including a loopback relay for browsers that cannot attach files, and the step-by-step verification. The user signs in themselves; the agent never types a password.
+The offer is not consent. Only after the user's explicit yes, load the `max-ultra-maxpkg-publishing` skill and follow it. That skill holds the verified maxpkg.dev page map, the release preflight that catches wrong channel, 3ds Max range, or description before an unfixable upload, the file-attach methods in strict order (a browser file tool, then computer use with the Windows Open dialog, and a loopback relay only as the last resort), and the step-by-step verification. The user signs in themselves; the agent never types a password.
 
 ## Explain and perform the upload safely
 

@@ -1,6 +1,6 @@
 # URL-Fragment File Relay
 
-Read this reference only when the browser tools cannot attach a local file to an `<input type="file">` and computer use cannot click and type in the browser window, for example in the Claude desktop built-in browser. This is the fallback method. When the tools can attach files, such as Claude in Chrome `file_upload` or Playwright `setInputFiles`, or when computer use can drive the system Open dialog, use them instead. The relay was verified on maxpkg.dev on 2026-11-06.
+Read this reference only when the first two file-attach methods are unavailable or fail: a browser tool that sets the file directly, such as Claude in Chrome `file_upload` or Playwright `setInputFiles`, and computer use that clicks "Choose MZP" or "Choose screenshots" and fills the Windows Open dialog or drags files from Explorer. A typical case is the Claude desktop built-in browser without usable computer use. This relay is the last resort. The relay was verified on maxpkg.dev on 2026-11-06.
 
 ## How it works
 
