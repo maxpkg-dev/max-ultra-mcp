@@ -13,13 +13,19 @@ const { TextDecoder } = require("node:util");
 const { withZipSkill } = require("./skill-zip");
 const SITE = "https://maxpkg-dev.github.io/max-ultra-mcp-community-skills/";
 const FEED = SITE + "catalog.json";
-const RELEASE_DATES = "https://api.github.com/repos/maxpkg-dev/max-ultra-mcp-community-skills/releases?per_page=100";
 const RELEASE = "https://github.com/maxpkg-dev/max-ultra-mcp-community-skills/releases/download/";
 const MAX_ZIP = 50 * 1024 * 1024;
+const PAGES = SITE + "docs/skills/";
+const MAX_PAGE = 256 * 1024;
 function fail(message) { throw new Error(message); }
 function releaseUrl(value) {
   if (typeof value !== "string" || !value.startsWith(RELEASE) || !/^[A-Za-z0-9._/-]+$/.test(value.slice(RELEASE.length)) || value.includes("..") || !value.endsWith(".zip")) fail("Unsupported catalog download address.");
   return value;
+}
+// The published Markdown description of one catalog skill; the identifier is the only variable part of the address.
+function pageUrl(id) {
+  if (typeof id !== "string" || id.length > 100 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) fail("Invalid catalog skill identifier.");
+  return PAGES + id + ".md";
 }
 function validateFeed(value) {
   if (!value || value.schemaVersion !== 1 || !Array.isArray(value.skills) || value.skills.length > 1000) fail("Unsupported community catalog format.");
@@ -34,11 +40,11 @@ function validateFeed(value) {
     return Object.fromEntries([...Object.keys(limits), "downloadUrl", "sha256", "sizeBytes"].map(key => [key, entry[key]]));
   });
 }
-function download(address, limit, request = https.get, progress = () => {}, expectedTotal = null) {
-  const deadline = Date.now() + 90000;
+function download(address, limit, request = https.get, progress = () => {}, expectedTotal = null, timeout = 90000) {
+  const deadline = Date.now() + timeout;
   function fetch(url, redirects) {
     const parsed = new URL(url);
-    const permitted = url === FEED || url === RELEASE_DATES || url.startsWith(RELEASE) || parsed.hostname === "release-assets.githubusercontent.com" || parsed.hostname === "objects.githubusercontent.com";
+    const permitted = url === FEED || (url.startsWith(PAGES) && /^[a-z0-9]+(?:-[a-z0-9]+)*.md$/.test(url.slice(PAGES.length))) || url.startsWith(RELEASE) || parsed.hostname === "release-assets.githubusercontent.com" || parsed.hostname === "objects.githubusercontent.com";
     if (!permitted || parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port) return Promise.reject(new Error("Unsafe catalog redirect."));
     return new Promise((resolve, reject) => {
       const remaining = deadline - Date.now();
@@ -63,7 +69,7 @@ function download(address, limit, request = https.get, progress = () => {}, expe
       });
       const timer = setTimeout(() => req.destroy(new Error("Community download timed out. Retry.")), remaining);
       req.on("close", () => clearTimeout(timer));
-      req.setTimeout(30000, () => req.destroy(new Error("Community download timed out. Retry.")));
+      req.setTimeout(Math.min(30000, remaining), () => req.destroy(new Error("Community download timed out. Retry.")));
       req.on("error", () => reject(new Error("Cannot reach the community catalog. Check your connection, Retry or Open Online Catalog.")));
     });
   }
@@ -85,18 +91,46 @@ function installedState(entry, installed) {
 function ownedImport(entry, installed) {
   return installed.find(item => item.source === "Custom" && /^user\/[a-f0-9-]{36}$/.test(item.id) && item.name === entry.name && item.displaySource === "Community Skills" && item.title === entry.title && item.author === entry.author);
 }
-async function run(command, values, store, fetch = download, progress = () => {}) {
-  progress({ phase: "catalog", bytes: 0, total: null });
-  const entries = await catalog(fetch);
-  // Optional display metadata must never prevent browsing or installing.
+function newerVersion(candidate, current) {
+  const pattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+  const next = pattern.exec(candidate || ""), installed = pattern.exec(current || "");
+  if (!next || !installed) return false;
+  for (let index = 1; index <= 3; index++) {
+    const difference = Number(next[index]) - Number(installed[index]);
+    if (difference) return difference > 0;
+  }
+  return false;
+}
+// Download, verify and unpack one catalog archive; the action runs only on a package that matches the catalog.
+async function withVerifiedPackage(entry, store, fetch, progress, action) {
+  progress({ phase: "download", bytes: 0, total: entry.sizeBytes });
+  const bytes = await fetch(entry.downloadUrl, entry.sizeBytes, undefined, state => progress({ phase: "download", ...state }), entry.sizeBytes);
+  progress({ phase: "verify", bytes: bytes.length, total: entry.sizeBytes });
+  if (bytes.length !== entry.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== entry.sha256) fail("Archive checksum or size does not match the catalog. Refresh and retry; nothing was installed.");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-community-"));
   try {
-    const releases = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await fetch(RELEASE_DATES, 2 * 1024 * 1024)));
-    if (Array.isArray(releases)) for (const entry of entries) {
-      const tag = entry.downloadUrl.slice(RELEASE.length).split('/')[0];
-      const release = releases.find(item => item.tag_name === tag && !item.draft && !item.prerelease);
-      if (/^\d{4}-\d{2}-\d{2}T/.test(release?.published_at || '') && Number.isFinite(Date.parse(release.published_at))) entry.publishedAt = release.published_at.slice(0, 10);
-    }
-  } catch { /* GitHub rate limits or offline date metadata leave dates unknown. */ }
+    const archive = path.join(directory, "skill.zip");
+    fs.writeFileSync(archive, bytes, { flag: "wx" });
+    return withZipSkill(archive, folder => {
+      const preview = store.preview(folder);
+      if (preview.name !== entry.name || preview.version !== entry.version || preview.author !== entry.author || preview.title !== entry.title) fail("Package metadata does not match the catalog. Nothing was installed.");
+      progress({ phase: "install", bytes: bytes.length, total: entry.sizeBytes });
+      return action(folder, preview, archive);
+    });
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+}
+async function run(command, values, store, fetch = download, progress = () => {}) {
+  if (command === "community-page") {
+    // Read-only text for the details window: one bounded request, no catalog fetch and no store access.
+    const bytes = await fetch(pageUrl(values[0]), MAX_PAGE, undefined, undefined, null, 20000);
+    if (bytes.length > MAX_PAGE) fail("The online description exceeds the size limit.");
+    let text;
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { fail("The online description is not valid UTF-8 text."); }
+    return { text, message: "" };
+  }
+  progress({ phase: "catalog", bytes: 0, total: null });
+  // The feed is the only request a listing makes; no second service can delay or block it.
+  const entries = await catalog(fetch);
   let message = entries.length ? "Choose a skill to install. Imported instructions are available in new AI conversations." : "No community skills are published yet.";
   if (command === "community-delete") {
     const entry = entries.find(item => item.id === values[1]);
@@ -108,24 +142,31 @@ async function run(command, values, store, fetch = download, progress = () => {}
   if (command === "community-install") {
     const entry = entries.find(item => item.id === values[0]);
     if (!entry || entry.version !== values[1] || entry.sha256 !== values[2]) fail("The catalog changed. Refresh the list before installing.");
-    if (installedState(entry, store.list({ management: true }).skills) !== "available") fail("A skill with this name is already installed. Your copy was not changed. Use Custom to inspect/export and explicitly delete it before installing another version.");
-    progress({ phase: "download", bytes: 0, total: entry.sizeBytes });
-    const bytes = await fetch(entry.downloadUrl, entry.sizeBytes, undefined, state => progress({ phase: "download", ...state }), entry.sizeBytes);
-    progress({ phase: "verify", bytes: bytes.length, total: entry.sizeBytes });
-    if (bytes.length !== entry.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== entry.sha256) fail("Archive checksum or size does not match the catalog. Refresh and retry; nothing was installed.");
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "max-ultra-community-"));
-    try {
-      const archive = path.join(directory, "skill.zip");
-      fs.writeFileSync(archive, bytes, { flag: "wx" });
-      const imported = withZipSkill(archive, folder => {
-        const preview = store.preview(folder);
-        if (preview.name !== entry.name || preview.version !== entry.version || preview.author !== entry.author || preview.title !== entry.title) fail("Package metadata does not match the catalog. Nothing was installed.");
-        progress({ phase: "install", bytes: bytes.length, total: entry.sizeBytes });
-        return store.import(folder, preview.revision, Object.keys(store.clientRoots), archive, entry.publishedAt || "");
-      });
-      if (imported.state !== "ready") fail("Package saved, but client registration failed. Inspect the Custom list before retrying.");
-      message = "Skill installed. Start a new conversation in your AI client.";
-    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+    if (installedState(entry, store.list({ management: true }).skills) !== "available") fail("A skill with this name is already installed. Your copy was not changed. Delete that copy in the Skills window before installing another version.");
+    const imported = await withVerifiedPackage(entry, store, fetch, progress, (folder, preview, archive) => store.import(folder, preview.revision, Object.keys(store.clientRoots), archive));
+    if (imported.state !== "ready") fail("Package saved, but client registration failed. Inspect the installed skill before retrying.");
+    message = "Skill installed. Start a new conversation in your AI client.";
+  }
+  if (command === "community-sync") {
+    // Only an unedited copy that came from this catalog is replaced; the verified package is unpacked before the old one is removed.
+    const updated = [], skipped = [];
+    for (const entry of entries) {
+      const owned = ownedImport(entry, store.list({ management: true }).skills);
+      if (!owned || owned.state !== "ready" || !newerVersion(entry.version, owned.version)) continue;
+      try {
+        if (store.read({ id: owned.id }, { management: true }).revision !== owned.revision) fail("its local files were edited, so your copy was kept");
+        const clients = owned.clients.map(item => item.client);
+        const imported = await withVerifiedPackage(entry, store, fetch, progress, (folder, preview, archive) => {
+          const removal = store.remove(owned.id);
+          if (!removal.removed) fail(removal.error || removal.message);
+          return store.import(folder, preview.revision, clients, archive);
+        });
+        if (imported.state !== "ready") fail("the new version was saved, but client registration failed");
+        updated.push(`${entry.title} ${entry.version}`);
+      } catch (error) { skipped.push(`${entry.title}: ${error.message}`); }
+    }
+    if (updated.length) message = `Updated to the latest version: ${updated.join(", ")}. Start a new conversation in your AI client.`;
+    if (skipped.length) message = `${updated.length ? message + " " : ""}Not updated: ${skipped.join("; ")}`;
   }
   const listing = store.list({ management: true });
   return { ...listing, community: entries.map(entry => {
@@ -133,4 +174,4 @@ async function run(command, values, store, fetch = download, progress = () => {}
     return { ...entry, installState: installedState(entry, listing.skills), installedId: owned?.id || "", installedRevision: owned?.revision || "" };
   }), message };
 }
-module.exports = { run, validateFeed, download, installedState, ownedImport, SITE, FEED };
+module.exports = { run, validateFeed, download, installedState, ownedImport, newerVersion, pageUrl, SITE, FEED };

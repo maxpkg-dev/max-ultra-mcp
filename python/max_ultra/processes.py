@@ -19,12 +19,38 @@ def launch_helper(root, filename, arguments, visible=False, managed=False):
     script = (Path(root) / "scripts" / filename).resolve()
     if script.parent != (Path(root) / "scripts").resolve() or not script.is_file():
         raise ValueError("Invalid package helper")
+    command = [powershell(), "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)] + list(arguments)
+    return start_owned(command, visible, managed, cwd=str(script.parent))
+
+
+def bundled_node(root):
+    node = Path(root) / "runtime" / "win-x64" / "node.exe"
+    return node if node.is_file() else None
+
+
+def launch_node(root, filename, arguments, managed=True):
+    """Run one packaged core script with the bundled runtime directly.
+
+    Skipping the PowerShell wrapper saves its start-up time on every operation; the script must be a
+    file of this package's core folder, and the process is owned by a job exactly like other helpers.
+    """
+    node = bundled_node(root)
+    try:
+        script = (Path(root) / "core" / filename).resolve()
+    except OSError:
+        raise ValueError("Invalid package helper")
+    if node is None or script.parent != (Path(root) / "core").resolve() or script.suffix != ".js" or not script.is_file():
+        raise ValueError("Invalid package helper")
+    return start_owned([str(node), str(script)] + list(arguments), False, managed, cwd=str(Path(root)))
+
+
+def start_owned(command, visible, managed, cwd):
     flags = subprocess.CREATE_NEW_CONSOLE if visible else subprocess.CREATE_NO_WINDOW
     job = ProcessJob() if managed else None
     process = None
     try:
         # Start suspended so no descendant can escape before job assignment.
-        process = subprocess.Popen([powershell(), "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(script)] + list(arguments), cwd=str(script.parent), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags | (0x4 if managed else 0))
+        process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags | (0x4 if managed else 0))
         if job:
             job.assign_and_resume(process)
             process.owned_job = job

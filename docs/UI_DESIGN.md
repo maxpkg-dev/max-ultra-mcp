@@ -37,7 +37,7 @@ These breakpoints belong to the main panel. Auxiliary dialogs use their own layo
 - Donate becomes icon-only below 400 px.
 - Below 520 px, the AI button uses the shorter `Setup AI Client` label.
 - Refresh is always icon-only.
-- Skills dialog actions become icon-only below a dialog width of 900 px.
+- The Skills import actions become icon-only, and its help links become icons, below a dialog width of 720 px.
 
 Tooltips and accessible names retain the meaning of icon-only actions. Promotions choose a full or short message using actual font measurements; text is elided only when the short version still does not fit. The smallest mode deliberately uses smaller click targets to leave more room for the log.
 
@@ -68,7 +68,7 @@ Copy actions temporarily display `Copied` with a check icon, then restore their 
 
 Button captions use title case, preserving acronyms and lowercase short connecting words such as `to`, `and`, `a` and `the`. Skills and Settings share the same width in the main action row.
 
-Changes to a shared control must apply across all windows. `ThemedComboBox` provides the same rounded dropdown and Lucide chevron with a transparent arrow area for the journal filter and Settings theme picker. `SEARCH_STYLE` keeps the main journal and Community Skills search fields consistent; checkbox appearance comes from the shared window stylesheet.
+Changes to a shared control must apply across all windows. `ThemedComboBox` provides the same rounded dropdown and Lucide chevron with a transparent arrow area for the journal filter and Settings theme picker. `SEARCH_STYLE` keeps the main journal and Skills search fields consistent; checkbox appearance comes from the shared window stylesheet.
 
 ## Colors and themes
 
@@ -110,13 +110,25 @@ Settings is modal and covers other script windows with a full-window translucent
 
 Donate is the preferred main-panel focus target at startup and restoration. Status refreshes should not steal focus from editing or journal reading.
 
-## Skills loading overlay
+## Skills window
 
-`LoadingOverlay` is a child Qt widget placed above the Skills content, similar to an absolutely positioned translucent web overlay. The title bar and close button remain uncovered.
+`python/max_ultra/skills_window.py` holds one window for built-in, installed and community skills, and one reusable details window. The initial size is 1180 x 820 with a minimum of 360 x 300.
 
-The overlay paints the recessed theme color with alpha 175/255, a faint circular track and an accent-colored rotating arc. A 40 ms Qt timer advances the arc by 12 degrees. This is a painted progress indicator, not a replacement action icon.
+The top row holds the search field with Import Folder, Import ZIPs and an icon-only Refresh beside it. Below it are two filter chips: Community first, then Built-in. Community is always selected when the window opens; the choice is deliberately not saved. A chip shows its counter only once its list is known. The bottom row holds the text links How to Create and Import Skills, Submit Your Skill and Open Online Catalog, with Donate on the right. Below a window width of 720 logical pixels the import actions show icons only, the three links are replaced by icon-only actions with the same names in their tooltips, and the chips use less padding.
 
-`SkillsWindow.set_busy()` controls visibility and disables the underlying controls, including preview interaction. Completion or failure clears the busy state through the helper lifecycle. Resizing updates the overlay bounds. Hiding the window stops the animation timer; reopening during loading resumes it. No nested event loop or sleep is used for the animation.
+The content is one scroll area. The Community filter shows the Installed group first and the Not installed group below it, each with a heading, a counter and a rule; the Built-in filter shows its cards without a heading. Each group has an optional hint line and a `CardGrid`. The grid fits as many equal columns as its width allows with a 280 px minimum card width and a 10 px gap, up to four columns; the default window shows three. Every row is as tall as its tallest card. The vertical scrollbar track is always present so that the column count does not change while cards reflow. A search looks through every group regardless of the selected chip, by title, description and author; each matching group then appears under its heading, and a group without matches is hidden.
+
+A card shows a bold title, a wrapping row of capsule badges (status, author, version), a description limited to three lines with the full text in its tooltip, and an action row. Every card uses the same layout, so a built-in card is as tall as an installed or community card with the same content; its action row keeps the height of a button although it holds only View details. Built-in and installed cards use the card surface; community cards that are not installed use a transparent surface, a dashed outline and muted text, with a green Install action. Installed cards have a red icon-only delete action on the right; built-in cards have none. A badge wider than its card is elided instead of widening the card.
+
+Built-in and installed skills are on the local disk, so the window reads their metadata directly (`read_local_skills()`: the bundled `skills` folders and the user store's `registry.json`) when it is created, when it is opened again and on Refresh. No helper process is involved, and there is no loading state for them. Cards are built per group when it is first shown, each widget directly inside its final parent, so opening does not pay for the hidden filter or for reparenting styled widgets; data that changes nothing on screen does not rebuild the cards.
+
+The community catalog is the only thing that loads in the background. The last catalog comes from `skills-cache.json` in the script state folder and is shown at once; a read-only helper in its own slot then asks for the feed, after the window has painted, shown by a small rotating arc in the Not installed heading. A catalog checked within the last ten minutes is not requested again when the window is reopened; Refresh always asks. The helper makes one request, for the feed, so no second service can delay it. Nothing covers the window. Install, automatic update, import and delete disable only the actions that change skills; reading, search and navigation stay available. The progress and result of an operation appear in `StatusBanner`, a closable strip between the filter chips and the cards: a rounded panel in the journal's category colors (information for progress, success, warning for a partial result, error), with wrapping text and a Dismiss action on the right. A new message replaces the previous one, and the banner is cleared when the window is opened again. Install and update also show the progress bar and elapsed time below it. An action requested while the operation slot is busy waits for it and then runs.
+
+Skill operations start the bundled Node.js runtime directly on `core/skills-cli.js` (`launch_node()`), owned by the same job object as other helpers. This avoids the start-up time of a PowerShell wrapper on every install, delete, import and catalog request. A checkout without the bundled runtime falls back to `scripts/skills-manager.ps1`.
+
+View details opens `SkillDetailsWindow`. It is created once and reused: choosing another skill replaces its title, badges, metadata line and document. Local skills show their instructions with Back navigation and Open Folder. The document is read from disk and rendered by Qt's own Markdown import (`render_markdown()`) inside the window, so it appears at once, without a helper process or a loading state. Raw HTML in a skill is shown as text and never interpreted, the browser loads no resources, and only text files inside the skill folder can be opened. A file that cannot be read keeps the previous document and reports the reason below it. A failed import shows its report in the same window.
+
+A community skill that is not installed has no local files, so the window shows its published description instead: one bounded request for `docs/skills/<id>.md` on the catalog site, started through its own helper slot (`page_operation()`), rendered by the same Markdown path. While it loads, `LoadingOverlay` covers only the document area: the recessed theme color at alpha 175/255, a faint circular track and an accent-colored arc advanced 12 degrees by a 40 ms Qt timer. A description read once is kept for the session and shown again without a request; an answer for a skill that is no longer shown is ignored. Relative links open in the browser and only inside the catalog site. When the description cannot be loaded, the document is replaced by one centered sentence and a centered Open Online Page action.
 
 ## Where to make changes
 
@@ -126,12 +138,14 @@ The overlay paints the recessed theme color with alpha 175/255, a faint circular
 | `Panel.update_compact_layout()` | Main-panel button, icon, label, margin and scrollbar sizes |
 | `Panel.update_journal_density()` | Log font size and base row height |
 | `ActionButton`, `JournalDelegate`, `JournalView` | Custom icon/text rendering and journal layout |
-| `Window`, `LoadingOverlay` | Common window behavior and loading veil |
-| `python/max_ultra/dialogs.py` | Settings, AI setup, Skills and help layouts |
+| `Window`, `LoadingOverlay` | Common window behavior and the document loading veil |
+| `python/max_ultra/dialogs.py` | Settings, AI setup, skill help and the shared skill document browser |
+| `python/max_ultra/skills_window.py` | Skills cards, filter chips, catalog loading, automatic updates and the details window |
 | `python/max_ultra/qt.py` | Qt compatibility, native shadow and keyboard integration |
 | `python/max_ultra/themes.py`, `assets/themes/` | Theme loading, named colors and live application |
 | `tests/qt-ui-fixture.py` | Breakpoint transitions, icons, journal behavior and sizing |
-| `tests/qt-dialog-fixture.py` | Dialog layouts, opacity and overlay lifecycle |
+| `tests/qt-dialog-fixture.py` | Dialog layouts, opacity, skill cards and the details window |
+| `tests/qt-community-fixture.py` | Skills catalog, cached opening, automatic updates, busy states and the import report |
 
 Verify changes in both PySide2 and PySide6. Test shrinking after enlargement, theme switching, visible scrollbars, long messages, DPI scaling and keyboard interaction. Standalone Qt fixture results do not replace real-Max checks of ownership, focus, modal dialogs and multi-monitor behavior. Keep required runtime assets in `maxpkg-files.txt` when adding new files.
 

@@ -15,13 +15,14 @@ import sys
 from .qt import QtCore, QtWidgets, QtGui, max_parent, protect_keyboard, release_keyboard
 from . import themes
 from .widgets import Panel, MiniPanel
-from .dialogs import SettingsWindow, AboutWindow, Onboarding, SkillsWindow, CLIENTS
+from .dialogs import SettingsWindow, AboutWindow, Onboarding, CLIENTS
+from .skills_window import SkillsWindow
 from .settings import Settings, read_ini
 from .journal import Journal
 from .max_api import MaxApi
 from .processes import process_started, launch_helper
 from .transport import Transport
-from .helpers import Helper
+from .helpers import Helper, skills_command
 from .wire import encode, decode
 from .tasks import BackgroundTasks
 from .updates import verify_package, staged_version
@@ -33,7 +34,7 @@ class Client:
         self.dialogs = {}
         self.transport = self.timer = self.journal = None
         self.tasks = BackgroundTasks()
-        self.integration = self.skills_helper = self.update_helper = None
+        self.integration = self.skills_helper = self.catalog_helper = self.page_helper = self.update_helper = None
         try:
             self.initialize(root, launch_count, restart)
         except Exception:
@@ -85,7 +86,7 @@ class Client:
         self.transport = None
         self.pending = deque()
         self.cancelled = set()
-        self.integration = self.skills_helper = self.update_helper = None
+        self.integration = self.skills_helper = self.catalog_helper = self.page_helper = self.update_helper = None
         self.integration_result = None
         self.integration_message = "Refresh Status to detect AI clients."
         self.integration_client = ""
@@ -413,8 +414,8 @@ class Client:
         themes.apply_all([self.panel, self.mini] + list(self.dialogs.values()))
 
     def show_skills(self):
-        self.show_dialog("skills", SkillsWindow)
-        self.skills_operation("list")
+        # The window shows local skills at once and opens on Community; fresh data arrives in the background.
+        self.show_dialog("skills", SkillsWindow).present()
 
     def manual_setup(self):
         parser = self.integration_result
@@ -488,11 +489,28 @@ class Client:
         if self.skills_helper or self.disposed:
             return False
         self.skills_operation_name = operation
-        self.skills_helper = Helper(self.root, self.state_directory, "skills-manager.ps1", ["-Action", operation] + (arguments or []) + ["-Background", "28,28,26", "-Foreground", "232,227,218", "-ButtonBackground", "48,46,41", "-ButtonHover", "65,56,45"], timeout=240 if operation.startswith("community-") else 120)
+        command = skills_command(operation, arguments)
+        self.skills_helper = Helper(self.root, self.state_directory, "skills-manager.ps1", ["-Action", operation] + (arguments or []) + ["-Background", "28,28,26", "-Foreground", "232,227,218", "-ButtonBackground", "48,46,41", "-ButtonHover", "65,56,45"], timeout=240 if operation.startswith("community-") else 120, node=("skills-cli.js", command) if command else None)
         if "skills" in self.dialogs:
             self.dialogs["skills"].set_busy(True)
-        if "community" in self.dialogs:
-            self.dialogs["community"].set_busy(True)
+        return True
+
+    def catalog_operation(self):
+        # Read-only catalog listing in its own slot, so local skill actions never wait for the network.
+        if self.catalog_helper or self.disposed:
+            return False
+        self.catalog_helper = Helper(self.root, self.state_directory, "skills-manager.ps1", ["-Action", "community-list"], timeout=120, node=("skills-cli.js", skills_command("community-list")))
+        return True
+
+    def page_operation(self, identifier):
+        # The online description of one catalog skill for the details window; only the newest request matters.
+        if self.disposed:
+            return False
+        if self.page_helper:
+            self.page_helper.dispose()
+        self.page_identifier = identifier
+        arguments = ["-SkillId", identifier]
+        self.page_helper = Helper(self.root, self.state_directory, "skills-manager.ps1", ["-Action", "community-page"] + arguments, timeout=60, node=("skills-cli.js", skills_command("community-page", arguments)))
         return True
 
     def check_updates(self):
@@ -502,14 +520,14 @@ class Client:
         self.log("info", "Checking for updates")
 
     def poll_helpers(self):
-        for name in ("integration", "skills_helper", "update_helper"):
+        for name in ("integration", "skills_helper", "catalog_helper", "page_helper", "update_helper"):
             helper = getattr(self, name)
             if helper is None:
                 continue
             try:
                 code = helper.poll()
-                if name == "skills_helper" and "community" in self.dialogs and code is None:
-                    self.dialogs["community"].show_progress(helper.read_progress())
+                if name == "skills_helper" and "skills" in self.dialogs and code is None:
+                    self.dialogs["skills"].show_progress(helper.read_progress())
                 if name == "integration" and helper.snapshot:
                     self.integration_result = helper.snapshot
                     message = helper.snapshot.get("operation", "message", fallback="")
@@ -547,12 +565,14 @@ class Client:
                         if self.integration_automatic and all(state in conclusive for state in states) and "configured" not in states:
                             self.show_onboarding()
                 elif name == "skills_helper":
-                    if getattr(self, "skills_operation_name", "").startswith("community-") and "community" in self.dialogs:
-                        self.dialogs["community"].apply_result(helper)
-                    elif "community" in self.dialogs:
-                        self.dialogs["community"].sync_installed(helper.snapshot)
                     if "skills" in self.dialogs:
                         self.dialogs["skills"].apply_result(helper)
+                elif name == "catalog_helper":
+                    if "skills" in self.dialogs:
+                        self.dialogs["skills"].apply_catalog(helper)
+                elif name == "page_helper":
+                    if "skill_details" in self.dialogs:
+                        self.dialogs["skill_details"].apply_page(self.page_identifier, helper)
                 else:
                     if code != 0 or helper.snapshot is None:
                         raise RuntimeError("Update check failed")
@@ -565,10 +585,16 @@ class Client:
                         self.stage_update(helper.snapshot)
                 helper.cleanup()
                 setattr(self, name, None)
+                if name == "skills_helper" and "skills" in self.dialogs:
+                    self.dialogs["skills"].operation_finished()
             except Exception as error:
                 self.log("error", str(error))
-                if name == "skills_helper" and "community" in self.dialogs:
-                    self.dialogs["community"].show_error(str(error))
+                if name == "skills_helper" and "skills" in self.dialogs:
+                    self.dialogs["skills"].operation_failed(str(error))
+                if name == "catalog_helper" and "skills" in self.dialogs:
+                    self.dialogs["skills"].catalog_failed(str(error))
+                if name == "page_helper" and "skill_details" in self.dialogs:
+                    self.dialogs["skill_details"].page_failed(self.page_identifier, str(error))
                 if name == "update_helper":
                     self.update_message = str(error)
                     self.update_state = "error"
@@ -578,12 +604,12 @@ class Client:
                     self.integration_message = str(error)
                     self.integration_step(str(error), "error")
                 setattr(self, name, None)
+                if name == "skills_helper" and "skills" in self.dialogs:
+                    self.dialogs["skills"].operation_finished()
         if "onboarding" in self.dialogs:
             self.dialogs["onboarding"].update_status()
         if "skills" in self.dialogs:
             self.dialogs["skills"].set_busy(self.skills_helper is not None)
-        if "community" in self.dialogs:
-            self.dialogs["community"].set_busy(self.skills_helper is not None)
         if "settings" in self.dialogs:
             self.dialogs["settings"].update_status()
 
@@ -709,7 +735,7 @@ class Client:
             self.timer.stop()
         if self.transport:
             self.transport.stop()
-        for helper in (self.integration, self.skills_helper, self.update_helper):
+        for helper in (self.integration, self.skills_helper, self.catalog_helper, self.page_helper, self.update_helper):
             if helper:
                 helper.dispose()
         for dialog in list(self.dialogs.values()) + [getattr(self, "mini", None), getattr(self, "panel", None)]:

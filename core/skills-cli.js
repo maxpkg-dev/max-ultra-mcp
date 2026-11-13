@@ -72,12 +72,12 @@ function run(args, store = new SkillStore(), appearance = {}) {
   });
   if (command === "import-zip") return withZipSkill(values[0], (folder, archive) => run(["import", folder, values[1], values[2], archive], store, appearance));
   if (command === "list") {
-    const text = "# Welcome to Skills\n\nSkills give your AI reusable instructions for working in 3ds Max.\n\n**Built-in** contains bundled workflows; **Custom** contains your own skills.\n\nAfter completing and checking a task, use **How to create and import skills** to save it as a repeatable workflow.\n\nUse **Submit Your Skill** to send a tested, useful skill to the author for review and possible inclusion in Max Ultra MCP.\n";
+    const text = "# Welcome to Skills\n\nSkills give your AI reusable instructions for working in 3ds Max.\n\n**Built-in** contains bundled workflows; **Installed** contains skills you imported or installed from **Community**.\n\nAfter completing and checking a task, use **How to create and import skills** to save it as a repeatable workflow.\n\nUse **Submit Your Skill** to send a tested, useful skill to the author for review and possible inclusion in Max Ultra MCP.\n";
     // Only these fixed application-authored links can invoke the host's existing local-help actions.
     const html = renderMarkdown(text, appearance)
       .replace("<strong>How to create and import skills</strong>", '<a href="skill-help:create">How to create and import skills</a>')
       .replace("<strong>Submit Your Skill</strong>", '<a href="skill-help:submit">Submit Your Skill</a>');
-    return { ...store.list({ management: true }), text, html, message: "Select a skill to read it, or choose Custom to add your own." };
+    return { ...store.list({ management: true }), text, html, message: "Choose View details to read a skill, or use Import Folder or Import ZIPs to add your own." };
   }
   if (command === "preview") {
     const preview = store.preview(values[0]);

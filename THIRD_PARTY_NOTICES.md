@@ -24,5 +24,5 @@ All Qt action icons are original SVG files from [Lucide 0.468.0](https://github.
 
 The Skills preview Back control embeds the official Lucide `arrow-left` SVG geometry from https://github.com/lucide-icons/lucide/blob/main/icons/arrow-left.svg. Its ISC license and the MIT notice for Feather-derived icons are included in `assets/icons/LUCIDE-LICENSE.txt`.
 
-Skills window actions also use the original Lucide 0.468.0 `arrow-left`, `folder-open`, `file-archive`, `trash-2`, `send`, `book-open`, and `globe` SVGs. Only the foreground color is substituted.
+Skills window actions also use the original Lucide 0.468.0 `arrow-left`, `folder-open`, `file-archive`, `trash-2`, `send`, `book-open`, `globe`, `check`, `download`, `grip-vertical`, and `circle-question-mark` (`circle-help`) SVGs. Only the foreground color is substituted.
 `assets/icons/check.svg` uses the original Lucide 0.468.0 `check` geometry for checkbox indicators, with only the foreground color substituted.

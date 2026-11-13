@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 1.6.0 - 2026-11-13
+
+- Changed: One Skills window replaces the separate Skills and Community Skills windows. Skills are cards in a responsive grid of up to three per row at the default size, with a shared search field and two filters: Community, which is always selected on opening and lists installed skills above the ones that are not installed, and Built-in.
+- Added: The Skills window shows built-in and installed skills at once, without a loading step; the community catalog loads in the background without blocking it.
+- Added: Skills installed from Community update automatically to a newer catalog version. Copies you imported or edited are kept and only report the available version.
+- Added: View details opens one reusable details window with the skill's metadata, instructions, folder and online page. Instructions are rendered inside the window and appear at once.
+- Added: View details for a community skill that is not installed shows its published description from the catalog site, with Open Online Page as the fallback when it cannot be loaded.
+- Improved: The result of installing, deleting or importing a skill is shown in a colored banner that can be dismissed, instead of a plain line of text.
+- Improved: Installing, deleting and importing skills and loading the catalog start the bundled runtime directly, without a PowerShell wrapper, so each action begins seconds sooner.
+- Changed: The community catalog no longer requests publication dates from a second service, which could delay the list by tens of seconds; skill cards no longer show a date.
+- Changed: Import Folder and Import ZIPs sit beside the Skills search field; How to Create and Import Skills, Submit Your Skill and Open Online Catalog are links in the bottom row next to Donate.
+
 ## 1.5.6 - 2026-11-06
 
 - Improved: The maxpkg.dev publishing skill prefers your own signed-in Chrome through a browser extension such as Claude in Chrome, which attaches files of any size directly, and asks whether to set it up when it is missing.

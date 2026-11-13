@@ -117,7 +117,7 @@ After the first successful connection, the journal shows at most three support r
 
 ### Skills manager
 
-**Skills** opens a separate manager. View built-in workflows, copy a creation prompt into a successful AI conversation, browse community skills, and import an instruction-only custom skill folder or ZIP in one action. Import validates the package before saving it and publishes discovery adapters for Codex, Claude Code, and Antigravity; `max_skills_list` and `max_skill_read` expose the content without needing Max connected. Custom skills stay in `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\user-skills` across updates. See the [local HTML manual](docs/CUSTOM_SKILLS.html) and [submission guide](docs/SUBMIT_SKILL.html).
+**Skills** opens a separate manager that shows built-in, installed and community skills as searchable cards in one window. Built-in and installed skills appear at once, and the community catalog loads in the background. Read a skill through **View details**, install a community skill with one click, copy a creation prompt into a successful AI conversation, and import an instruction-only custom skill folder or ZIP in one action. Skills installed from Community update automatically to newer catalog versions; copies you imported or edited are kept. Import validates the package before saving it and publishes discovery adapters for Codex, Claude Code, and Antigravity; `max_skills_list` and `max_skill_read` expose the content without needing Max connected. Custom skills stay in `%LOCALAPPDATA%\3DGROUND\MaxUltraMCP\user-skills` across updates. See the [local HTML manual](docs/CUSTOM_SKILLS.html) and [submission guide](docs/SUBMIT_SKILL.html).
 
 ### Settings and themes
 

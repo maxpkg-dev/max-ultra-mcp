@@ -271,6 +271,33 @@ class RuntimeTests(unittest.TestCase):
                 process.wait(timeout=5)
             self.assertIsNotNone(process.returncode)
 
+    @unittest.skipUnless(os.name == "nt", "Windows helper lifecycle")
+    def test_direct_node_helper_and_skill_commands(self):
+        from max_ultra.processes import launch_node, bundled_node
+        from max_ultra.helpers import skills_command, SKILL_APPEARANCE
+        root = pathlib.Path(__file__).resolve().parents[1]
+        self.assertEqual(skills_command("community-install", ["-SkillId", "example", "-Source", "1.0.0", "-Revision", "a" * 64]), ["community-install", "example", "1.0.0", "a" * 64] + SKILL_APPEARANCE)
+        self.assertEqual(skills_command("add-zips", ["-Source", "selection.txt"])[:2], ["add-zips-file", "selection.txt"])
+        self.assertEqual(skills_command("delete", ["-SkillId", "user/example"])[:2], ["delete", "user/example"])
+        self.assertEqual(skills_command("community-list")[0], "community-list")
+        self.assertIsNone(skills_command("delete", []), "A missing argument falls back to the validating PowerShell helper")
+        self.assertIsNone(skills_command("picker"))
+        for name in ("../scripts/skills-manager.ps1", "missing.js", r"..\tests\smoke-test.js", "bad\tname.js"):
+            with self.assertRaises(ValueError):
+                launch_node(root, name, [])
+        if bundled_node(root) is None:
+            self.skipTest("The bundled runtime is not prepared in this checkout")
+        with tempfile.TemporaryDirectory() as folder:
+            result = pathlib.Path(folder) / "result.ini"
+            with mock.patch.dict(os.environ, {"MAX_ULTRA_MCP_SKILLS_ROOT": str(pathlib.Path(folder) / "store")}):
+                process = launch_node(root, "skills-cli.js", skills_command("list") + ["--result", str(result)])
+            try:
+                self.assertEqual(process.wait(timeout=30), 0)
+            finally:
+                process.owned_job.close()
+            self.assertIn("hasList=true", result.read_text(encoding="utf-8"))
+            self.assertFalse((pathlib.Path(folder) / "store").exists(), "Listing must not create user state")
+
     @unittest.skipUnless(os.name == "nt", "Windows lifecycle mutex")
     def test_real_socket_worker_fragmentation_cancel_and_shutdown(self):
         with tempfile.TemporaryDirectory() as folder, socket.socket() as server:

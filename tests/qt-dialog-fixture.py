@@ -4,6 +4,7 @@
 # Developed by Lukianenko Vasyl
 
 import configparser
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -13,7 +14,9 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 from max_ultra.qt import QtWidgets, QtCore, QtGui, Qt, max_parent
-from max_ultra.dialogs import SkillsWindow, Onboarding, SkillHelpWindow, SettingsWindow, SkillTableItem
+from max_ultra.dialogs import Onboarding, SkillHelpWindow, SettingsWindow
+from max_ultra.skills_window import SkillsWindow, SkillDetailsWindow, MetadataBadge, METADATA_BLOCK, read_skill_document, render_markdown
+from max_ultra.widgets import DESTRUCTIVE_STYLE
 from max_ultra.wire import encode
 
 
@@ -51,15 +54,31 @@ def run():
     status_client.ai_status = lambda: ('Checking', 'checking')
     assert Client.mini_status(status_client)[0] == 'warning'
     calls = []
+    def skills_operation(*args):
+        calls.append(args)
+        client.skills_operation_name = args[0]
+        return True
+    def show_dialog(key, kind):
+        if key not in client.dialogs:
+            client.dialogs[key] = kind(client, max_parent())
+        client.dialogs[key].show()
+        return client.dialogs[key]
     client = SimpleNamespace(root=ROOT, settings=SimpleNamespace(get=lambda *args: "builtin", boolean=lambda section, key, default: default),
-        save_setting=Mock(return_value=True), skills_operation=lambda *args: calls.append(args),
+        save_setting=Mock(return_value=True), skills_operation=skills_operation, skills_operation_name="",
+        catalog_operation=lambda: True, page_operation=lambda identifier: True, dialogs={}, show_dialog=show_dialog, state_directory=None,
         donate=lambda: None, refresh_agents=lambda: None, cancel_integration=lambda: None,
         integration=None, integration_steps=[], integration_result=None, integration_message="Fixture status",
         version="Fixture", update_helper=None, set_autostart=lambda *args: None, sync_autostart=lambda: False,
         check_updates=lambda: None, show_onboarding=lambda: None, set_theme=lambda identifier: True,
         client_state=lambda identifier: "configured",
         manual_setup=lambda: '{"mcpServers":{"max-ultra-mcp":{"command":"node","args":[],"env":{}}}}')
+    # Keep the first paint away from the real per-user skill store.
+    environment = patch.dict('os.environ', {'MAX_ULTRA_MCP_SKILLS_ROOT': tempfile.mkdtemp(prefix='max-ultra-dialog-fixture-')})
+    environment.start()
     skills = SkillsWindow(client, max_parent())
+    client.dialogs["skills"] = skills
+    assert list(skills.navigation) == ['community', 'builtin'], 'Community is the first filter'
+    assert skills.category == "community" and skills.navigation["community"].isChecked(), 'Community is always the starting filter, whatever was saved'
     onboarding = Onboarding(client, max_parent())
     settings = SettingsWindow(client, max_parent())
     client.panel = skills
@@ -68,23 +87,29 @@ def run():
     help_windows = []
     try:
         skills.show()
+        application.processEvents()
+        assert not skills.sections['builtin'].grid.cards, 'Cards behind the other filter are not built at opening'
+        assert skills.sections['installed'].hint.text().startswith('No skills are installed yet') and skills.sections['community'].header.spinner.isHidden()
+        skills.navigation['builtin'].click()
+        application.processEvents()
+        assert len(skills.sections['builtin'].grid.cards) >= 9 and skills.sections['builtin'].hint_row.isHidden(), 'Built-in skills are shown without any helper'
+        assert not calls and skills.navigation['builtin'].count == len(skills.sections['builtin'].grid.cards)
+        assert skills.navigation['community'].count is None, 'An unknown list is never shown as zero'
+        assert all(skills.sections[key].header.isHidden() and skills.sections[key].grid.isHidden() for key in ('installed', 'community'))
+        skills.present()
+        assert skills.category == 'community' and skills.navigation['community'].isChecked() and not calls, 'Reopening returns to Community without a helper for local skills'
+        assert skills.sections['community'].header.spinner.isHidden(), 'The catalog is requested only after the window has painted'
+        application.processEvents()
+        assert not calls and not skills.sections['community'].header.spinner.isHidden(), 'Only the catalog loads in the background'
+        client.skills_operation_name = 'community-install'
         skills.set_busy(True)
         application.processEvents()
-        assert skills.loading_overlay.isVisible() and skills.loading_overlay.timer.isActive()
-        assert not skills.preview.isEnabled() and skills.close_button.isEnabled()
-        skills.resize(900, 700)
-        application.processEvents()
-        assert skills.loading_overlay.width() == skills.width() - 2
-        assert skills.loading_overlay.y() > skills.header.geometry().bottom()
-        skills.hide()
-        application.processEvents()
-        assert not skills.loading_overlay.timer.isActive()
-        skills.show()
-        application.processEvents()
-        assert skills.loading_overlay.timer.isActive()
+        assert skills.progress.isVisible() and skills.elapsed.isVisible() and skills.elapsed_timer.isActive()
+        assert not skills.import_folder_button.isEnabled() and not skills.import_zips_button.isEnabled() and not skills.refresh_button.isEnabled()
+        assert skills.close_button.isEnabled() and skills.search.isEnabled() and skills.donate_button.isEnabled()
         skills.set_busy(False)
-        assert skills.loading_overlay.isHidden() and not skills.loading_overlay.timer.isActive()
-        assert skills.preview.isEnabled()
+        assert skills.progress.isHidden() and not skills.elapsed_timer.isActive()
+        assert skills.import_folder_button.isEnabled() and skills.refresh_button.isEnabled()
         skills.resize(1040, 860)
         onboarding.setWindowOpacity(0.8)
         original_opacity = onboarding.windowOpacity()
@@ -158,51 +183,57 @@ def run():
         settings.update_status()
         assert settings.update_status_label.text() == client.update_message
         parser = configparser.ConfigParser()
-        parser['result'] = {'haslist': 'true', 'count': '2', 'message': encode('Synthetic catalog')}
+        parser['result'] = {'ok': 'true', 'haslist': 'true', 'count': '2', 'message': encode('Synthetic catalog')}
+        custom_identifier = 'user/00000000-0000-4000-8000-000000000001'
         for index, source in enumerate(['Built-in', 'Custom']):
             parser['skill' + str(index)] = {key: encode(value) for key, value in
-                {'id': str(index), 'name': 'Example ' + source, 'description': 'Example description',
+                {'id': 'bundled/example' if source == 'Built-in' else custom_identifier, 'name': 'example-' + source.lower(), 'description': 'Example description',
+                 'state': 'Read only' if source == 'Built-in' else 'ready',
                  'author': 'Fixture Author', 'version': '1.2.3', 'title': 'Example ' + source, 'displayDescription': 'Example description', 'displaySource': 'Community Skills', 'website': 'https://example.com/skills', 'email': 'author@example.com', 'source': source}.items()}
+        client.skills_operation_name = 'list'
         with tempfile.TemporaryDirectory() as folder:
             skills.apply_result(SimpleNamespace(snapshot=parser, result=Path(folder) / 'result.ini'))
         skills.show()
-        skills.list.setCurrentItem(skills.list.topLevelItem(0))
         application.processEvents()
-        assert skills.list.topLevelItem(0).text(1) == 'Example description'
-        assert skills.list.columnCount() == 4
-        assert skills.list.isSortingEnabled() and skills.list.header().isSortIndicatorShown()
-        sorting = QtWidgets.QTreeWidget()
-        sorting.setColumnCount(4)
-        for values, date in [(['beta', 'First', 'Zoe', '2 Jan, 2026'], '2026-01-02'), (['Alpha', 'Second', 'Amy', '13 Oct, 2025'], '2025-10-13')]:
-            item = SkillTableItem(values)
-            item.setData(3, Qt.UserRole, date)
-            sorting.addTopLevelItem(item)
-        sorting.setSortingEnabled(True)
-        for column, first in [(0, 'Alpha'), (1, 'beta'), (2, 'Alpha'), (3, 'Alpha')]:
-            sorting.sortByColumn(column, Qt.AscendingOrder)
-            assert sorting.topLevelItem(0).text(0) == first
-            sorting.sortByColumn(column, Qt.DescendingOrder)
-            assert sorting.topLevelItem(1).text(0) == first
-        sorting.deleteLater()
-        assert skills.list.headerItem().text(0) == 'Name'
-        assert skills.list.headerItem().text(1) == 'Description'
-        skills.set_preview_html('<html><body><div class="skill-header" id="skill-header" role="navigation"><a style="display:none">Back</a><span>Back</span><span>Custom Ready</span></div><h1>Fixture instructions</h1><p>Back is valid document text.</p><a href="skill-ref:references/test.md">Reference</a></body></html>')
-        assert skills.preview.toPlainText().startswith('Fixture instructions')
-        assert 'Back is valid document text.' in skills.preview.toPlainText()
-        assert 'Custom Ready' not in skills.preview.toPlainText()
-        assert 'skill-ref:references/test.md' in skills.preview.toHtml()
-        assert not skills.delete_button.isVisible()
+        assert skills.status.isHidden(), 'A background list refresh has no status message'
+        skills.resize(1180, 820)
+        skills.navigation['builtin'].click()
+        application.processEvents()
+        builtin_card = skills.sections['builtin'].grid.cards[0]
+        builtin_height = builtin_card.height()
+        assert skills.sections['builtin'].grid.columns == 3, 'The default window shows three cards per row'
+        assert skills.sections['builtin'].header.isHidden(), 'The Built-in filter needs no heading of its own'
+        skills.navigation['community'].click()
+        application.processEvents()
+        custom_card = skills.sections['installed'].grid.cards[0]
+        assert not skills.sections['installed'].header.isHidden() and skills.sections['installed'].header.title.text() == 'Installed'
+        assert skills.sections['community'].header.title.text() == 'Not installed'
+        assert skills.sections['installed'].header.geometry().top() < skills.sections['community'].header.geometry().top(), 'Installed skills come before the ones that are not installed'
+        assert builtin_card.delete_button is None and builtin_card.install_button is None, 'Built-in skills cannot be deleted'
+        assert custom_card.delete_button._theme_style == DESTRUCTIVE_STYLE and custom_card.delete_button.toolButtonStyle() == Qt.ToolButtonIconOnly
+        assert custom_card.delete_button.toolTip() == 'Delete Skill' and custom_card.delete_button.accessibleName() == 'Delete Skill'
+        assert [badge.text() for badge in builtin_card.findChildren(MetadataBadge)] == ['Built-in', 'Fixture Author', '1.2.3']
+        assert [badge.text() for badge in custom_card.findChildren(MetadataBadge)] == ['Installed', 'Fixture Author', '1.2.3']
+        assert [chip.text() for chip in skills.navigation.values()] == ['Community', 'Built-in 1'], 'The Community counter waits for the catalog'
+        assert skills.sections['community'].hint.text() == 'Loading the community catalog...'
+        assert not skills.sections['community'].grid.cards
+        assert builtin_card.details_button.accessibleName() == 'View details for Example Built-in'
+        assert not skills.compact
+        assert skills.search.geometry().right() < skills.import_folder_button.geometry().left() < skills.import_zips_button.geometry().left() < skills.refresh_button.geometry().left(), 'Import actions sit beside the search field'
+        assert skills.import_folder_button.toolButtonStyle() == Qt.ToolButtonTextBesideIcon and skills.refresh_button.toolButtonStyle() == Qt.ToolButtonIconOnly
+        assert [link.text() for link in skills.footer_links] == ['How to Create and Import Skills', 'Submit Your Skill', 'Open Online Catalog']
+        assert all(not link.isHidden() for link in skills.footer_links) and all(button.isHidden() for button in skills.footer_buttons)
+        assert skills.footer_links[0].geometry().right() < skills.footer_links[1].geometry().left() < skills.footer_links[2].geometry().left()
+        assert skills.footer_links[2].geometry().right() < skills.donate_button.geometry().left(), 'Help links share the bottom row with Donate'
+        assert skills.donate_button.geometry().top() > skills.scroll.geometry().bottom()
+        skills.resize(1040, 860)
         previous = list(calls)
-        skills.delete_selected()
+        skills.delete_skill(builtin_card.item)
         assert calls == previous, 'Built-in deletion reached the helper'
-        assert skills.list.height() < 180 and skills.preview.height() > 400
-        skills.source.setCurrentIndex(1)
-        skills.list.setCurrentItem(skills.list.topLevelItem(1))
-        assert skills.delete_button.isVisible()
-        builtin_menu = skills.skill_menu(skills.list.topLevelItem(0))
-        custom_menu = skills.skill_menu(skills.list.topLevelItem(1))
-        assert [item.text() for item in builtin_menu.actions()] == ['About', 'Open folder']
-        assert [item.text() for item in custom_menu.actions()] == ['About', 'Open folder', '', 'Delete']
+        builtin_menu = skills.card_menu(builtin_card.item)
+        custom_menu = skills.card_menu(custom_card.item)
+        assert [item.text() for item in builtin_menu.actions()] == ['View details', 'Open folder']
+        assert [item.text() for item in custom_menu.actions()] == ['View details', 'Open folder', '', 'Delete']
         assert custom_menu.actions()[2].isSeparator()
         assert custom_menu.actions()[3].property('destructive')
         assert all(not item.icon().isNull() for item in custom_menu.actions() if not item.isSeparator())
@@ -215,54 +246,93 @@ def run():
         assert not custom_menu.mask().contains(QtCore.QPoint(0, 0))
         assert custom_menu.mask().contains(custom_menu.rect().center())
         custom_menu.grab().save(str(ROOT / 'dist/skills-context-menu.png'))
-        def inspect_about(dialog):
-            content = dialog.findChild(QtWidgets.QTextBrowser).toPlainText()
-            assert 'Example Custom' in content and 'Example description' in content
-            assert 'Fixture Author' in content and 'Source: Community Skills' in content and 'Type: Custom' in content
-            assert 'Version: 1.2.3' in content
-            assert 'Website: https://example.com/skills' in content and 'Email: author@example.com' in content
-            browser = dialog.findChild(QtWidgets.QTextBrowser)
-            assert browser._theme_html.count('color:@support_link') == 2
-            with patch.object(QtGui.QDesktopServices, 'openUrl', return_value=True) as opener:
-                browser.anchorClicked.emit(QtCore.QUrl('https://example.com/skills'))
-                assert opener.call_count == 1
-                browser.anchorClicked.emit(QtCore.QUrl('file:///unsafe'))
-                assert opener.call_count == 1
-            return 0
-        with patch.object(SkillsWindow.__bases__[0], 'exec_', inspect_about):
-            custom_menu.actions()[0].trigger()
+        package = Path(os.environ['MAX_ULTRA_MCP_SKILLS_ROOT']) / 'packages' / custom_identifier.split('/')[1]
+        (package / 'references').mkdir(parents=True)
+        (package / 'SKILL.md').write_text('---\nname: example-custom\ndescription: Fixture description for the details window.\n---\n# Fixture instructions\n\nBack is valid document text.\n\n[Reference](references/example.md)\n\n<script>alert(1)</script>\n\n' + 'Example paragraph.\n\n' * 100, encoding='utf-8')
+        (package / 'references' / 'example.md').write_text('# Reference\n\nReference body.\n', encoding='utf-8')
+        custom_menu.actions()[0].trigger()
+        details = client.dialogs['skill_details']
+        application.processEvents()
+        assert details.title.text() == 'Example Custom' and details.isVisible()
+        assert all(call[0] != 'read' for call in calls), 'Instructions are read in the window, never through a helper process'
+        shown = details.preview.toPlainText()
+        assert 'Fixture instructions' in shown and 'Back is valid document text.' in shown, 'Instructions are visible as soon as the window opens'
+        assert 'example-custom' in shown and 'Fixture description for the details window.' in shown
+        assert '<script>alert(1)</script>' in shown and '<script' not in details.preview.toHtml().replace('&lt;script', ''), 'Raw HTML in a skill is shown as text, never interpreted'
+        assert 'references/example.md' in details.preview.toHtml()
+        assert not details.note.text() and details.close_button.isEnabled()
+        assert abs(builtin_height - custom_card.height()) <= 2, 'Built-in cards are as tall as the other cards'
+        information = details.information.text()
+        assert 'Source:</b> Community Skills' in information and 'Type:</b> Custom' in information and 'Status:</b> ready' in information
+        assert 'https://example.com/skills' in information and 'mailto:author%40example.com' in information
+        assert details.information._theme_label.count('color:@support_link') == 2
+        assert [badge.text() for badge in details.findChildren(MetadataBadge)] == ['Installed', 'Fixture Author', '1.2.3']
+        assert details.folder_button.isVisible() and not details.online_button.isVisible()
+        with patch.object(QtGui.QDesktopServices, 'openUrl', return_value=True) as opener:
+            details.open_link('https://example.com/skills')
+            assert opener.call_count == 1
+            details.open_link('file:///unsafe')
+            assert opener.call_count == 1
+        skills.show_details(builtin_card.item)
+        application.processEvents()
+        assert client.dialogs['skill_details'] is details and details.title.text() == 'Example Built-in'
+        assert sum(isinstance(window, SkillDetailsWindow) for window in application.topLevelWidgets()) == 1, 'Details reuse one window'
+        assert [badge.text() for badge in details.findChildren(MetadataBadge) if not badge.isHidden()] == ['Built-in', 'Fixture Author', '1.2.3']
+        details.close()
+        skills.show_details(custom_card.item)
+        assert details.isVisible() and details.title.text() == 'Example Custom', 'A closed details window reopens'
         with patch.object(QtWidgets.QMessageBox, 'question', return_value=QtWidgets.QMessageBox.Yes):
             custom_menu.actions()[3].trigger()
-        assert calls[-1] == ('delete', ['-SkillId', '1'])
+        assert calls[-1] == ('delete', ['-SkillId', custom_identifier])
+        assert not custom_card.delete_button.isEnabled(), 'A running change disables further changes'
+        skills.set_busy(False)
         with tempfile.TemporaryDirectory() as folder:
-            entry = QtWidgets.QTreeWidgetItem(['Synthetic skill'])
-            identifier = '00000000-0000-4000-8000-000000000001'
-            entry.setData(0, Qt.UserRole, ('user/' + identifier, 'Custom'))
-            target = Path(folder) / 'packages' / identifier
+            target = Path(folder) / 'packages' / custom_identifier.split('/')[1]
             target.mkdir(parents=True)
             with patch.dict('os.environ', {'MAX_ULTRA_MCP_SKILLS_ROOT': folder}), patch.object(QtGui.QDesktopServices, 'openUrl', return_value=True) as open_url:
-                skills.open_skill_folder(entry)
+                skills.open_skill_folder(custom_card.item)
                 assert Path(open_url.call_args[0][0].toLocalFile()) == target.resolve()
+                details.open_folder()
+                assert open_url.call_count == 2
         builtin_menu.deleteLater()
         custom_menu.deleteLater()
+        details.resize(820, 760)
+        skills.show_details(custom_card.item)
+        application.processEvents()
+        details.preview.verticalScrollBar().setValue(180)
+        details.navigate(QtCore.QUrl('references/example.md'))
+        assert details.back_button.isVisible() and details.current_document == (custom_identifier, 'references/example.md')
+        assert 'Reference body.' in details.preview.toPlainText() and 'Fixture instructions' not in details.preview.toPlainText()
+        details.back()
+        assert 'Fixture instructions' in details.preview.toPlainText() and details.preview.verticalScrollBar().value() == 180
+        assert details.current_document == (custom_identifier, 'SKILL.md') and not details.back_button.isVisible()
+        assert all(call[0] != 'read' for call in calls)
+        for unsafe in ('../outside.md', 'C:/outside.md', 'references/../../outside.md', 'references/missing.md', 'notes.exe'):
+            assert not read_skill_document(ROOT, custom_card.item['local'], unsafe)[0], unsafe
+        details.navigate(QtCore.QUrl('references/missing.md'))
+        assert 'no longer available' in details.note.text() and 'Fixture instructions' in details.preview.toPlainText(), 'A failed read keeps the previous document'
+        details.back()
+        details.apply_document(False, 'Synthetic read failure', '')
+        assert details.note.text() == 'Synthetic read failure' and 'Fixture instructions' in details.preview.toPlainText()
         long_html = '<p>Start</p>' + '<p>Example paragraph</p>' * 100 + '<a name="end"></a><p>End</p>'
-        skills.set_preview_html(long_html)
+        details.apply_document(True, '', long_html)
         application.processEvents()
-        skills.preview.verticalScrollBar().setValue(180)
-        skills.open_document('1', 'references/example.md')
-        assert skills.back_button.isVisible()
-        skills.back()
-        skills.set_preview_html(long_html)
-        assert skills.preview.verticalScrollBar().value() == 180
+        details.preview.verticalScrollBar().setValue(180)
         before_anchor = list(calls)
-        skills.navigate(QtCore.QUrl('#end'))
-        assert skills.preview.verticalScrollBar().value() > 180
+        details.navigate(QtCore.QUrl('#end'))
+        assert details.preview.verticalScrollBar().value() > 180
         assert calls == before_anchor, 'Local anchors must not start helper reads'
-        assert skills.current_document == ('1', 'SKILL.md')
-        assert not skills.back_button.isVisible()
-        skills.resize(320, 300)
+        details.show_report('<p>1 imported, 1 failed.</p>')
+        assert details.title.text() == 'Import Report' and not details.folder_button.isVisible() and '1 failed' in details.preview.toPlainText()
+        skills.resize(360, 300)
         application.processEvents()
-        assert skills.width() == 320
+        assert skills.width() == 360 and skills.compact
+        assert skills.import_folder_button.toolButtonStyle() == Qt.ToolButtonIconOnly and skills.import_zips_button.toolButtonStyle() == Qt.ToolButtonIconOnly
+        assert all(link.isHidden() for link in skills.footer_links), 'A narrow window replaces the help links with icons'
+        assert all(not button.isHidden() and button.toolButtonStyle() == Qt.ToolButtonIconOnly for button in skills.footer_buttons)
+        assert [button.toolTip() for button in skills.footer_buttons] == ['How to Create and Import Skills', 'Submit Your Skill', 'Open Online Catalog']
+        assert skills.sections['installed'].grid.columns == 1 and skills.scroll.horizontalScrollBar().maximum() == 0
+        assert skills.navigation['builtin'].geometry().right() < skills.width()
         onboarding.show()
         client.manual_setup = lambda: '{"mcpServers":{"max-ultra-mcp":{"command":"updated-node","args":["--stdio"],"env":{"MAX_ULTRA_MCP_PORT":"49000"}}}}'
         onboarding.update_status()
@@ -305,7 +375,7 @@ def run():
         client.integration = None
         onboarding.update_status()
         assert all(label.isEnabled() and 'Check failed' in label.text() for label in onboarding.card_statuses)
-        assert all(button.text() != 'Copy Skill Creation Prompt' for button in skills.buttons)
+        assert all(button.text() != 'Copy Skill Creation Prompt' for button in skills.findChildren(QtWidgets.QToolButton))
         for submit in [False, True]:
             help_window = SkillHelpWindow(client, max_parent(), submit=submit)
             help_windows.append(help_window)
@@ -333,74 +403,74 @@ def run():
             help_window.resize(320, 300)
             application.processEvents()
             assert help_window.width() == 320
-        skills.set_preview_html('<html><head><style>p{font-size:14px}h1{font-size:25px}</style></head><body><div class="metadata"><div class="eyebrow">SKILL</div><h1>Heading</h1><p>Introductory description</p></div>' + '<p style="font-size:30px">Responsive example text for reading.</p>' * 100 + '</body></html>')
+        details.apply_document(True, '', '<html><head><style>p{font-size:14px}h1{font-size:25px}</style></head><body>' + METADATA_BLOCK.format('SKILL', 'Heading', 'Introductory description') + '<p style="font-size:30px">Responsive example text for reading.</p>' * 100 + '</body></html>')
         for width, points in [(380, 8), (560, 9), (800, 10), (1250, 11), (1280, 16), (1800, 20), (2400, 24), (3000, 28), (3600, 32), (1251, 14)]:
-            skills.resize(width, 800)
+            details.resize(width, 800)
             application.processEvents()
-            assert skills.preview._text_points == points
-            cursor = skills.preview.document().find('Responsive')
+            assert details.preview._text_points == points
+            cursor = details.preview.document().find('Responsive')
             assert cursor.charFormat().fontPointSize() == points
-            heading = skills.preview.document().find('Heading')
+            heading = details.preview.document().find('Heading')
             assert heading.charFormat().fontPointSize() > points
             assert heading.charFormat().font().pointSizeF() > points
-            table = next(frame for frame in skills.preview.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable))
+            table = next(frame for frame in details.preview.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable))
             assert table.format().border() == 1
             assert table.format().borderStyle() == QtGui.QTextFrameFormat.BorderStyle_Solid
-            assert skills.preview.document().documentMargin() == skills.preview._document_padding
-            assert 16 <= skills.preview._document_padding <= 40
+            assert details.preview.document().documentMargin() == details.preview._document_padding
+            assert 16 <= details.preview._document_padding <= 40
             if width in (380, 1800):
-                saved_scroll = skills.preview.verticalScrollBar().value()
-                skills.preview.verticalScrollBar().setValue(0)
-                skills.preview.grab().save(str(ROOT / 'dist' / ('skills-responsive-%d.png' % width)))
-                skills.preview.verticalScrollBar().setValue(saved_scroll)
-        skills.preview.verticalScrollBar().setValue(400)
-        anchor = skills.preview.cursorForPosition(QtCore.QPoint(0, 0)).position()
-        skills.resize(1800, 800)
+                saved_scroll = details.preview.verticalScrollBar().value()
+                details.preview.verticalScrollBar().setValue(0)
+                details.preview.grab().save(str(ROOT / 'dist' / ('skills-responsive-%d.png' % width)))
+                details.preview.verticalScrollBar().setValue(saved_scroll)
+        details.preview.verticalScrollBar().setValue(400)
+        anchor = details.preview.cursorForPosition(QtCore.QPoint(0, 0)).position()
+        details.resize(1800, 800)
         application.processEvents()
-        restored = skills.preview.cursorForPosition(QtCore.QPoint(0, 0)).position()
+        restored = details.preview.cursorForPosition(QtCore.QPoint(0, 0)).position()
         assert abs(restored - anchor) < 40
         import subprocess
         sample = '---\nname: narrow-example\ndescription: Guide architectural composition, lighting and presentation using a verified workflow.\n---\n# Example workflow\n\nA sample body paragraph for readable content width.'
-        actual_html = subprocess.check_output([str(ROOT / 'runtime/win-x64/node.exe'), '-e', 'process.stdout.write(require("./core/skill-markdown").renderMarkdown(process.argv[1],{navigation:true}))', '--', sample], cwd=str(ROOT), creationflags=subprocess.CREATE_NO_WINDOW).decode('utf-8')
-        skills.resize(320, 800)
+        actual_html = render_markdown(sample)
+        details.resize(320, 800)
         application.processEvents()
-        skills.set_preview_html(actual_html)
-        skills.preview.verticalScrollBar().setValue(0)
+        details.apply_document(True, '', actual_html)
+        details.preview.verticalScrollBar().setValue(0)
         application.processEvents()
-        table = next(frame for frame in skills.preview.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable))
+        table = next(frame for frame in details.preview.document().rootFrame().childFrames() if isinstance(frame, QtGui.QTextTable))
         assert table.format().border() == 1
-        body_cursor = skills.preview.document().find('A sample body')
-        body_rect = skills.preview.document().documentLayout().blockBoundingRect(body_cursor.block())
+        body_cursor = details.preview.document().find('A sample body')
+        body_rect = details.preview.document().documentLayout().blockBoundingRect(body_cursor.block())
         body_block = body_cursor.block()
         body_layout = body_block.layout()
         effective_left = body_rect.left() + body_layout.lineAt(0).x()
         assert 15 <= effective_left <= 18, effective_left
-        skills.preview.grab().save(str(ROOT / 'dist/skills-actual-narrow.png'))
+        details.preview.grab().save(str(ROOT / 'dist/skills-actual-narrow.png'))
         # A resize while QTextDocument removes the old contents used to nest
         # setHtml inside itself and insert the metadata twice.
-        skills.preview.setHtml('<p>Welcome</p>')
+        details.preview.setHtml('<p>Welcome</p>')
         resized_during_load = [False]
         def resize_during_load(*args):
             if not resized_during_load[0]:
                 resized_during_load[0] = True
-                skills.resize(1000, 800)
+                details.resize(1000, 800)
                 application.processEvents()
-        skills.preview.document().contentsChange.connect(resize_during_load)
-        skills.set_preview_html(actual_html)
+        details.preview.document().contentsChange.connect(resize_during_load)
+        details.apply_document(True, '', actual_html)
         application.processEvents()
-        skills.preview.document().contentsChange.disconnect(resize_during_load)
-        assert skills.preview.toPlainText().count('narrow-example') == 1
-        assert len(skills.preview.document().rootFrame().childFrames()) == 1
-        skills.preview.setHtml('<p>Example text and <a href="https://example.com/skill">reference</a></p>')
-        skills.preview.selectAll()
-        menu = skills.preview.document_menu(QtCore.QPoint(0, 0))
+        details.preview.document().contentsChange.disconnect(resize_during_load)
+        assert details.preview.toPlainText().count('narrow-example') == 1
+        assert len(details.preview.document().rootFrame().childFrames()) == 1
+        details.preview.setHtml('<p>Example text and <a href="https://example.com/skill">reference</a></p>')
+        details.preview.selectAll()
+        menu = details.preview.document_menu(QtCore.QPoint(0, 0))
         actions = [item for item in menu.actions() if not item.isSeparator()]
         assert [item.text() for item in actions] == ['Copy', 'Copy Link Location', 'Select All']
         assert actions[0].isEnabled() and not actions[1].isEnabled()
         assert all(not item.icon().isNull() for item in actions)
         clipboard = Mock()
-        with patch.object(QtWidgets.QApplication, 'clipboard', return_value=clipboard), patch.object(type(skills.preview), 'anchorAt', return_value='https://example.com/skill'):
-            link_menu = skills.preview.document_menu(QtCore.QPoint(0, 0))
+        with patch.object(QtWidgets.QApplication, 'clipboard', return_value=clipboard), patch.object(type(details.preview), 'anchorAt', return_value='https://example.com/skill'):
+            link_menu = details.preview.document_menu(QtCore.QPoint(0, 0))
             link_menu.actions()[1].trigger()
         clipboard.setText.assert_called_once_with('https://example.com/skill')
         menu.resize(menu.sizeHint())
@@ -413,12 +483,13 @@ def run():
         menu.grab().save(str(ROOT / 'dist/skills-document-menu.png'))
         menu.deleteLater()
         link_menu.deleteLater()
-        return 'Dialog fixtures passed: metadata, tabs, protected built-ins, Back, compact layout and responsive preview text'
+        return 'Dialog fixtures passed: metadata, cards, protected built-ins, one details window, Back, compact layout and responsive preview text'
     finally:
-        for window in [skills, onboarding, settings] + help_windows:
+        for window in [skills, onboarding, settings] + help_windows + [window for key, window in client.dialogs.items() if key != 'skills']:
             window.close()
             window.deleteLater()
         application.processEvents()
+        environment.stop()
 
 
 if __name__ == '__main__':

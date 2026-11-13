@@ -9,17 +9,39 @@ import uuid
 import configparser
 import json
 
-from .processes import launch_helper
+from .processes import launch_helper, launch_node, bundled_node
 from .settings import read_ini
+
+SKILL_APPEARANCE = ["--background", "28,28,26", "--foreground", "232,227,218", "--buttonBackground", "48,46,41", "--buttonHover", "65,56,45"]
+
+
+def skills_command(operation, arguments=None):
+    """Translate a Skills window operation into skills-cli.js arguments; None when it has no direct form."""
+    values = dict(zip((arguments or [])[0::2], (arguments or [])[1::2]))
+    forms = {
+        "list": ("list",), "community-list": ("community-list",), "community-sync": ("community-sync",),
+        "delete": ("delete", "-SkillId"), "add-folder": ("add-folder", "-Source"), "add-zips": ("add-zips-file", "-Source"),
+        "community-install": ("community-install", "-SkillId", "-Source", "-Revision"),
+        "community-delete": ("community-delete", "-SkillId", "-Source", "-Revision"),
+        "community-page": ("community-page", "-SkillId"),
+    }
+    form = forms.get(operation)
+    if form is None or any(not values.get(name) for name in form[1:]):
+        return None
+    return [form[0]] + [values[name] for name in form[1:]] + SKILL_APPEARANCE
 
 
 class Helper:
-    def __init__(self, root, directory, filename, arguments, result_argument="-ResultPath", timeout=75):
+    def __init__(self, root, directory, filename, arguments, result_argument="-ResultPath", timeout=75, node=None):
         self.result = Path(directory) / ("operation-" + uuid.uuid4().hex + ".ini")
         self.started = time.monotonic()
         self.timeout = timeout
         self.cancelled = False
-        self.process = launch_helper(root, filename, list(arguments) + [result_argument, str(self.result)], managed=True)
+        if node is not None and bundled_node(root) is not None:
+            # Same script and result file as the PowerShell helper, started without its wrapper.
+            self.process = launch_node(root, node[0], list(node[1]) + ["--result", str(self.result)])
+        else:
+            self.process = launch_helper(root, filename, list(arguments) + [result_argument, str(self.result)], managed=True)
         self.snapshot = None
         self.temporary_files = []
 
