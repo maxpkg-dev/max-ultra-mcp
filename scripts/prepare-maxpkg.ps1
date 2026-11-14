@@ -1,4 +1,4 @@
-# Prepares reproducible project-local settings for the pinned MaxPkg Packager.
+# Prepares reproducible project-local settings in the max-package folder used by MaxPkg Packager 2.x.
 # Copyright (c) 2026 Lukianenko Vasyl
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
@@ -14,9 +14,10 @@ $fileManifestPath = Join-Path $projectRoot 'maxpkg-files.txt'
 $versionIniPath = Join-Path $projectRoot 'version.ini'
 $packageJsonPath = Join-Path $projectRoot 'core\package.json'
 $trackedChangelogPath = Join-Path $projectRoot 'CHANGELOG.md'
-$packagerIconPath = Join-Path $projectRoot 'maxpkg-icon.svg'
-$settingsPath = Join-Path $projectRoot 'maxpkg-packager.ini'
-$changelogPath = Join-Path $projectRoot 'maxpkg-changelog.ini'
+$supportFolder = Join-Path $projectRoot 'max-package'
+$packagerIconPath = Join-Path $supportFolder 'icon.svg'
+$settingsPath = Join-Path $supportFolder 'project.ini'
+$changelogPath = Join-Path $supportFolder 'changelog.ini'
 $outputFolder = Join-Path $projectRoot 'dist\maxpkg'
 $packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'
 
@@ -25,13 +26,13 @@ $packageGuid = 'c6977570-25a6-41b0-b9bb-b3be8101123c'
 if (-not $SkipToolSync) {
     & (Join-Path $PSScriptRoot 'sync-maxpkg-tooling.ps1')
 }
-foreach ($requiredTool in @('maxpkg-packager.ms','_install.ms','_uninstall.ms')) {
+foreach ($requiredTool in @('maxpkg-packager.ms', 'max-package\_install.ms', 'max-package\_uninstall.ms')) {
     if (-not (Test-Path -LiteralPath (Join-Path $projectRoot $requiredTool) -PathType Leaf)) {
         throw "$requiredTool is missing. Run scripts\sync-maxpkg-tooling.ps1 first."
     }
 }
 if (-not (Test-Path -LiteralPath $fileManifestPath -PathType Leaf)) { throw 'maxpkg-files.txt is missing.' }
-if (-not (Test-Path -LiteralPath $packagerIconPath -PathType Leaf)) { throw 'The source-controlled maxpkg-icon.svg file is missing.' }
+if (-not (Test-Path -LiteralPath $packagerIconPath -PathType Leaf)) { throw 'The source-controlled max-package\icon.svg file is missing.' }
 if (-not (Test-Path -LiteralPath $trackedChangelogPath -PathType Leaf)) { throw 'CHANGELOG.md is missing.' }
 
 $projectVersion = Get-MaxUltraProjectVersionInfo -VersionIniPath $versionIniPath

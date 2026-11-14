@@ -264,7 +264,7 @@ class AboutWindow(Window):
         ratio = self.devicePixelRatioF()
         logo_path = client.root / 'icons/icon.svg'
         if not logo_path.is_file():
-            logo_path = client.root / 'maxpkg-icon.svg'
+            logo_path = client.root / 'max-package/icon.svg'
         pixmap = QtGui.QIcon(str(logo_path)).pixmap(round(60 * ratio), round(60 * ratio))
         pixmap.setDevicePixelRatio(ratio)
         logo.setPixmap(pixmap)

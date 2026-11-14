@@ -16,7 +16,7 @@ Never guess current categories, limits, image dimensions, accepted formats, pric
 
 ## Start from a verified package
 
-Inspect the built MZP, `maxpkg-packager.ini`, `maxpkg-changelog.ini`, icon, manifest files, and project documentation before writing marketplace copy. Confirm the exact packager-produced filename and current version.
+Inspect the built MZP, `max-package\project.ini`, `max-package\changelog.ini`, icon, manifest files, and project documentation before writing marketplace copy. Confirm the exact packager-produced filename and current version.
 
 The public documentation states that maxpkg.dev reads core facts from the uploaded MZP, including package name, short description, version, supported 3ds Max versions, license, changelog, icon, and links. Fix incorrect package facts in the project configuration and rebuild with the original packager instead of contradicting the archive on the website.
 
@@ -24,7 +24,7 @@ Preserve the package GUID for the lifetime of the package. The GUID is private i
 
 ## Generate the complete listing package
 
-Do not merely explain the form. After mandatory write consent, create `maxpkg-marketplace-listing.md` in the project root. Do not include it in the MZP unless the user explicitly wants it shipped as documentation.
+Do not merely explain the form. After mandatory write consent, create `maxpkg-marketplace-listing.md` inside the project's `max-package` folder, never in the project root. Do not include it in the MZP unless the user explicitly wants it shipped as documentation.
 
 Populate the document with evidence-backed, ready-to-paste content in this order:
 

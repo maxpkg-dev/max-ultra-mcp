@@ -11,12 +11,13 @@ Never publish from a dirty tree, an unreviewed archive, a branch other than `mai
 ## Release source of truth
 
 - `version.ini` is the canonical product version and channel.
-- `maxpkg-packager.ini` is generated, ignored, and machine-local. It receives the canonical version during package preparation and must never become a release source of truth.
+- `max-package/project.ini` is generated, ignored, and machine-local. It receives the canonical version during package preparation and must never become a release source of truth.
 - `scripts/prepare-release.ps1` updates `version.ini`, `core/package.json`, and `CHANGELOG.md`; regenerates MaxPkg inputs with the permanent `Free` license; and runs verification.
 - The installed UI reads its displayed version from package `manifest.ini` and falls back to `version.ini` only in a source checkout. The main title must not contain First Step.
 - `CHANGELOG.md` is the human-readable release history. Keep `## Unreleased` at the top and use factual entries formatted as `- Added:`, `- Changed:`, `- Improved:`, `- Fixed:`, or `- Removed:`.
-- `scripts/prepare-maxpkg.ps1` converts the current tracked changelog section to machine-local `maxpkg-changelog.ini` for MaxPkg Packager.
-- `maxpkg-icon.svg` is source controlled and must never be overwritten during release preparation.
+- `scripts/prepare-maxpkg.ps1` converts the current tracked changelog section to machine-local `max-package/changelog.ini` for MaxPkg Packager.
+- `max-package/icon.svg` is source controlled and must never be overwritten during release preparation.
+- MaxPkg Packager 2.x owns the `max-package` folder. The root keeps only the `maxpkg-packager.ms` launcher; the standard hooks `max-package/_install.ms` and `max-package/_uninstall.ms` are source controlled, and the packager keeps them identical to the copies it ships. Commit such a hook update separately from product changes.
 - Existing MaxPkg tooling may self-update and must be preserved during preparation. The pinned revision is a verified bootstrap only for missing files; overwriting requires an explicit tooling-sync action with `-Force`.
 
 Do not manually bump only one version-bearing file. Do not invent compatibility, test results, dates, features, or fixes.

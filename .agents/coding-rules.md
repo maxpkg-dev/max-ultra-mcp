@@ -38,10 +38,10 @@ Data-only metadata files are exempt when their format does not support comments.
 
 ## MaxPkg packaging
 
-- Keep `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` in the project root and preserve their upstream headers.
+- Follow the MaxPkg Packager 2.x layout: only the `maxpkg-packager.ms` launcher stays in the project root, and the package icon and both standard hooks live in `max-package` (`icon.svg`, `_install.ms`, `_uninstall.ms`). Preserve their upstream headers and do not put other packaging files in the root.
 - Treat MaxPkg as the only release installation system. Do not add a fallback that calls a legacy installer or uninstaller.
 - Keep `01_START_MAX_ULTRA_MCP_FIRST.ms` as the package entry file and resolve runtime resources from the executing script location.
-- Keep source-machine absolute paths only in ignored `maxpkg-packager.ini`; package manifests and archives must contain package-relative paths.
+- Keep source-machine absolute paths only in ignored `max-package/project.ini`; package manifests and archives must contain package-relative paths.
 - Do not add standard hooks or the focused custom `.ms` hook to `maxpkg-files.txt`; MaxPkg Packager includes those through their dedicated fields.
 - Uninstall cleanup may stop only processes revalidated against the exact installed `core\server.js` path.
 

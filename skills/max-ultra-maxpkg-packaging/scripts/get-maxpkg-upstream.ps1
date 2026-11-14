@@ -1,5 +1,6 @@
-# Fetches the current official MaxPkg guidance and optionally prepares a project with its tooling.
+# Fetches the current official MaxPkg guidance and optionally prepares a project with the packager launcher.
 # The guidance, prompts, API documentation, and MaxScript contents are downloaded from the exact resolved GitHub commit.
+# MaxPkg Packager 2.x keeps only maxpkg-packager.ms in the project root and owns the max-package folder itself.
 # Copyright (c) 2026 Lukianenko Vasyl
 # Project website: https://3dground.net
 # Developed by Lukianenko Vasyl
@@ -24,15 +25,13 @@ $httpHeaders = @{
 }
 $requiredFiles = @(
     'README.md',
-    'code-rules.md',
-    'maxpkg-api.md',
-    'maxpkg-adaptation-prompt.md',
-    'maxpkg-full-onboarding-prompt.md',
-    'maxpkg-packager.ms',
-    '_install.ms',
-    '_uninstall.ms'
+    'docs/code-rules.md',
+    'docs/ai-agents.md',
+    'docs/maxpkg-adaptation-prompt.md',
+    'docs/maxpkg-full-onboarding-prompt.md',
+    'maxpkg-packager.ms'
 )
-$toolingFiles = @('maxpkg-packager.ms', '_install.ms', '_uninstall.ms')
+$toolingFiles = @('maxpkg-packager.ms')
 
 if ($PrepareProject -and -not $ConfirmProjectWrite) {
     throw 'Preparing a project requires -ConfirmProjectWrite after the user completes the MaxPkg skill preflight.'
@@ -55,7 +54,8 @@ try {
 $fileRecords = New-Object System.Collections.Generic.List[object]
 foreach ($fileName in $requiredFiles) {
     $downloadUrl = 'https://raw.githubusercontent.com/' + $repositorySlug + '/' + $commitSha + '/' + $fileName
-    $downloadPath = Join-Path $fetchRoot $fileName
+    $downloadPath = Join-Path $fetchRoot $fileName.Replace('/', '')
+    New-Item -ItemType Directory -Path (Split-Path -Parent $downloadPath) -Force | Out-Null
     Invoke-WebRequest -Uri $downloadUrl -Headers @{ 'User-Agent' = $httpHeaders['User-Agent'] } -OutFile $downloadPath -UseBasicParsing
     if (-not (Test-Path -LiteralPath $downloadPath -PathType Leaf)) {
         throw "Required upstream file was not downloaded: $fileName"
@@ -114,9 +114,9 @@ if ($PrepareProject) {
 }
 
 $selectedPromptFile = if ($Prompt -eq 'FullOnboarding') {
-    'maxpkg-full-onboarding-prompt.md'
+    'docsmaxpkg-full-onboarding-prompt.md'
 } else {
-    'maxpkg-adaptation-prompt.md'
+    'docsmaxpkg-adaptation-prompt.md'
 }
 
 $result = [ordered]@{
@@ -125,10 +125,10 @@ $result = [ordered]@{
     fetchedAtUtc = [DateTime]::UtcNow.ToString('o')
     fetchRoot = $fetchRoot
     readmePath = (Join-Path $fetchRoot 'README.md')
-    codingRulesPath = (Join-Path $fetchRoot 'code-rules.md')
-    apiDocumentationPath = (Join-Path $fetchRoot 'maxpkg-api.md')
-    adaptationPromptPath = (Join-Path $fetchRoot 'maxpkg-adaptation-prompt.md')
-    fullOnboardingPromptPath = (Join-Path $fetchRoot 'maxpkg-full-onboarding-prompt.md')
+    codingRulesPath = (Join-Path $fetchRoot 'docscode-rules.md')
+    apiDocumentationPath = (Join-Path $fetchRoot 'docsai-agents.md')
+    adaptationPromptPath = (Join-Path $fetchRoot 'docsmaxpkg-adaptation-prompt.md')
+    fullOnboardingPromptPath = (Join-Path $fetchRoot 'docsmaxpkg-full-onboarding-prompt.md')
     selectedPrompt = $Prompt
     selectedPromptPath = (Join-Path $fetchRoot $selectedPromptFile)
     files = $fileRecords.ToArray()

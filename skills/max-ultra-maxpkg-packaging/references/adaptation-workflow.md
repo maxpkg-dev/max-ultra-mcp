@@ -29,15 +29,20 @@ Packaging produces an additional MZP artifact; it does not replace the user's so
 
 ## Required MaxPkg authoring files
 
-After the user approves adaptation, use the files returned by `scripts/get-maxpkg-upstream.ps1` and ensure the target project root contains all three original authoring files from the same resolved GitHub commit:
+After the user approves adaptation, use the launcher returned by `scripts/get-maxpkg-upstream.ps1` and ensure the target project has this MaxPkg Packager 2.x layout:
 
-- `maxpkg-packager.ms`;
-- `_install.ms`;
-- `_uninstall.ms`.
+- `maxpkg-packager.ms` in the project root, the original launcher from the resolved GitHub commit;
+- `max-package\project.ini` and `max-package\changelog.ini`, written by the packager;
+- `max-package\icon.svg`, the square package icon;
+- `max-package\_install.ms` and `max-package\_uninstall.ms`, the standard hooks.
 
-Both standard hooks are mandatory for this skill, even when the current upstream README describes them as optional. Copy every missing file into the project root. If a same-named file already exists, compare it with the fetched upstream file. Do not silently overwrite a modified or mismatched file; explain the conflict and request separate approval before replacement. Preserve upstream headers and implementation.
+Copy the launcher into the project root when it is missing. If a same-named file already exists, compare it with the fetched upstream file. Do not silently overwrite a modified or mismatched file; explain the conflict and request separate approval before replacement. Preserve its upstream header and implementation.
 
-These three files keep the project independently buildable in 3ds Max. Do not treat generated manifests, generated `mzp.run` files, or a previously built MZP as replacements for them. Do not add the standard root hooks to the ordinary package file list: MaxPkg detects and embeds them through its lifecycle configuration. Retain unrelated legacy author installers in the source tree, but exclude them from the package.
+Both standard hooks are mandatory in every package. They ship with the packager, which copies them into `max-package` when it opens the project and replaces copies that differ from its own. Do not download, edit, or move them, and do not keep copies in the project root. The first run of the launcher installs the packager into the user profile and needs internet access once.
+
+A project made with packager 1.x keeps `maxpkg-packager.ini`, `maxpkg-changelog.ini`, `maxpkg-icon.svg`, `_install.ms`, and `_uninstall.ms` in its root. The packager moves them into `max-package` on first open; let it do that instead of moving files by hand, then update any project script, ignore rule, or document that still names the old root files.
+
+The launcher and the `max-package` folder keep the project independently buildable in 3ds Max. Do not treat generated manifests, generated `mzp.run` files, or a previously built MZP as replacements for them. Do not add the standard hooks to the ordinary package file list: MaxPkg embeds them in every package. Retain unrelated legacy author installers in the source tree, but exclude them from the package. Keep the project root clean: anything created for packaging belongs in `max-package`.
 
 ## New package-ready projects
 
@@ -119,11 +124,12 @@ Before declaring migration complete, confirm:
 6. a clean install does not depend on a prior version of the tool;
 7. update preserves user settings;
 8. uninstall affects only package-owned integrations;
-9. the project root still contains `maxpkg-packager.ms`, `_install.ms`, and `_uninstall.ms` from one reviewed revision;
+9. the project root contains the reviewed `maxpkg-packager.ms` launcher, `max-package` contains both standard hooks, and no packaging file was left in the root;
 10. a user can run `maxpkg-packager.ms` in 3ds Max and build the MZP without the AI agent;
 11. tests claimed in the handoff were actually performed.
 
 Official source material:
 
-- [MaxPkg Adaptation Prompt](https://github.com/maxpkg-dev/max-dev-tool/blob/4412adcf06b1f62b27fc42fc7a252a4a96b95402/maxpkg-adaptation-prompt.md)
-- [Recommended MaxScript Coding Rules](https://github.com/maxpkg-dev/max-dev-tool/blob/4412adcf06b1f62b27fc42fc7a252a4a96b95402/code-rules.md)
+- [MaxPkg Adaptation Prompt](https://github.com/maxpkg-dev/max-dev-tool/blob/dec469a8791d7e1d2ec978c3ea1668c0fce1158e/docs/maxpkg-adaptation-prompt.md)
+- [Recommended MaxScript Coding Rules](https://github.com/maxpkg-dev/max-dev-tool/blob/dec469a8791d7e1d2ec978c3ea1668c0fce1158e/docs/code-rules.md)
+- [MaxPkg Packager for AI agents](https://github.com/maxpkg-dev/max-dev-tool/blob/dec469a8791d7e1d2ec978c3ea1668c0fce1158e/docs/ai-agents.md)

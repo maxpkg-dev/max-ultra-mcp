@@ -514,7 +514,7 @@ async function runSmokeTest() {
     const maxPkgUpstreamSkillSource = fs.readFileSync(path.join(PROJECT_ROOT, "skills", "max-ultra-maxpkg-packaging", "scripts", "get-maxpkg-upstream.ps1"), "utf8");
     const maxPkgUninstallSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ps1"), "utf8");
     const maxPkgUninstallHookSource = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "maxpkg-uninstall.ms"), "utf8");
-    const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "maxpkg-icon.svg"), "utf8");
+    const maxPkgIconSource = fs.readFileSync(path.join(PROJECT_ROOT, "max-package", "icon.svg"), "utf8");
     const refreshIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "refresh-cw.png"));
     const donateIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "heart.png"));
     const hideIconPng = fs.readFileSync(path.join(PROJECT_ROOT, "assets", "icons", "panel-top-close.png"));
@@ -636,10 +636,14 @@ async function runSmokeTest() {
     assert.equal(fs.existsSync(path.join(skillsRoot, "max-ultra-maxpkg-packaging", "references", "maxpkg-full-onboarding-prompt.md")), false);
     assert.match(maxPkgUpstreamSkillSource, /api\.github\.com\/repos\/maxpkg-dev\/max-dev-tool\/commits\/HEAD/);
     assert.match(maxPkgUpstreamSkillSource, /maxpkg-adaptation-prompt\.md/);
-    assert.match(maxPkgUpstreamSkillSource, /maxpkg-api\.md/);
+    assert.match(maxPkgUpstreamSkillSource, /'docs\/ai-agents\.md'/);
+    assert.doesNotMatch(maxPkgUpstreamSkillSource, /maxpkg-api\.md|'_install\.ms'|'_uninstall\.ms'/);
+    assert.match(maxPkgSkillDocumentation, /max-package\\project\.ini/);
+    assert.match(maxPkgSkillDocumentation, /MaxPkgPackagerHeadless/);
+    assert.doesNotMatch(maxPkgSkillDocumentation, /maxpkg-api\.md/);
     assert.match(maxPkgUpstreamSkillSource, /apiDocumentationPath/);
     assert.match(maxPkgUpstreamSkillSource, /maxpkg-full-onboarding-prompt\.md/);
-    assert.match(maxPkgUpstreamSkillSource, /toolingFiles = @\('maxpkg-packager\.ms', '_install\.ms', '_uninstall\.ms'\)/);
+    assert.match(maxPkgUpstreamSkillSource, /toolingFiles = @\('maxpkg-packager\.ms'\)/);
     assert.match(maxPkgUpstreamSkillSource, /ConfirmProjectWrite/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/scripts\/get-maxpkg-upstream\.ps1/);
     assert.match(maxPkgFilesSource, /skills\/max-ultra-maxpkg-packaging\/references\/marketplace-publishing\.md/);
@@ -647,7 +651,7 @@ async function runSmokeTest() {
     assert.ok(maxPkgSkillDocumentation.includes(publishOffer), "The packaging skill must make the one-line publish offer");
     assert.match(maxPkgSkillDocumentation, /max-ultra-maxpkg-publishing/);
     assert.match(maxPkgSkillDocumentation, /offer is not consent/i);
-    assert.match(maxPkgSkillDocumentation, /min3dsMax[\s\S]*falls back to 2012/);
+    assert.match(maxPkgSkillDocumentation, /min3dsMax[\s\S]*falls back to the packager default \(2012 in packager 1\.x, 2022 in 2\.x\)/);
     const publishingSkillDocumentation = skillDocumentationParts[skillNames.indexOf("max-ultra-maxpkg-publishing")];
     assert.ok(publishingSkillDocumentation.includes(publishOffer), "The publishing skill must use the same offer text");
     assert.match(publishingSkillDocumentation, /Publish only after the user's explicit yes/);
@@ -876,7 +880,17 @@ async function runSmokeTest() {
     assert.match(maxPkgPrepareSource, /entry=01_START_MAX_ULTRA_MCP_FIRST\.ms/);
     assert.match(maxPkgPrepareSource, /compileEntry=false/);
     assert.match(maxPkgPrepareSource, /customUninstallScript=/);
-    assert.match(maxPkgSyncSource, /3727cfd6fe98f8fa6bfd31b900f44ee0c37d9417/);
+    assert.match(maxPkgSyncSource, /dec469a8791d7e1d2ec978c3ea1668c0fce1158e/);
+    assert.match(maxPkgSyncSource, /'_install\.ms' = \$supportFolder/);
+    assert.match(maxPkgPrepareSource, /\$supportFolder 'project\.ini'/);
+    assert.match(maxPkgPrepareSource, /\$supportFolder 'changelog\.ini'/);
+    assert.match(maxPkgPrepareSource, /\$supportFolder 'icon\.svg'/);
+    assert.doesNotMatch(maxPkgPrepareSource, /maxpkg-packager\.ini|maxpkg-changelog\.ini|maxpkg-icon\.svg/);
+    assert.match(gitIgnoreSource, /^max-package\/project\.ini$/m);
+    assert.match(gitIgnoreSource, /^max-package\/changelog\.ini$/m);
+    for (const legacyPackagerFile of ["_install.ms", "_uninstall.ms", "maxpkg-icon.svg", "maxpkg-packager.ini", "maxpkg-changelog.ini"]) {
+      assert.equal(fs.existsSync(path.join(PROJECT_ROOT, legacyPackagerFile)), false, `Legacy MaxPkg Packager 1.x file must not return to the project root: ${legacyPackagerFile}`);
+    }
     assert.match(maxPkgSyncSource, /if \(-not \$Force -and \(Test-Path[^\r\n]+\)\) \{[\s\S]*\$preservedFiles\.Add\(\$fileName\)[\s\S]*continue/);
     assert.doesNotMatch(maxPkgSyncSource, /existingHash|differs from pinned/);
     assert.match(maxPkgSyncSource, /Get-MaxUltraSha256Hash -LiteralPath \$temporaryPath/);

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed: Release preparation follows the MaxPkg Packager 2.x project layout: packager settings, the changelog, the package icon and the standard install and uninstall windows live in the max-package folder.
+- Fixed: The MaxPkg packaging skill reads the official guidance from its current location in the MaxPkg repository and prepares projects for MaxPkg Packager 2.x, including its headless mode.
+
 ## 1.6.0 - 2026-11-13
 
 - Changed: One Skills window replaces the separate Skills and Community Skills windows. Skills are cards in a responsive grid of up to three per row at the default size, with a shared search field and two filters: Community, which is always selected on opening and lists installed skills above the ones that are not installed, and Built-in.

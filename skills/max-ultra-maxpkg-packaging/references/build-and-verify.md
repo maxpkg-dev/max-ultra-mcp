@@ -9,29 +9,34 @@ Leave this authoring layout in the target project:
 ```text
 <PROJECT_ROOT>\
   maxpkg-packager.ms
-  _install.ms
-  _uninstall.ms
-  maxpkg-packager.ini
-  maxpkg-changelog.ini
-  maxpkg-icon.svg
+  max-package\
+    project.ini
+    changelog.ini
+    icon.svg
+    _install.ms
+    _uninstall.ms
+    dist\
   <runtime entry and resources>
-  dist\
 ```
 
-The three `.ms` files are mandatory in the project root even when the current project has no custom installation or cleanup action. For this skill, a project without either standard hook is incomplete and must not be reported as ready. Use the original standard hooks fetched with the packager from the same resolved GitHub commit and do not rewrite them with project code. The `dist` directory may be created by the packager on the first successful build.
+This is the MaxPkg Packager 2.x layout. The packager runs in 3ds Max 2022 or newer; the launcher installs the packager application into the user profile on its first run, which needs internet access once. The project root keeps only the launcher and the `max-package` folder besides the user's own files. Put anything else created for packaging inside `max-package`.
 
-Fetch the current official repository through `scripts/get-maxpkg-upstream.ps1`. Read the returned official prompt instead of a local prompt snapshot. Do not mix packager and hook files from unrelated revisions, overwrite a different local revision without review, or strip upstream headers.
+Both standard hooks are mandatory even when the current project has no custom installation or cleanup action. For this skill, a project or archive without either standard hook is incomplete and must not be reported as ready. The hooks ship with the packager: it copies them into `max-package` when it opens the project and replaces copies that differ from its own, so do not download them, rewrite them with project code, or keep copies in the project root. The `dist` directory is created by the packager on the first successful build.
 
-Before API-assisted configuration or building, also read the returned official `maxpkg-api.md` from that same immutable commit. Use its current method signatures and safety rules together with the live `MaxPkgPackerApi.getSchema()` response; do not rely on a remembered API surface.
+A packager 1.x project keeps `maxpkg-packager.ini`, `maxpkg-changelog.ini`, `maxpkg-icon.svg`, `_install.ms`, and `_uninstall.ms` in its root. Opening it with packager 2.x moves those files into `max-package` automatically. An output folder the project chose explicitly is kept; only the old default `<PROJECT_ROOT>\dist` becomes `max-package\dist`. After the migration, update project scripts, ignore rules, and documents that still name the old root files.
 
-Project-local configuration includes `maxpkg-packager.ini`, `maxpkg-changelog.ini`, and `maxpkg-icon.svg`; normal output defaults to `dist`. These files and the MZP are added alongside the user's sources. Generated manifests and `mzp.run` files exist inside build output and never replace the root authoring files or the original project.
+Fetch the current official repository through `scripts/get-maxpkg-upstream.ps1`. Read the returned official prompt instead of a local prompt snapshot. Do not overwrite a different local launcher revision without review or strip its upstream header.
+
+Before API-assisted configuration or building, also read the returned official `docs/ai-agents.md` from that same immutable commit. Use its current method signatures and safety rules together with the live `MaxPkgPackerApi.getSchema()` response; do not rely on a remembered API surface.
+
+Project-local configuration is `max-package\project.ini`, `max-package\changelog.ini`, and `max-package\icon.svg`; normal output defaults to `max-package\dist`. `project.ini` stores absolute source paths, so decide with the user whether it is committed or ignored. These files and the MZP are added alongside the user's sources. Generated manifests and `mzp.run` files exist inside build output and never replace the authoring files or the original project.
 
 ## Configure the packager automatically
 
 Do not stop at a table of recommended values when the selected packager can be configured locally.
 
-1. Read the selected `maxpkg-packager.ms` revision's current load/save methods and INI schema.
-2. Create or update its project-local configuration and versioned changelog using that exact implemented format, or use stable Max-owned UI controls when direct configuration is unsafe.
+1. Prefer `MaxPkgPackerApi` for every setting: `setOptions`, `addFile`, `addFolder`, `setEntry`, and the changelog methods save the project after each mutation.
+2. Write `max-package\project.ini` and `max-package\changelog.ini` directly only when 3ds Max is unavailable, using the exact format the selected packager revision implements, then call `MaxPkgPackerApi.reload()` before validation once 3ds Max is available.
 3. Preserve unknown settings and an existing valid GUID.
 4. Reopen or refresh the packager and confirm that every configured field round-trips correctly.
 5. Resolve every validation error that can be fixed from project evidence.
@@ -48,7 +53,7 @@ Do not stop at a table of recommended values when the selected packager can be c
 ### Setup
 
 - Decide whether to create the main 3ds Max button and expose it in the MaxPkg toolbar.
-- Configure and verify both standard root hooks, `_install.ms` and `_uninstall.ms`, even when they currently perform only the official default lifecycle behavior.
+- Verify that both standard hooks, `max-package\_install.ms` and `max-package\_uninstall.ms`, are present after the packager opens the project, even when they perform only the official default lifecycle behavior.
 - Select focused custom install or uninstall scripts through the dedicated fields. Do not also add them to the ordinary file list.
 
 ### Files
@@ -58,14 +63,14 @@ Do not stop at a table of recommended values when the selected packager can be c
 - Decide `.ms` to `.mse` compilation using actual runtime compatibility evidence.
 - Use Build Path Remap only when the installed layout intentionally differs from the source layout, then recheck every runtime path and macro target.
 - Configure Extra Macros for reviewed secondary commands. Add Quad Menu integration only when useful and supported.
-- Use a square SVG icon that belongs to the project and remains legible at small sizes. Do not invent misleading branding.
+- Use a square SVG icon that belongs to the project and remains legible at small sizes. Setting `svgIconFile` copies it to `max-package\icon.svg`. Do not invent misleading branding.
 
 ### Release
 
 - Use a supported semantic version and release channel.
 - Use a real `YYYY-MM-DD` release date.
 - Set minimum 3ds Max version from code and test evidence, not aspiration.
-- Setting `version` makes the packager load that version's changelog section. When the section has no `min3dsMax`, the minimum silently falls back to 2012 and the channel to `stable`. Set `releaseChannel` and `min3dsMax` explicitly after `version`, then confirm them with `MaxPkgPackerApi.getState()`. `max3dsMax` is derived by the packager and cannot be set.
+- Setting `version` makes the packager load that version's changelog section. When the section has no `min3dsMax`, the minimum silently falls back to the packager default (2012 in packager 1.x, 2022 in 2.x) and the channel to `stable`. Set `releaseChannel` and `min3dsMax` explicitly after `version`, then confirm them with `MaxPkgPackerApi.getState()`. `max3dsMax` is derived by the packager and cannot be set.
 - Set the `description` option to the final marketplace short description before building; the manifest carries it into maxpkg.dev uploads.
 - Add at least one factual changelog item for the current version.
 
@@ -74,7 +79,15 @@ Do not stop at a table of recommended values when the selected packager can be c
 1. Call `max_list_instances` and select the intended test instance explicitly when several are connected.
 2. Call `max_get_info` and record the real 3ds Max version used for testing.
 3. Test the adapted entry with `max_run_script_file` before packaging. Verify expected UI or scene post-state without modifying a real user scene unexpectedly.
-4. Run the target project's `maxpkg-packager.ms` with `max_run_script_file`.
+4. Load the target project's packager. Packager 2.x has a headless mode that opens no window; run it through `max_run_script`:
+
+   ```maxscript
+   global MaxPkgPackagerHeadless = true
+   fileIn @"<PROJECT_ROOT>\maxpkg-packager.ms"
+   MaxPkgPackagerHeadless = false
+   ```
+
+   Run the launcher with `max_run_script_file` instead when the user wants to watch the window. If the first API call answers that `MaxPkgPackerApi` is undefined, run the `fileIn` in its own call first.
 5. Call `MaxPkgPackerApi.ping()` through `max_run_script` and parse the returned MaxScript string as JSON. Require `ok == true`; record `data.apiVersion`, `data.packagerVersion`, and `data.projectRoot`. Confirm that `projectRoot` is the intended target before any API mutation.
 6. Call `MaxPkgPackerApi.getSchema()` when the packager version or available methods are uncertain. Call `MaxPkgPackerApi.reload()` before validation so the build uses persisted project-local configuration.
 7. Call `MaxPkgPackerApi.validate()`, parse its inner JSON, and resolve every returned error. Do not continue a dependent operation when `ok` is false.
@@ -93,11 +106,12 @@ If 3ds Max or a stable build action is unavailable, complete automatic project c
 
 Before handoff, confirm that the project is usable without the AI agent:
 
-1. the three mandatory root `.ms` files exist and belong to the same reviewed MaxPkg revision;
-2. `maxpkg-packager.ini`, `maxpkg-changelog.ini`, and `maxpkg-icon.svg` exist and contain the reviewed project-specific configuration;
+1. the root `maxpkg-packager.ms` launcher exists and is the reviewed upstream file, and `max-package` holds both standard hooks;
+2. `max-package\project.ini`, `max-package\changelog.ini`, and `max-package\icon.svg` exist and contain the reviewed project-specific configuration;
 3. running the root `maxpkg-packager.ms` in 3ds Max loads that project-local configuration;
 4. the packager reaches its ready state after required metadata is supplied;
-5. the user can invoke Build MZP and receive the archive below `dist`.
+5. the user can invoke Build MZP and receive the archive in the configured output folder, `max-package\dist` by default;
+6. no packaging file, listing, or note was left in the project root.
 
 Attempt the build for the user when the selected 3ds Max instance and the packager API or stable compatibility controls are available. The build must be performed by the fetched original `maxpkg-packager.ms`, not by a custom archive generator. If 3ds Max is unavailable, leave the fully configured authoring project and state the single manual action: run `maxpkg-packager.ms` in 3ds Max and choose Build MZP.
 

@@ -22,12 +22,19 @@ function Get-MaxUltraSha256Hash {
     }
 }
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$revision = '3727cfd6fe98f8fa6bfd31b900f44ee0c37d9417'
+$revision = 'dec469a8791d7e1d2ec978c3ea1668c0fce1158e'
 $baseUri = "https://raw.githubusercontent.com/maxpkg-dev/max-dev-tool/$revision"
 $toolFiles = [ordered]@{
-    'maxpkg-packager.ms' = '8BE1C68508E2297F0CD5A89C9D51C3AEFBD1670DB5901249274C842D33BBD16B'
-    '_install.ms' = '237663E6AE926A54605F5B0B52F7C9368903445DF21A642E001C2EFD7D0C883D'
-    '_uninstall.ms' = 'C1082A7B3467EF0DD627B5722D54CB726028E317640821F5542528064D05A9CB'
+    'maxpkg-packager.ms' = '6076D58B41FDCB822780AC5A99F1F93966972BF21FF63294274943221D5E0CAB'
+    '_install.ms' = 'EBC8AE14F136AF7F3F9D25C89A33886074672C4F7A331C94DA5222C3A3C7EBE9'
+    '_uninstall.ms' = '2A17800E8F777474857733496A2A6C853332BD038437971171282F76B02B01F1'
+}
+# MaxPkg Packager 2.x keeps only its launcher in the project root; the standard hooks live in max-package.
+$supportFolder = Join-Path $projectRoot 'max-package'
+$toolFolders = @{
+    'maxpkg-packager.ms' = $projectRoot
+    '_install.ms' = $supportFolder
+    '_uninstall.ms' = $supportFolder
 }
 $preservedFiles = New-Object System.Collections.Generic.List[string]
 $downloadedFiles = New-Object System.Collections.Generic.List[string]
@@ -36,7 +43,7 @@ $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('max-ultra-mcp-maxpkg-' +
 try {
     New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
     foreach ($fileName in $toolFiles.Keys) {
-        $destinationPath = Join-Path $projectRoot $fileName
+        $destinationPath = Join-Path $toolFolders[$fileName] $fileName
         if (-not $Force -and (Test-Path -LiteralPath $destinationPath -PathType Leaf)) {
             $preservedFiles.Add($fileName)
             continue
@@ -47,6 +54,7 @@ try {
         if ($downloadHash -ne $toolFiles[$fileName]) {
             throw "MaxPkg tooling hash mismatch for $fileName."
         }
+        New-Item -ItemType Directory -Path $toolFolders[$fileName] -Force | Out-Null
         Move-Item -LiteralPath $temporaryPath -Destination $destinationPath -Force
         $downloadedFiles.Add($fileName)
     }
